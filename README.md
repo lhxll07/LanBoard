@@ -1,18 +1,18 @@
 # LanBoard
 
-LanBoard (`桌域`) is a Qt Quick-based board game networking platform MVP.
+LanBoard（桌域）是一个基于 Qt Quick 的桌游联机平台项目，当前仓库为适合多人协作逐步推进的 MVP 骨架。
 
-## Current scope
+## 当前范围
 
-- Qt Quick + QML mobile-first client
-- C++ application, lobby, network, and game modules
-- MVP repository skeleton for incremental team development
+- 使用 Qt Quick + QML 构建移动端优先的界面
+- 使用 C++ 承担应用控制、房间管理、网络通信和游戏流程逻辑
+- 先搭建最小项目结构，后续按模块逐步补全实现
 
-## Module boundaries
+## 模块边界
 
-- `qml/`: UI pages and reusable QML components
-- `src/app/`: top-level coordination between UI and backend modules
-- `src/network/`: transport and session communication entry points
-- `src/lobby/`: room and player state management
-- `src/game/`: game flow management and future board game logic
-- `src/common/`: shared types and lightweight cross-module definitions
+- `qml/`：界面页面与可复用 QML 组件
+- `src/app/`：负责界面层与后端模块之间的总协调
+- `src/network/`：负责网络通信入口与会话连接能力
+- `src/lobby/`：负责房间状态、玩家状态等大厅逻辑
+- `src/game/`：负责游戏流程控制和后续桌游规则扩展
+- `src/common/`：负责跨模块共享的轻量类型定义
