@@ -52,6 +52,7 @@ signals:
     void remoteMoveReceived(int playerId, int row, int col);
     void remoteSurrender(int playerId);
     void remoteStartGame();
+    void gameOverReceived(int winner);
     void roomStateReceived(QJsonObject state);
 
 public slots:
