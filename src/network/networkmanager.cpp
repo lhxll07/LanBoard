@@ -325,6 +325,9 @@ void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
     else if (type == QStringLiteral("room_state")) {
         emit roomStateReceived(msg);
     }
+    else if (type == QStringLiteral("game_start")) {
+        emit remoteStartGame();
+    }
     else if (type == QStringLiteral("start_game")) {
         emit remoteStartGame();
     }
