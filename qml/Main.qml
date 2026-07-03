@@ -14,9 +14,25 @@ ApplicationWindow {
 
     property int currentTab: 0
     property int pendingTab: -1
+    property alias stackView: shellStack
 
     function showGamePage() {
-        shellStack.push(Qt.resolvedUrl("pages/GamePage.qml"))
+        if (stackView.depth > 1)
+            return
+        stackView.push(Qt.resolvedUrl("pages/GamePage.qml"))
+    }
+
+    Connections {
+        target: AppCtrl
+        function onNavigationRequested(page) {
+            if (page === 1) {
+                if (window.stackView.depth > 1)
+                    window.stackView.pop()
+                window.currentTab = 1
+            } else if (page === 2) {
+                showGamePage()
+            }
+        }
     }
 
     Rectangle {
@@ -24,6 +40,32 @@ ApplicationWindow {
         gradient: Gradient {
             GradientStop { position: 0.0; color: AppTheme.pageBackground }
             GradientStop { position: 1.0; color: AppTheme.pageBackgroundAlt }
+        }
+    }
+
+    // Android back button handler
+    Item {
+        focus: true
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Back || event.key === Qt.Key_Escape) {
+                if (window.stackView.depth > 1) {
+                    var inNet = AppCtrl.networkManager.isHost
+                             || AppCtrl.networkManager.isConnected;
+                    if (!AppCtrl.gameController.gameOver) {
+                        if (inNet && AppCtrl.networkManager.isHost) {
+                            AppCtrl.gameController.surrender(1);
+                        } else if (inNet) {
+                            AppCtrl.networkManager.sendSurrender();
+                        } else {
+                            AppCtrl.gameController.surrender();
+                        }
+                    }
+                    event.accepted = true;
+                } else if (window.currentTab > 0) {
+                    window.currentTab = 0;
+                    event.accepted = true;
+                }
+            }
         }
     }
 
@@ -108,17 +150,13 @@ ApplicationWindow {
             Component {
                 id: homePageComponent
 
-                HomePage {
-                    onOpenMatchRequested: window.currentTab = 1
-                }
+                HomePage { }
             }
 
             Component {
                 id: roomPageComponent
 
-                RoomPage {
-                    onStartGameRequested: window.showGamePage()
-                }
+                RoomPage { }
             }
 
             Component {

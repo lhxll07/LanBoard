@@ -3,10 +3,6 @@ import QtQuick.Controls
 import LanBoard
 
 Page {
-    id: root
-
-    signal openMatchRequested()
-
     background: Rectangle {
         color: "transparent"
     }
@@ -27,95 +23,46 @@ Page {
             spacing: 18
 
             PageHeader {
-                id: headerItem
                 titleText: "桌域"
+                subtitleText: "首页只展示当前游戏和本地配置，联机与房间操作统一放在房间页。"
             }
 
             GameCard {
-                id: cardGomoku
+                id: gameCard
                 width: parent.width
                 height: 182
                 titleText: "五子棋"
-                tagText: "2 人"
-                onClicked: root.openMatchRequested()
-
+                subtitleText: "双方轮流落子，先在横、竖或斜线连成五枚的一方获胜。支持局域网对战和本地双人。"
+                tagText: "当前游戏"
                 opacity: 0
-                transform: Translate { id: t1; y: 20 }
+                transform: Translate { id: gameCardOffset; y: 20 }
             }
 
-            GameCard {
-                id: cardUNO
+            SettingCard {
+                id: configCard
                 width: parent.width
-                height: 182
-                titleText: "UNO"
-                tagText: "聚会 / 快速 / 社交"
-                dark: true
-                onClicked: root.openMatchRequested()
-
+                height: 92
+                titleText: "当前配置"
+                valueText: "昵称: " + AppCtrl.nickname + "  ·  默认端口: " + AppCtrl.defaultPort
+                actionText: ""
                 opacity: 0
-                transform: Translate { id: t2; y: 20 }
-            }
-
-            Rectangle {
-                id: resumeCard
-                width: parent.width
-                height: 84
-                radius: AppTheme.radiusCard
-                color: AppTheme.cardBackground
-                border.width: 1
-                border.color: AppTheme.cardBorder
-
-                opacity: 0
-                transform: Translate { id: t3; y: 20 }
-
-                Column {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 28
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 4
-
-                    Text {
-                        text: "继续当前房间"
-                        color: AppTheme.textPrimary
-                        font.pixelSize: 15
-                        font.weight: Font.Medium
-                    }
-                }
-
-                ActionButton {
-                    anchors.right: parent.right
-                    anchors.rightMargin: 24
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 94
-                    text: "进入"
-                    onClicked: root.openMatchRequested()
-                }
+                transform: Translate { id: configCardOffset; y: 20 }
             }
         }
     }
 
-    // Staggered entry animation
     SequentialAnimation {
         id: entryAnim
         running: true
 
         ParallelAnimation {
-            NumberAnimation { target: cardGomoku; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: t1; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: gameCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: gameCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
-
         PauseAnimation { duration: 80 }
-
         ParallelAnimation {
-            NumberAnimation { target: cardUNO; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: t2; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-
-        PauseAnimation { duration: 80 }
-
-        ParallelAnimation {
-            NumberAnimation { target: resumeCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: t3; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: configCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: configCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
     }
 }
