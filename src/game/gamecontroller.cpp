@@ -5,14 +5,16 @@ GameController::GameController(QObject *parent)
 {
 }
 
-void GameController::placePiece(int row, int col)
+bool GameController::placePiece(int row, int col, int player)
 {
     if (m_gameOver)
-        return;
+        return false;
     if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE)
-        return;
+        return false;
     if (m_board[row][col] != 0)
-        return;
+        return false;
+    if (player != 0 && player != m_currentPlayer)
+        return false;
 
     m_board[row][col] = m_currentPlayer;
     emit boardChanged();
@@ -21,22 +23,26 @@ void GameController::placePiece(int row, int col)
         m_winner = m_currentPlayer;
         m_gameOver = true;
         emit gameOverChanged();
-        return;
+        return true;
     }
 
     m_currentPlayer = (m_currentPlayer == 1) ? 2 : 1;
     emit turnChanged();
+    return true;
 }
 
-void GameController::surrender()
+bool GameController::surrender(int player)
 {
     if (m_gameOver)
-        return;
-    // Current player surrenders → opponent wins
+        return false;
+    if (player != 0 && player != m_currentPlayer)
+        return false;
+
     m_winner = (m_currentPlayer == 1) ? 2 : 1;
     m_gameOver = true;
     emit boardChanged();
     emit gameOverChanged();
+    return true;
 }
 
 void GameController::setGameOver(int winner)

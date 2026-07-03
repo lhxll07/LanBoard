@@ -50,6 +50,7 @@ void NetworkManager::connectToServer(const QString &ip, quint16 port,
     connect(m_socket, &QTcpSocket::errorOccurred, this, &NetworkManager::onError);
 
     m_connectedIp = ip;
+    m_connectedPort = port;
     m_socket->connectToHost(ip, port);
 
     // Send join message when connected (handled in onConnected)
@@ -74,6 +75,9 @@ void NetworkManager::disconnectAll()
         m_socket = nullptr;
     }
     m_isHost = false;
+    m_serverPort = 0;
+    m_connectedIp.clear();
+    m_connectedPort = 0;
     emit connectionChanged();
     emit clientCountChanged();
 }
@@ -120,20 +124,6 @@ void NetworkManager::sendSurrender()
     sendJson(m_socket, msg);
 }
 
-void NetworkManager::sendStartGame()
-{
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("start_game");
-    sendJson(m_socket, msg);
-}
-
-void NetworkManager::sendNewGame()
-{
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("new_game");
-    sendJson(m_socket, msg);
-}
-
 // ── Broadcast from host ──
 
 void NetworkManager::broadcastRoomState(const QJsonArray &players)
@@ -144,11 +134,10 @@ void NetworkManager::broadcastRoomState(const QJsonArray &players)
     broadcastJson(msg);
 }
 
-void NetworkManager::broadcastGameStarted(int firstPlayer)
+void NetworkManager::broadcastGameStarted()
 {
     QJsonObject msg;
     msg[QStringLiteral("type")] = QStringLiteral("game_start");
-    msg[QStringLiteral("firstPlayer")] = firstPlayer;
     broadcastJson(msg);
 }
 
@@ -230,8 +219,10 @@ void NetworkManager::onClientDisconnected()
 {
     QTcpSocket *client = qobject_cast<QTcpSocket *>(QObject::sender());
     if (client) {
+        const int playerId = client->property("playerId").toInt();
         m_clients.removeOne(client);
         client->deleteLater();
+        emit clientDisconnected(playerId);
         emit clientCountChanged();
     }
 }
@@ -257,6 +248,8 @@ void NetworkManager::onDisconnected()
         m_socket->deleteLater();
         m_socket = nullptr;
     }
+    m_connectedIp.clear();
+    m_connectedPort = 0;
     emit connectionChanged();
 }
 
@@ -293,7 +286,6 @@ void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
 
     if (type == QStringLiteral("join")) {
         QString name = msg.value(QStringLiteral("name")).toString();
-        int playerId = sender->property("playerId").toInt();
         sender->setProperty("playerName", name);
         emit joinRequested(name, sender);
     }
@@ -313,10 +305,10 @@ void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
         emit remoteSurrender(playerId);
     }
     else if (type == QStringLiteral("move")) {
-        // Client received move broadcast from host
+        int player = msg.value(QStringLiteral("player")).toInt();
         int row = msg.value(QStringLiteral("row")).toInt();
         int col = msg.value(QStringLiteral("col")).toInt();
-        emit remoteMoveReceived(0, row, col); // playerId=0 means from host
+        emit remoteMoveReceived(player, row, col);
     }
     else if (type == QStringLiteral("game_over")) {
         int winner = msg.value(QStringLiteral("winner")).toInt();
@@ -327,11 +319,5 @@ void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
     }
     else if (type == QStringLiteral("game_start")) {
         emit remoteStartGame();
-    }
-    else if (type == QStringLiteral("start_game")) {
-        emit remoteStartGame();
-    }
-    else if (type == QStringLiteral("new_game")) {
-        emit remoteStartGame(); // reuse the same flow
     }
 }

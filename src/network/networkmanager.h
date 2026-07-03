@@ -17,6 +17,7 @@ class NetworkManager : public QObject
     Q_PROPERTY(int clientCount READ clientCount NOTIFY clientCountChanged)
     Q_PROPERTY(quint16 serverPort READ serverPort NOTIFY connectionChanged)
     Q_PROPERTY(QString connectedIp READ connectedIp NOTIFY connectionChanged)
+    Q_PROPERTY(quint16 connectedPort READ connectedPort NOTIFY connectionChanged)
     Q_PROPERTY(QString localIp READ localIp CONSTANT)
 
 public:
@@ -30,14 +31,13 @@ public:
     Q_INVOKABLE void sendReady(bool ready);
     Q_INVOKABLE void sendPlacePiece(int row, int col);
     Q_INVOKABLE void sendSurrender();
-    Q_INVOKABLE void sendStartGame();
-    Q_INVOKABLE void sendNewGame();
 
     bool isHost() const { return m_isHost; }
     bool isConnected() const;
     int clientCount() const { return m_clients.size(); }
     quint16 serverPort() const { return m_serverPort; }
     QString connectedIp() const { return m_connectedIp; }
+    quint16 connectedPort() const { return m_connectedPort; }
     QString localIp() const;
 
 signals:
@@ -54,11 +54,12 @@ signals:
     void remoteStartGame();
     void gameOverReceived(int winner);
     void roomStateReceived(QJsonObject state);
+    void clientDisconnected(int playerId);
 
 public slots:
     // Called by AppController to broadcast state changes
     void broadcastRoomState(const QJsonArray &players);
-    void broadcastGameStarted(int firstPlayer);
+    void broadcastGameStarted();
     void broadcastMove(int player, int row, int col);
     void broadcastGameOver(int winner);
 
@@ -81,6 +82,7 @@ private:
     bool m_isHost = false;
     quint16 m_serverPort = 0;
     QString m_connectedIp;
+    quint16 m_connectedPort = 0;
 
     // Track which player ID corresponds to which socket
     int m_nextPlayerId = 1;
