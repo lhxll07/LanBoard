@@ -15,9 +15,11 @@ class RoomManager : public QObject
 public:
     explicit RoomManager(QObject *parent = nullptr);
 
-    Q_INVOKABLE void addPlayer(const QString &name, bool host = false);
+    Q_INVOKABLE void addPlayer(const QString &name, bool host = false, bool ready = false);
+    Q_INVOKABLE void addTestPlayer(const QString &name);
     Q_INVOKABLE void toggleReady();
     Q_INVOKABLE void startGame();
+    Q_INVOKABLE void reset();
 
     QVariantList playerList() const;
     bool isHost() const;
