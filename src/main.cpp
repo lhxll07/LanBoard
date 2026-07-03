@@ -54,6 +54,8 @@ void messageHandler(QtMsgType type, const QMessageLogContext &, const QString &m
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
+    QCoreApplication::setOrganizationName(QStringLiteral("LanBoard"));
+    QCoreApplication::setApplicationName(QStringLiteral("LanBoard"));
     qInstallMessageHandler(messageHandler);
     QQuickStyle::setStyle(QStringLiteral("Basic"));
 

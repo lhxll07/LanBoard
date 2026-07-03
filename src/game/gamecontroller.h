@@ -14,8 +14,8 @@ class GameController : public QObject
 public:
     explicit GameController(QObject *parent = nullptr);
 
-    Q_INVOKABLE void placePiece(int row, int col);
-    Q_INVOKABLE void surrender();
+    Q_INVOKABLE bool placePiece(int row, int col, int player = 0);
+    Q_INVOKABLE bool surrender(int player = 0);
     Q_INVOKABLE void setGameOver(int winner);
     Q_INVOKABLE void startNewGame();
     Q_INVOKABLE void reset();

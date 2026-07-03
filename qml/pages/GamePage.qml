@@ -6,6 +6,21 @@ import LanBoard
 Page {
     id: root
 
+    function surrenderAndLeave() {
+        if (AppCtrl.gameController.gameOver)
+            return;
+
+        var inNet = AppCtrl.networkManager.isHost
+                 || AppCtrl.networkManager.isConnected;
+        if (inNet && AppCtrl.networkManager.isHost) {
+            AppCtrl.gameController.surrender(1);
+        } else if (inNet) {
+            AppCtrl.networkManager.sendSurrender();
+        } else {
+            AppCtrl.gameController.surrender();
+        }
+    }
+
     background: Rectangle {
         color: "transparent"
     }
@@ -133,37 +148,30 @@ Page {
                     }
                 }
 
-                function canPlace() {
-                    if (AppCtrl.gameController.gameOver) return false;
-                    var inNet = AppCtrl.networkManager.isHost
-                             || AppCtrl.networkManager.isConnected;
-                    if (!inNet) return true; // local mode
-                    if (AppCtrl.networkManager.isHost)
-                        return AppCtrl.gameController.currentPlayer === 1;
-                    else
-                        return AppCtrl.gameController.currentPlayer === 2;
-                }
-
                 MouseArea {
                     anchors.fill: parent
-                    enabled: canPlace()
+                    enabled: !AppCtrl.gameController.gameOver
                     onClicked: {
+                        // Check turn: only your own turn in network mode
+                        var inNet = AppCtrl.networkManager.isHost
+                                 || AppCtrl.networkManager.isConnected;
+                        if (inNet) {
+                            var myTurn = AppCtrl.networkManager.isHost
+                                ? AppCtrl.gameController.currentPlayer === 1
+                                : AppCtrl.gameController.currentPlayer === 2;
+                            if (!myTurn) return;
+                        }
+
                         const col = Math.floor(mouse.x / boardCanvas.cellW);
                         const row = Math.floor(mouse.y / boardCanvas.cellH);
                         if (col >= 0 && col < 14 && row >= 0 && row < 14) {
-                            var inNet = AppCtrl.networkManager.isHost
-                                     || AppCtrl.networkManager.isConnected;
                             if (inNet && AppCtrl.networkManager.isHost) {
-                                // Host: place locally then broadcast
-                                AppCtrl.gameController.placePiece(row, col);
-                                if (!AppCtrl.gameController.gameOver) {
+                                if (AppCtrl.gameController.placePiece(row, col, 1)) {
                                     AppCtrl.networkManager.broadcastMove(1, row, col);
                                 }
                             } else if (inNet) {
-                                // Client: send move via network
                                 AppCtrl.networkManager.sendPlacePiece(row, col);
                             } else {
-                                // Local: place directly
                                 AppCtrl.gameController.placePiece(row, col);
                             }
                         }
@@ -181,50 +189,12 @@ Page {
         }
 
         // -- 底部按钮 --
-        RowLayout {
+        ActionButton {
             Layout.fillWidth: true
-            spacing: AppTheme.spacingMd
-
-            ActionButton {
-                Layout.fillWidth: true
-                text: AppCtrl.gameController.gameOver ? "再来一局" : "退出"
-                secondary: AppCtrl.gameController.gameOver
-                onClicked: {
-                    if (AppCtrl.gameController.gameOver) {
-                        var inNet = AppCtrl.networkManager.isHost
-                                 || AppCtrl.networkManager.isConnected;
-                        if (inNet && AppCtrl.networkManager.isHost) {
-                            AppCtrl.gameController.startNewGame();
-                            AppCtrl.networkManager.broadcastGameStarted(1);
-                        } else if (inNet) {
-                            AppCtrl.networkManager.sendNewGame();
-                        } else {
-                            AppCtrl.gameController.startNewGame();
-                        }
-                    } else {
-                        StackView.view.pop();
-                    }
-                }
-            }
-
-            ActionButton {
-                Layout.fillWidth: true
-                text: "认输"
-                enabled: !AppCtrl.gameController.gameOver
-                onClicked: {
-                    var inNet = AppCtrl.networkManager.isHost
-                             || AppCtrl.networkManager.isConnected;
-                    if (inNet && AppCtrl.networkManager.isHost) {
-                        AppCtrl.gameController.surrender();
-                        AppCtrl.networkManager.broadcastGameOver(
-                            AppCtrl.gameController.winner);
-                    } else if (inNet) {
-                        AppCtrl.networkManager.sendSurrender();
-                    } else {
-                        AppCtrl.gameController.surrender();
-                    }
-                }
-            }
+            text: "认输并返回房间"
+            secondary: true
+            enabled: !AppCtrl.gameController.gameOver
+            onClicked: root.surrenderAndLeave()
         }
     }
 }
