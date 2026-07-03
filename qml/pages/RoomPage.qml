@@ -11,6 +11,13 @@ Page {
         color: "transparent"
     }
 
+    Connections {
+        target: AppCtrl.roomManager
+        function onGameStarted() {
+            root.startGameRequested()
+        }
+    }
+
     Flickable {
         anchors.fill: parent
         contentWidth: width
@@ -28,7 +35,7 @@ Page {
 
             PageHeader {
                 titleText: AppTheme.zhMatch()
-                trailingText: "3 / 4"
+                trailingText: AppCtrl.roomManager.playerList.length + " / 4"
             }
 
             Rectangle {
@@ -78,30 +85,17 @@ Page {
                 font.weight: Font.DemiBold
             }
 
-            PlayerCard {
-                width: parent.width
-                height: 84
-                playerName: "lhx"
-                roleText: AppTheme.zhHost()
-                statusText: AppTheme.zhReady()
-                ready: true
-            }
+            Repeater {
+                model: AppCtrl.roomManager.playerList
 
-            PlayerCard {
-                width: parent.width
-                height: 84
-                playerName: "player02"
-                roleText: AppTheme.zhMember()
-                statusText: AppTheme.zhNotReady()
-            }
-
-            PlayerCard {
-                width: parent.width
-                height: 84
-                playerName: "player03"
-                roleText: AppTheme.zhMember()
-                statusText: AppTheme.zhReady()
-                ready: true
+                delegate: PlayerCard {
+                    width: parent.width
+                    height: 84
+                    playerName: modelData.name
+                    roleText: modelData.isHost ? AppTheme.zhHost() : AppTheme.zhMember()
+                    statusText: modelData.isReady ? AppTheme.zhReady() : AppTheme.zhNotReady()
+                    ready: modelData.isReady
+                }
             }
 
             Row {
@@ -110,14 +104,28 @@ Page {
 
                 ActionButton {
                     width: (parent.width - parent.spacing) / 2
-                    text: AppTheme.zhPrepare()
+                    text: AppCtrl.roomManager.playerList[0] && AppCtrl.roomManager.playerList[0].isReady
+                        ? "取消准备"
+                        : AppTheme.zhPrepare()
                     secondary: true
+                    onClicked: AppCtrl.roomManager.toggleReady()
                 }
 
                 ActionButton {
                     width: (parent.width - parent.spacing) / 2
                     text: AppTheme.zhStartGame()
-                    onClicked: root.startGameRequested()
+                    enabled: AppCtrl.roomManager.canStart
+                    onClicked: AppCtrl.roomManager.startGame()
+                }
+            }
+
+            ActionButton {
+                width: parent.width
+                text: "添加测试玩家"
+                secondary: true
+                onClicked: {
+                    var count = AppCtrl.roomManager.playerList.length;
+                    AppCtrl.roomManager.addPlayer("player0" + (count + 1));
                 }
             }
         }

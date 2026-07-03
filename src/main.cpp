@@ -4,9 +4,12 @@
 #include <QTextStream>
 #include <QDir>
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <QQmlError>
 #include <QtGlobal>
 #include <QQuickStyle>
+
+#include "src/app/appcontroller.h"
 
 namespace {
 
@@ -30,16 +33,11 @@ void messageHandler(QtMsgType type, const QMessageLogContext &, const QString &m
 {
     const QString level = [type]() {
         switch (type) {
-        case QtDebugMsg:
-            return QStringLiteral("DEBUG");
-        case QtInfoMsg:
-            return QStringLiteral("INFO");
-        case QtWarningMsg:
-            return QStringLiteral("WARN");
-        case QtCriticalMsg:
-            return QStringLiteral("CRITICAL");
-        case QtFatalMsg:
-            return QStringLiteral("FATAL");
+        case QtDebugMsg:   return QStringLiteral("DEBUG");
+        case QtInfoMsg:    return QStringLiteral("INFO");
+        case QtWarningMsg: return QStringLiteral("WARN");
+        case QtCriticalMsg: return QStringLiteral("CRITICAL");
+        case QtFatalMsg:   return QStringLiteral("FATAL");
         }
         return QStringLiteral("LOG");
     }();
@@ -64,6 +62,11 @@ int main(int argc, char *argv[])
     appendLogLine(QStringLiteral("App dir: %1").arg(QCoreApplication::applicationDirPath()));
 
     QQmlApplicationEngine engine;
+
+    // Create and expose AppController to QML
+    AppController appCtrl;
+    engine.rootContext()->setContextProperty(QStringLiteral("AppCtrl"), &appCtrl);
+
     QObject::connect(&engine, &QQmlApplicationEngine::warnings, &app,
                      [](const QList<QQmlError> &warnings) {
                          for (const QQmlError &warning : warnings)
