@@ -19,6 +19,21 @@ ApplicationWindow {
         shellStack.push(Qt.resolvedUrl("pages/GamePage.qml"))
     }
 
+    function showRoomPage() {
+        window.currentTab = 1
+    }
+
+    Connections {
+        target: AppCtrl
+        function onNavigationRequested(page) {
+            if (page === 1) {
+                window.currentTab = 1
+            } else if (page === 2) {
+                showGamePage()
+            }
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {

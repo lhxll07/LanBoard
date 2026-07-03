@@ -1,11 +1,19 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import LanBoard
 
 Page {
     id: root
 
     signal openMatchRequested()
+
+    Connections {
+        target: AppCtrl
+        function onRoomReady() {
+            root.openMatchRequested()
+        }
+    }
 
     background: Rectangle {
         color: "transparent"
@@ -31,33 +39,78 @@ Page {
                 titleText: "桌域"
             }
 
+            // -- 创建房间 --
             GameCard {
-                id: cardGomoku
+                id: cardHost
                 width: parent.width
                 height: 182
-                titleText: "五子棋"
-                tagText: "2 人"
-                onClicked: root.openMatchRequested()
+                titleText: "创建房间"
+                tagText: "主机"
+                onClicked: {
+                    AppCtrl.startRoomAsHost()
+                }
 
                 opacity: 0
                 transform: Translate { id: t1; y: 20 }
             }
 
-            GameCard {
-                id: cardUNO
+            // -- 加入房间 --
+            Rectangle {
+                id: joinCard
                 width: parent.width
                 height: 182
-                titleText: "UNO"
-                tagText: "聚会 / 快速 / 社交"
-                dark: true
-                onClicked: root.openMatchRequested()
+                radius: 32
+                color: AppTheme.cardBackground
+                border.width: 1
+                border.color: AppTheme.cardBorder
 
                 opacity: 0
                 transform: Translate { id: t2; y: 20 }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 24
+                    spacing: 12
+
+                    Text {
+                        text: "加入房间"
+                        color: AppTheme.textPrimary
+                        font.pixelSize: 24
+                        font.weight: Font.DemiBold
+                    }
+
+                    TextField {
+                        id: ipInput
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 44
+                        placeholderText: "输入主机 IP 地址"
+                        font.pixelSize: 15
+                        color: AppTheme.textPrimary
+                        background: Rectangle {
+                            radius: 12
+                            color: AppTheme.cardBackgroundSoft
+                            border.width: 1
+                            border.color: ipInput.activeFocus ? AppTheme.accent : AppTheme.cardBorder
+                        }
+                        leftPadding: 16
+                        verticalAlignment: TextInput.AlignVCenter
+                    }
+
+                    ActionButton {
+                        Layout.fillWidth: true
+                        text: "加入"
+                        onClicked: {
+                            if (ipInput.text.length > 0) {
+                                AppCtrl.joinRoom(ipInput.text, "player02")
+                            }
+                        }
+                    }
+                }
             }
 
+            // -- 继续本地 --
             Rectangle {
-                id: resumeCard
+                id: localCard
                 width: parent.width
                 height: 84
                 radius: AppTheme.radiusCard
@@ -75,7 +128,7 @@ Page {
                     spacing: 4
 
                     Text {
-                        text: "继续当前房间"
+                        text: "本地测试"
                         color: AppTheme.textPrimary
                         font.pixelSize: 15
                         font.weight: Font.Medium
@@ -100,21 +153,17 @@ Page {
         running: true
 
         ParallelAnimation {
-            NumberAnimation { target: cardGomoku; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: cardHost; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: t1; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
-
         PauseAnimation { duration: 80 }
-
         ParallelAnimation {
-            NumberAnimation { target: cardUNO; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: joinCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: t2; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
-
         PauseAnimation { duration: 80 }
-
         ParallelAnimation {
-            NumberAnimation { target: resumeCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: localCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: t3; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
     }

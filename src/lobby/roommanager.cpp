@@ -10,12 +10,17 @@ RoomManager::RoomManager(QObject *parent)
     addPlayer(QStringLiteral("lhx"), true);
 }
 
-void RoomManager::addPlayer(const QString &name, bool host)
+void RoomManager::addPlayer(const QString &name, bool host, bool ready)
 {
-    m_players.append({name, host, false});
+    m_players.append({name, host, ready});
     emit playerListChanged();
     if (host)
         emit hostChanged();
+}
+
+void RoomManager::addTestPlayer(const QString &name)
+{
+    addPlayer(name, false, true);
 }
 
 void RoomManager::toggleReady()
@@ -31,6 +36,13 @@ void RoomManager::startGame()
     if (!canStart())
         return;
     emit gameStarted();
+}
+
+void RoomManager::reset()
+{
+    m_players.clear();
+    emit playerListChanged();
+    emit hostChanged();
 }
 
 QVariantList RoomManager::playerList() const

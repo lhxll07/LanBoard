@@ -125,7 +125,7 @@ Page {
                 secondary: true
                 onClicked: {
                     var count = AppCtrl.roomManager.playerList.length;
-                    AppCtrl.roomManager.addPlayer("player0" + (count + 1));
+                    AppCtrl.roomManager.addTestPlayer("player0" + (count + 1));
                 }
             }
         }
