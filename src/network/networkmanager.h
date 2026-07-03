@@ -15,6 +15,8 @@ class NetworkManager : public QObject
     Q_PROPERTY(bool isHost READ isHost NOTIFY connectionChanged)
     Q_PROPERTY(bool isConnected READ isConnected NOTIFY connectionChanged)
     Q_PROPERTY(int clientCount READ clientCount NOTIFY clientCountChanged)
+    Q_PROPERTY(quint16 serverPort READ serverPort NOTIFY connectionChanged)
+    Q_PROPERTY(QString connectedIp READ connectedIp NOTIFY connectionChanged)
     Q_PROPERTY(QString localIp READ localIp CONSTANT)
 
 public:
@@ -34,6 +36,8 @@ public:
     bool isHost() const { return m_isHost; }
     bool isConnected() const;
     int clientCount() const { return m_clients.size(); }
+    quint16 serverPort() const { return m_serverPort; }
+    QString connectedIp() const { return m_connectedIp; }
     QString localIp() const;
 
 signals:
@@ -75,6 +79,8 @@ private:
     QList<QTcpSocket *> m_clients;        // server's connected clients
     QByteArray m_readBuffer;              // for partial reads
     bool m_isHost = false;
+    quint16 m_serverPort = 0;
+    QString m_connectedIp;
 
     // Track which player ID corresponds to which socket
     int m_nextPlayerId = 1;
