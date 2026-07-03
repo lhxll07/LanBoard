@@ -38,6 +38,71 @@ Page {
                 trailingText: AppCtrl.roomManager.playerList.length + " / 4"
             }
 
+            // -- 网络状态栏 --
+            Rectangle {
+                width: parent.width
+                height: 72
+                radius: AppTheme.radiusCard
+                color: AppTheme.cardBackgroundSoft
+                border.width: 0
+
+                visible: AppCtrl.networkManager.isHost || AppCtrl.networkManager.isConnected
+
+                Row {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 20
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 12
+
+                    Rectangle {
+                        width: 8
+                        height: 8
+                        radius: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: AppCtrl.networkManager.isConnected ? "#34A853" : "#FBBC04"
+                    }
+
+                    Column {
+                        spacing: 2
+
+                        Text {
+                            text: AppCtrl.networkManager.isHost
+                                ? "主机模式"
+                                : "已连接到主机"
+                            color: AppTheme.textPrimary
+                            font.pixelSize: 14
+                            font.weight: Font.DemiBold
+                        }
+
+                        Text {
+                            text: {
+                                if (AppCtrl.networkManager.isHost)
+                                    return "IP: " + AppCtrl.networkManager.localIp
+                                           + " : " + AppCtrl.networkManager.serverPort
+                                           + "  ·  " + AppCtrl.networkManager.clientCount + " 人在线"
+                                else
+                                    return "IP: " + AppCtrl.networkManager.connectedIp
+                                           + " : 44567"
+                            }
+                            color: AppTheme.textMuted
+                            font.pixelSize: 12
+                        }
+                    }
+                }
+
+                Text {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 20
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: AppCtrl.networkManager.isHost
+                        ? (AppCtrl.networkManager.clientCount > 0 ? "等待开始" : "等待加入...")
+                        : "已连接"
+                    color: AppTheme.accent
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                }
+            }
+
             Rectangle {
                 width: parent.width
                 height: 84
@@ -108,7 +173,9 @@ Page {
                         ? "取消准备"
                         : AppTheme.zhPrepare()
                     secondary: true
-                    onClicked: AppCtrl.roomManager.toggleReady()
+                    onClicked: {
+                        AppCtrl.roomManager.toggleReady()
+                    }
                 }
 
                 ActionButton {
@@ -119,10 +186,12 @@ Page {
                 }
             }
 
+            // -- 本地测试按钮（仅非联网模式可见） --
             ActionButton {
                 width: parent.width
                 text: "添加测试玩家"
                 secondary: true
+                visible: !AppCtrl.networkManager.isHost && !AppCtrl.networkManager.isConnected
                 onClicked: {
                     var count = AppCtrl.roomManager.playerList.length;
                     AppCtrl.roomManager.addTestPlayer("player0" + (count + 1));

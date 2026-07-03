@@ -31,6 +31,7 @@ void NetworkManager::startServer(quint16 port)
     }
     m_isHost = true;
     m_nextPlayerId = 1;
+    m_serverPort = port;
     emit connectionChanged();
     emit serverStarted(port);
 }
@@ -48,6 +49,7 @@ void NetworkManager::connectToServer(const QString &ip, quint16 port,
     connect(m_socket, &QTcpSocket::disconnected, this, &NetworkManager::onDisconnected);
     connect(m_socket, &QTcpSocket::errorOccurred, this, &NetworkManager::onError);
 
+    m_connectedIp = ip;
     m_socket->connectToHost(ip, port);
 
     // Send join message when connected (handled in onConnected)
