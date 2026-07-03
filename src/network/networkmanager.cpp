@@ -194,16 +194,18 @@ void NetworkManager::onReadyRead()
     if (!sender)
         return;
 
-    m_readBuffer.append(sender->readAll());
+    // Per-socket read buffer (stored as property)
+    QByteArray buf = sender->property("readBuffer").toByteArray();
+    buf.append(sender->readAll());
 
     // Process complete messages (newline-delimited JSON)
     while (true) {
-        int idx = m_readBuffer.indexOf('\n');
+        int idx = buf.indexOf('\n');
         if (idx < 0)
             break;
 
-        QByteArray line = m_readBuffer.left(idx).trimmed();
-        m_readBuffer.remove(0, idx + 1);
+        QByteArray line = buf.left(idx).trimmed();
+        buf.remove(0, idx + 1);
 
         if (line.isEmpty())
             continue;
@@ -219,6 +221,9 @@ void NetworkManager::onReadyRead()
 
         processMessage(sender, doc.object());
     }
+
+    // Save remaining partial data
+    sender->setProperty("readBuffer", buf);
 }
 
 void NetworkManager::onClientDisconnected()

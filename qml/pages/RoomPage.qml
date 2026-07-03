@@ -174,7 +174,20 @@ Page {
                         : AppTheme.zhPrepare()
                     secondary: true
                     onClicked: {
-                        AppCtrl.roomManager.toggleReady()
+                        var inNetwork = AppCtrl.networkManager.isHost
+                                     || AppCtrl.networkManager.isConnected;
+                        if (inNetwork && !AppCtrl.networkManager.isHost) {
+                            // Client: send ready via network, don't toggle locally
+                            var newState = !AppCtrl.roomManager.playerList[0].isReady;
+                            AppCtrl.networkManager.sendReady(newState);
+                        } else {
+                            // Host or local: toggle local RoomManager
+                            AppCtrl.roomManager.toggleReady();
+                            if (AppCtrl.networkManager.isHost) {
+                                AppCtrl.networkManager.broadcastRoomState(
+                                    AppCtrl.roomManager.playerList);
+                            }
+                        }
                     }
                 }
 
@@ -182,7 +195,9 @@ Page {
                     width: (parent.width - parent.spacing) / 2
                     text: AppTheme.zhStartGame()
                     enabled: AppCtrl.roomManager.canStart
-                    onClicked: AppCtrl.roomManager.startGame()
+                    onClicked: {
+                        AppCtrl.roomManager.startGame()
+                    }
                 }
             }
 
