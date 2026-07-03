@@ -47,7 +47,19 @@ Page {
             Layout.alignment: Qt.AlignHCenter
             text: AppCtrl.gameController.gameOver
                 ? (AppCtrl.gameController.winner === 1 ? "黑子胜！" : "白子胜！")
-                : (AppCtrl.gameController.currentPlayer === 1 ? "轮到你了" : "等待对方落子")
+                : (function() {
+                    var inNet = AppCtrl.networkManager.isHost
+                             || AppCtrl.networkManager.isConnected;
+                    if (!inNet)
+                        return AppCtrl.gameController.currentPlayer === 1
+                            ? "黑方落子" : "白方落子";
+                    if (AppCtrl.networkManager.isHost)
+                        return AppCtrl.gameController.currentPlayer === 1
+                            ? "轮到你了" : "等待对方落子";
+                    else
+                        return AppCtrl.gameController.currentPlayer === 2
+                            ? "轮到你了" : "等待对方落子";
+                }())
             color: AppTheme.textPrimary
             font.pixelSize: 24
             font.weight: Font.DemiBold
@@ -121,9 +133,20 @@ Page {
                     }
                 }
 
+                function canPlace() {
+                    if (AppCtrl.gameController.gameOver) return false;
+                    var inNet = AppCtrl.networkManager.isHost
+                             || AppCtrl.networkManager.isConnected;
+                    if (!inNet) return true; // local mode
+                    if (AppCtrl.networkManager.isHost)
+                        return AppCtrl.gameController.currentPlayer === 1;
+                    else
+                        return AppCtrl.gameController.currentPlayer === 2;
+                }
+
                 MouseArea {
                     anchors.fill: parent
-                    enabled: !AppCtrl.gameController.gameOver
+                    enabled: canPlace()
                     onClicked: {
                         const col = Math.floor(mouse.x / boardCanvas.cellW);
                         const row = Math.floor(mouse.y / boardCanvas.cellH);
@@ -152,7 +175,7 @@ Page {
         // -- 当前玩家 --
         Text {
             Layout.alignment: Qt.AlignHCenter
-            text: AppCtrl.gameController.currentPlayer === 1 ? "黑子 · 你" : "白子 · 对手"
+            text: AppCtrl.gameController.currentPlayer === 1 ? "黑子" : "白子"
             color: AppTheme.textSecondary
             font.pixelSize: 14
         }
