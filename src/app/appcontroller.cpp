@@ -144,10 +144,10 @@ void AppController::onRemoteMoveReceived(int playerId, int row, int col)
     // Host received a move from a client, validate and broadcast
     m_gameController->placePiece(row, col);
 
+    // Always broadcast move first, then game_over if needed
+    m_networkManager->broadcastMove(playerId, row, col);
     if (m_gameController->isGameOver()) {
         m_networkManager->broadcastGameOver(m_gameController->winner());
-    } else {
-        m_networkManager->broadcastMove(playerId, row, col);
     }
 }
 

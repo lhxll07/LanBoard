@@ -130,11 +130,17 @@ Page {
                         if (col >= 0 && col < 14 && row >= 0 && row < 14) {
                             var inNet = AppCtrl.networkManager.isHost
                                      || AppCtrl.networkManager.isConnected;
-                            if (inNet && !AppCtrl.networkManager.isHost) {
+                            if (inNet && AppCtrl.networkManager.isHost) {
+                                // Host: place locally then broadcast
+                                AppCtrl.gameController.placePiece(row, col);
+                                if (!AppCtrl.gameController.gameOver) {
+                                    AppCtrl.networkManager.broadcastMove(1, row, col);
+                                }
+                            } else if (inNet) {
                                 // Client: send move via network
                                 AppCtrl.networkManager.sendPlacePiece(row, col);
                             } else {
-                                // Host or local: place on local GameController
+                                // Local: place directly
                                 AppCtrl.gameController.placePiece(row, col);
                             }
                         }
