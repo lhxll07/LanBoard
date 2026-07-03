@@ -108,28 +108,23 @@ void AppController::onJoinRequested(const QString &name, QTcpSocket *socket)
 
 void AppController::onRemoteReadyChanged(int playerId, bool ready)
 {
-    // Host received ready state change from a client
-    // In a full implementation, we'd update the specific player.
-    // For now, we just re-broadcast the room state.
+    // Host received ready state change from a client.
+    // Update the host's RoomManager and broadcast to all clients.
+    int updateIndex = playerId; // first client = playerId 1 = index 1 in RoomManager
 
-    // Actually, the host's RoomManager only knows local player.
-    // For simplicity, we forward the ready state to all clients.
-    QJsonArray players;
     auto list = m_roomManager->playerList();
+    m_roomManager->reset();
     for (int i = 0; i < list.size(); ++i) {
         QVariantMap map = list[i].toMap();
-        // If this is the player who sent the ready, update their state
-        // (playerId maps to index+1 since host is always player 0)
-        if (i == playerId - 1) {
-            map[QStringLiteral("isReady")] = ready;
-        }
-        QJsonObject obj;
-        obj[QStringLiteral("name")] = map[QStringLiteral("name")].toString();
-        obj[QStringLiteral("isHost")] = map[QStringLiteral("isHost")].toBool();
-        obj[QStringLiteral("isReady")] = map[QStringLiteral("isReady")].toBool();
-        players.append(obj);
+        bool isReady = (i == updateIndex) ? ready
+                       : map[QStringLiteral("isReady")].toBool();
+        m_roomManager->addPlayer(
+            map[QStringLiteral("name")].toString(),
+            map[QStringLiteral("isHost")].toBool(),
+            isReady);
     }
-    m_networkManager->broadcastRoomState(players);
+
+    broadcastCurrentRoomState();
 }
 
 void AppController::onRemoteMoveReceived(int playerId, int row, int col)

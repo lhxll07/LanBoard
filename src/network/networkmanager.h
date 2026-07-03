@@ -77,7 +77,6 @@ private:
     QTcpServer *m_server = nullptr;
     QTcpSocket *m_socket = nullptr;       // client's connection to server
     QList<QTcpSocket *> m_clients;        // server's connected clients
-    QByteArray m_readBuffer;              // for partial reads
     bool m_isHost = false;
     quint16 m_serverPort = 0;
     QString m_connectedIp;
