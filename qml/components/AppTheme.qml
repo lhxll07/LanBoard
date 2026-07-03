@@ -70,7 +70,6 @@ QtObject {
     function zhMember() { return "\u6210\u5458"; }
     function zhReady() { return "\u5df2\u51c6\u5907"; }
     function zhNotReady() { return "\u672a\u51c6\u5907"; }
-    function zhChange() { return "\u66f4\u6362"; }
     function zhPrepare() { return "\u51c6\u5907"; }
     function zhStartGame() { return "\u5f00\u59cb\u6e38\u620f"; }
 }
