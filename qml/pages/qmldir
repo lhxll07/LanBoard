@@ -1,0 +1,6 @@
+module LanBoard.Pages
+
+HomePage 1.0 HomePage.qml
+RoomPage 1.0 RoomPage.qml
+SettingsPage 1.0 SettingsPage.qml
+GamePage 1.0 GamePage.qml
