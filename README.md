@@ -52,11 +52,56 @@ LanBoard/
 
 ## 构建方式
 
+### 首次构建
+
+```powershell
+# 1. 进入构建目录
+cd build-qt6103
+
+# 2. 配置 CMake（指定 MinGW 编译器和 Qt 路径）
+cmake .. -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64"
+
+# 3. 编译项目（-j8 表示 8 线程并行编译）
+mingw32-make -j8
+```
+
+编译成功后，可执行文件生成在 `build-qt6103/appLanBoard.exe`。
+
+### 修改代码后重新构建
+
+如果只改了 QML 文件（不涉及 C++ 头文件改动），只需要重新 make：
+
+```powershell
+cd build-qt6103
+mingw32-make -j8
+```
+
+如果改了 CMakeLists.txt 或新增/删除了文件，需要先重新 cmake 再 make：
+
 ```powershell
 cd build-qt6103
 cmake .. -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64"
 mingw32-make -j8
 ```
+
+### 从零重新构建
+
+如果想清掉所有编译缓存重新来：
+
+```powershell
+cd build-qt6103
+mingw32-make clean
+cmake .. -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64"
+mingw32-make -j8
+```
+
+### 常见问题
+
+**cmake 找不到 Qt**：确认 `C:\Qt\6.10.3\mingw_64` 目录存在，如果 Qt 安装在其他路径，把上面命令中的路径改成你实际安装目录。
+
+**mingw32-make 不是可运行的命令**：确保 MinGW（g++）已安装并添加到 PATH。可以从 https://winlibs.com 下载，或者用 Qt 自带的 MinGW（`C:\Qt\6.10.3\mingw_64\bin`）。
+
+**编译通过但运行时报错 "无法定位程序输入点"**：确保运行目录下有 Qt 的 DLL 文件。`build-qt6103/` 目录已经在构建时自动复制了所需 DLL，直接在构建目录里双击 `appLanBoard.exe` 即可运行。
 
 ## 统一开发环境
 
