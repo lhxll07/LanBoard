@@ -312,6 +312,16 @@ void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
         int playerId = sender->property("playerId").toInt();
         emit remoteSurrender(playerId);
     }
+    else if (type == QStringLiteral("move")) {
+        // Client received move broadcast from host
+        int row = msg.value(QStringLiteral("row")).toInt();
+        int col = msg.value(QStringLiteral("col")).toInt();
+        emit remoteMoveReceived(0, row, col); // playerId=0 means from host
+    }
+    else if (type == QStringLiteral("game_over")) {
+        int winner = msg.value(QStringLiteral("winner")).toInt();
+        emit gameOverReceived(winner);
+    }
     else if (type == QStringLiteral("room_state")) {
         emit roomStateReceived(msg);
     }

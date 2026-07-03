@@ -17,6 +17,13 @@ AppController::AppController(QObject *parent)
         emit navigationRequested(2); // go to game page
     });
 
+    // Host: broadcast when game ends (via own move or remote)
+    connect(m_gameController, &GameController::gameOverChanged, this, [this]() {
+        if (m_gameController->isGameOver() && m_networkManager->isHost()) {
+            m_networkManager->broadcastGameOver(m_gameController->winner());
+        }
+    });
+
     // Network signals
     connect(m_networkManager, &NetworkManager::joinRequested,
             this, &AppController::onJoinRequested);
@@ -28,6 +35,11 @@ AppController::AppController(QObject *parent)
             this, &AppController::onRemoteSurrender);
     connect(m_networkManager, &NetworkManager::remoteStartGame,
             this, &AppController::onRemoteStartGame);
+    connect(m_networkManager, &NetworkManager::gameOverReceived,
+            this, [this](int winner) {
+        // Client received game_over from host
+        m_gameController->setGameOver(winner);
+    });
     connect(m_networkManager, &NetworkManager::roomStateReceived,
             this, [this](const QJsonObject &state) {
         // Client received room state from host

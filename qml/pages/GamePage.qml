@@ -127,8 +127,17 @@ Page {
                     onClicked: {
                         const col = Math.floor(mouse.x / boardCanvas.cellW);
                         const row = Math.floor(mouse.y / boardCanvas.cellH);
-                        if (col >= 0 && col < 14 && row >= 0 && row < 14)
-                            AppCtrl.gameController.placePiece(row, col);
+                        if (col >= 0 && col < 14 && row >= 0 && row < 14) {
+                            var inNet = AppCtrl.networkManager.isHost
+                                     || AppCtrl.networkManager.isConnected;
+                            if (inNet && !AppCtrl.networkManager.isHost) {
+                                // Client: send move via network
+                                AppCtrl.networkManager.sendPlacePiece(row, col);
+                            } else {
+                                // Host or local: place on local GameController
+                                AppCtrl.gameController.placePiece(row, col);
+                            }
+                        }
                     }
                 }
             }
@@ -153,7 +162,16 @@ Page {
                 secondary: AppCtrl.gameController.gameOver
                 onClicked: {
                     if (AppCtrl.gameController.gameOver) {
-                        AppCtrl.gameController.startNewGame();
+                        var inNet = AppCtrl.networkManager.isHost
+                                 || AppCtrl.networkManager.isConnected;
+                        if (inNet && AppCtrl.networkManager.isHost) {
+                            AppCtrl.gameController.startNewGame();
+                            AppCtrl.networkManager.broadcastGameStarted(1);
+                        } else if (inNet) {
+                            AppCtrl.networkManager.sendNewGame();
+                        } else {
+                            AppCtrl.gameController.startNewGame();
+                        }
                     } else {
                         StackView.view.pop();
                     }
@@ -165,7 +183,17 @@ Page {
                 text: "认输"
                 enabled: !AppCtrl.gameController.gameOver
                 onClicked: {
-                    AppCtrl.gameController.surrender();
+                    var inNet = AppCtrl.networkManager.isHost
+                             || AppCtrl.networkManager.isConnected;
+                    if (inNet && AppCtrl.networkManager.isHost) {
+                        AppCtrl.gameController.surrender();
+                        AppCtrl.networkManager.broadcastGameOver(
+                            AppCtrl.gameController.winner);
+                    } else if (inNet) {
+                        AppCtrl.networkManager.sendSurrender();
+                    } else {
+                        AppCtrl.gameController.surrender();
+                    }
                 }
             }
         }

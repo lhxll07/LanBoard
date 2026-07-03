@@ -16,6 +16,7 @@ public:
 
     Q_INVOKABLE void placePiece(int row, int col);
     Q_INVOKABLE void surrender();
+    Q_INVOKABLE void setGameOver(int winner);
     Q_INVOKABLE void startNewGame();
     Q_INVOKABLE void reset();
 

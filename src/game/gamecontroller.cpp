@@ -39,6 +39,16 @@ void GameController::surrender()
     emit gameOverChanged();
 }
 
+void GameController::setGameOver(int winner)
+{
+    if (m_gameOver)
+        return;
+    m_winner = winner;
+    m_gameOver = true;
+    emit boardChanged();
+    emit gameOverChanged();
+}
+
 void GameController::startNewGame()
 {
     reset();
