@@ -56,6 +56,7 @@ public:
     Q_INVOKABLE bool playCardsForPlayer(int player, const QVariantList &cardIds);
     Q_INVOKABLE bool passTurn();
     Q_INVOKABLE bool passForPlayer(int player);
+    Q_INVOKABLE bool playAiTurnForPlayer(int player);
     QJsonObject stateForPlayer(int player) const;
 
 signals:

@@ -91,7 +91,7 @@ bool RoomManager::canStart() const
     if (!isHost())
         return false;
     for (const auto &p : m_players) {
-        if (!p.isReady)
+        if (!p.isHost && !p.isReady)
             return false;
     }
     return true;
@@ -111,7 +111,7 @@ QString RoomManager::gameName() const
 
 int RoomManager::maxPlayers() const
 {
-    return m_gameId == QStringLiteral("doudizhu") ? 3 : 2;
+    return 2;
 }
 
 void RoomManager::setLocalPlayerId(int playerId)

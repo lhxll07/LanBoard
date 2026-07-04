@@ -33,7 +33,8 @@ public:
 
     Q_INVOKABLE void startServer(quint16 port = 44567);
     Q_INVOKABLE void connectToServer(const QString &ip, quint16 port = 44567,
-                                     const QString &playerName = QString());
+                                     const QString &playerName = QString(),
+                                     const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE void disconnectAll();
 
     Q_INVOKABLE void sendReady(bool ready);
