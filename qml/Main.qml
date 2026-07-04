@@ -9,7 +9,7 @@ ApplicationWindow {
     width: 430
     height: 820
     visible: true
-    title: "LanBoard"
+    title: "LanBoard 局域网版"
     color: AppTheme.pageBackground
 
     property int currentTab: 0
@@ -51,7 +51,7 @@ ApplicationWindow {
         stackView.push(Qt.resolvedUrl("pages/GamePage.qml"))
     }
 
-    function showOnlinePage() {
+    function showRoomPage() {
         if (stackView.depth > 1)
             return
         stackView.push(Qt.resolvedUrl("pages/RoomPage.qml"))
@@ -71,7 +71,7 @@ ApplicationWindow {
             } else if (page === 2) {
                 showGamePage()
             } else if (page === 3) {
-                showOnlinePage()
+                showRoomPage()
             }
         }
     }

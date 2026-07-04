@@ -64,7 +64,7 @@ QtObject {
     function zhVisualLine2() { return "\u4e0d\u540c\u684c\u6e38\u53ea\u5728\u81ea\u8eab\u9875\u9762\u91cc\u653e\u5927\u4e2a\u6027\u3002"; }
     function zhVisualLine3() { return "\u5e95\u90e8\u5bfc\u822a\u575a\u6301\u7eaf\u6587\u5b57\uff0c\u4e0d\u5f15\u5165\u56fe\u6807\u566a\u97f3\u3002"; }
     function zhHome() { return "\u9996\u9875"; }
-    function zhMatch() { return "\u8054\u673a"; }
+    function zhMatch() { return "\u623f\u95f4"; }
     function zhPlayers() { return "\u73a9\u5bb6"; }
     function zhHost() { return "\u623f\u4e3b"; }
     function zhMember() { return "\u6210\u5458"; }

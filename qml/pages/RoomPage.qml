@@ -5,7 +5,7 @@ import LanBoard
 
 Page {
     id: root
-    objectName: "onlinePage"
+    objectName: "roomPage"
 
     property bool inRoom: AppCtrl.networkManager.isHost
                        || AppCtrl.networkManager.isConnected
@@ -75,8 +75,7 @@ Page {
             AppCtrl.networkManager.clearDiscoveredRooms()
         } else if (visible) {
             AppCtrl.networkManager.clearDiscoveredRooms()
-            AppCtrl.networkManager.refreshRoomDiscovery()
-            AppCtrl.networkManager.startRoomDiscovery()
+            syncDiscoveryState()
         }
     }
 
@@ -104,10 +103,10 @@ Page {
             spacing: 18
 
             PageHeader {
-                titleText: root.inRoom ? "房间" : "在线游戏"
+                titleText: root.inRoom ? "房间" : "局域网大厅"
                 subtitleText: root.inRoom
                     ? "房间状态只在加入或创建房间后显示。"
-                    : "自动发现局域网房间，也可以手动输入地址加入。"
+                    : "自动发现同一局域网内的可用房间，也可以手动输入地址加入。"
                 trailingText: root.inRoom ? (AppCtrl.roomManager.playerList.length + " / 2") : ""
             }
 
@@ -412,11 +411,14 @@ Page {
                     }
 
                     SettingCard {
+                        id: portCard
                         width: parent.width
                         height: 84
                         titleText: "默认端口"
                         valueText: AppCtrl.defaultPort + "，可在设置页修改"
                         actionText: ""
+                        opacity: 0
+                        transform: Translate { id: portCardOffset; y: 20 }
                     }
                 }
             }
@@ -610,6 +612,11 @@ Page {
         ParallelAnimation {
             NumberAnimation { target: localCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: localCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
+        ParallelAnimation {
+            NumberAnimation { target: portCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: portCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
     }
 }

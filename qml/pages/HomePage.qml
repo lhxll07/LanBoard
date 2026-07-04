@@ -24,7 +24,7 @@ Page {
 
             PageHeader {
                 titleText: "桌域"
-                subtitleText: "首页只展示当前游戏和本地配置，联机与房间操作统一放在房间页。"
+                subtitleText: "局域网版只保留同一网络联机和本地双人，房间操作统一放在房间页。"
             }
 
             GameCard {
@@ -33,10 +33,10 @@ Page {
                 height: 182
                 titleText: "五子棋"
                 subtitleText: "双方轮流落子，先在横、竖或斜线连成五枚的一方获胜。支持局域网对战和本地双人。"
-                tagText: "当前游戏"
+                tagText: "局域网版"
                 opacity: 0
                 transform: Translate { id: gameCardOffset; y: 20 }
-                onClicked: AppCtrl.openOnlinePage()
+                onClicked: AppCtrl.openRoomPage()
             }
 
             SettingCard {

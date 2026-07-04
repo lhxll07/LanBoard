@@ -195,7 +195,7 @@ void AppController::leaveRoom()
     emit modeChanged();
 }
 
-void AppController::openOnlinePage()
+void AppController::openRoomPage()
 {
     emit navigationRequested(3);
 }
@@ -211,8 +211,10 @@ void AppController::toggleLocalReady()
 bool AppController::updateNickname(const QString &nickname)
 {
     const QString trimmed = nickname.trimmed();
-    if (trimmed.isEmpty() || trimmed == m_nickname)
+    if (trimmed.isEmpty())
         return false;
+    if (trimmed == m_nickname)
+        return true;
 
     m_nickname = trimmed;
     m_networkManager->setDiscoveryHostName(m_nickname);
@@ -228,7 +230,7 @@ bool AppController::updateDefaultPort(int port)
 
     const quint16 normalizedPort = static_cast<quint16>(port);
     if (normalizedPort == m_defaultPort)
-        return false;
+        return true;
 
     m_defaultPort = normalizedPort;
     saveSettings();
@@ -340,6 +342,7 @@ void AppController::loadSettings()
         m_recentJoinPort = static_cast<quint16>(recentPort);
     else
         m_recentJoinPort = m_defaultPort;
+
 }
 
 void AppController::saveSettings() const

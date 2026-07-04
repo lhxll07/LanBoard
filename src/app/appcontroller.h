@@ -40,7 +40,7 @@ public:
     Q_INVOKABLE void joinRoom(const QString &ip, int port, const QString &playerName);
     Q_INVOKABLE void leaveRoom();
     Q_INVOKABLE void toggleLocalReady();
-    Q_INVOKABLE void openOnlinePage();
+    Q_INVOKABLE void openRoomPage();
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
 
@@ -48,7 +48,7 @@ signals:
     void modeChanged();
     void settingsChanged();
     void roomReady();  // Host: server started. Client: connected & received room_state
-    void navigationRequested(int page); // 0=home, 1=room, 2=game
+    void navigationRequested(int page); // 0=home, 1=room, 2=game, 3=room page from home card
 
 private slots:
     void onJoinRequested(const QString &name, QTcpSocket *socket);
