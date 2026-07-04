@@ -8,6 +8,8 @@ Page {
 
     property string nicknameDraft: AppCtrl.nickname
     property string portDraft: AppCtrl.defaultPort.toString()
+    property string onlineHostDraft: AppCtrl.onlineServerHost
+    property string onlinePortDraft: AppCtrl.onlineServerPort.toString()
 
     function openNicknameDialog() {
         nicknameDraft = AppCtrl.nickname
@@ -17,6 +19,12 @@ Page {
     function openPortDialog() {
         portDraft = AppCtrl.defaultPort.toString()
         portDialog.open()
+    }
+
+    function openOnlineServerDialog() {
+        onlineHostDraft = AppCtrl.onlineServerHost
+        onlinePortDraft = AppCtrl.onlineServerPort.toString()
+        onlineServerDialog.open()
     }
 
     background: Rectangle {
@@ -79,6 +87,19 @@ Page {
                 opacity: 0
                 transform: Translate { id: addressCardOffset; y: 20 }
             }
+
+            SettingCard {
+                id: onlineServerCard
+                width: parent.width
+                height: 84
+                titleText: "在线服务器"
+                valueText: AppCtrl.onlineServerHost + " : " + AppCtrl.onlineServerPort
+                actionText: AppTheme.zhModify()
+                clickable: true
+                onClicked: root.openOnlineServerDialog()
+                opacity: 0
+                transform: Translate { id: onlineServerCardOffset; y: 20 }
+            }
         }
     }
 
@@ -99,6 +120,11 @@ Page {
         ParallelAnimation {
             NumberAnimation { target: addressCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: addressCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 80 }
+        ParallelAnimation {
+            NumberAnimation { target: onlineServerCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: onlineServerCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
     }
 
@@ -189,6 +215,66 @@ Page {
 
             Text {
                 id: portError
+                Layout.fillWidth: true
+                visible: text.length > 0
+                color: "#B14E44"
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+        }
+    }
+
+    Dialog {
+        id: onlineServerDialog
+        modal: true
+        width: Math.min(root.width - 40, 340)
+        x: (root.width - width) / 2
+        y: Math.max(24, (root.height - implicitHeight) / 2)
+        title: "修改在线服务器"
+        standardButtons: Dialog.Ok | Dialog.Cancel
+
+        onOpened: onlineHostInput.forceActiveFocus()
+        onAccepted: {
+            var parsed = parseInt(onlinePortDraft, 10)
+            if (!AppCtrl.updateOnlineServerEndpoint(onlineHostDraft, parsed)) {
+                onlineServerError.text = "请输入有效的服务器地址和 1 - 65535 的端口"
+                open()
+            } else {
+                onlineServerError.text = ""
+            }
+        }
+        onRejected: onlineServerError.text = ""
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            TextField {
+                id: onlineHostInput
+                Layout.fillWidth: true
+                text: root.onlineHostDraft
+                placeholderText: "输入服务器地址或域名"
+                selectByMouse: true
+                onTextChanged: {
+                    root.onlineHostDraft = text
+                    onlineServerError.text = ""
+                }
+            }
+
+            TextField {
+                id: onlinePortInput
+                Layout.fillWidth: true
+                text: root.onlinePortDraft
+                placeholderText: "输入端口"
+                inputMethodHints: Qt.ImhDigitsOnly
+                selectByMouse: true
+                onTextChanged: {
+                    root.onlinePortDraft = text
+                    onlineServerError.text = ""
+                }
+            }
+
+            Text {
+                id: onlineServerError
                 Layout.fillWidth: true
                 visible: text.length > 0
                 color: "#B14E44"
