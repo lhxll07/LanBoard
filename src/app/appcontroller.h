@@ -46,6 +46,7 @@ public:
     quint16 onlineServerPort() const { return m_onlineServerPort; }
 
     Q_INVOKABLE void startLocalMode();
+    Q_INVOKABLE void startGomokuLocalGame();
     Q_INVOKABLE void startDouDiZhuLocalMode();
     Q_INVOKABLE void startRoomAsHost();
     Q_INVOKABLE void startDouDiZhuRoomAsHost();
