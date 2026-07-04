@@ -36,6 +36,7 @@ if (LANBOARD_BUILD_APP)
         src/lobby/roommanager.cpp
         src/network/networkmanager.cpp
         src/game/gamecontroller.cpp
+        src/game/doudizhucontroller.cpp
     )
 
     qt_add_qml_module(appLanBoard
@@ -54,12 +55,14 @@ if (LANBOARD_BUILD_APP)
             qml/pages/RoomPage.qml
             qml/pages/SettingsPage.qml
             qml/pages/GamePage.qml
+            qml/pages/DouDiZhuPage.qml
         SOURCES
             src/app/appcontroller.h
             src/common/types.h
             src/lobby/roommanager.h
             src/network/networkmanager.h
             src/game/gamecontroller.h
+            src/game/doudizhucontroller.h
     )
 
     target_link_libraries(appLanBoard

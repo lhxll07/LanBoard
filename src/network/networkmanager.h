@@ -40,6 +40,8 @@ public:
     Q_INVOKABLE void sendPlacePiece(int row, int col);
     Q_INVOKABLE void sendSurrender();
     Q_INVOKABLE void sendStartGame();
+    Q_INVOKABLE void sendDouDiZhuPlay(const QVariantList &cardIds);
+    Q_INVOKABLE void sendDouDiZhuPass();
     Q_INVOKABLE void startRoomDiscovery();
     Q_INVOKABLE void stopRoomDiscovery();
     Q_INVOKABLE void refreshRoomDiscovery();
@@ -56,6 +58,7 @@ public:
 
     void setDiscoveryHostName(const QString &hostName);
     void setDiscoveryGameInProgress(bool inProgress);
+    void setDiscoveryRoomInfo(const QString &gameId, const QString &gameName, int maxPlayers);
 
 signals:
     void connectionChanged();
@@ -69,7 +72,10 @@ signals:
     void remoteReadyChanged(int playerId, bool ready);
     void remoteMoveReceived(int playerId, int row, int col);
     void remoteSurrender(int playerId);
-    void remoteStartGame();
+    void remoteStartGame(QString gameId);
+    void remoteDouDiZhuPlay(int playerId, QJsonArray cardIds);
+    void remoteDouDiZhuPass(int playerId);
+    void douDiZhuStateReceived(QJsonObject state);
     void gameOverReceived(int winner);
     void roomStateReceived(QJsonObject state);
     void clientDisconnected(int playerId);
@@ -77,9 +83,10 @@ signals:
 public slots:
     // Called by AppController to broadcast state changes
     void broadcastRoomState(const QJsonArray &players);
-    void broadcastGameStarted();
+    void broadcastGameStarted(const QString &gameId = QString());
     void broadcastMove(int player, int row, int col);
     void broadcastGameOver(int winner);
+    void sendDouDiZhuState(int playerId, const QJsonObject &state);
 
 private slots:
     void onNewConnection();
@@ -100,6 +107,8 @@ private:
         quint16 port = 0;
         int playerCount = 0;
         int maxPlayers = 2;
+        QString gameId;
+        QString gameName;
         bool inGame = false;
         bool isFull = false;
         qint64 lastSeenMs = 0;
@@ -131,6 +140,9 @@ private:
     QTimer m_discoveryPruneTimer;
     bool m_isHost = false;
     bool m_discoveryGameInProgress = false;
+    QString m_discoveryGameId = QStringLiteral("gomoku");
+    QString m_discoveryGameName = QStringLiteral("五子棋");
+    int m_discoveryMaxPlayers = 2;
     quint16 m_serverPort = 0;
     QString m_connectedIp;
     quint16 m_connectedPort = 0;

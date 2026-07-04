@@ -108,7 +108,9 @@ Page {
                 subtitleText: root.inRoom
                     ? "房间状态只在加入或创建房间后显示。"
                     : "自动发现局域网房间，也可以手动输入地址加入。"
-                trailingText: root.inRoom ? (AppCtrl.roomManager.playerList.length + " / 2") : ""
+                trailingText: root.inRoom
+                    ? (AppCtrl.roomManager.playerList.length + " / " + AppCtrl.roomManager.maxPlayers)
+                    : ""
             }
 
             Item {
@@ -222,7 +224,8 @@ Page {
 
                                                 Text {
                                                     Layout.fillWidth: true
-                                                    text: modelData.hostIp + " : " + modelData.port
+                                                    text: (modelData.gameName || "五子棋") + " · "
+                                                        + modelData.hostIp + " : " + modelData.port
                                                     color: AppTheme.textMuted
                                                     font.pixelSize: AppTheme.fontSizeCaption
                                                     elide: Text.ElideRight
@@ -390,25 +393,50 @@ Page {
                         id: hostCard
                         width: parent.width
                         height: 182
-                        titleText: "创建房间"
-                        subtitleText: "使用设置中的默认端口开房，等待另一位玩家加入。"
-                        tagText: "主机"
+                        titleText: "创建五子棋房间"
+                        subtitleText: "使用默认端口开房，等待另一位玩家加入。"
+                        tagText: "2 人联机"
                         opacity: 0
                         transform: Translate { id: hostCardOffset; y: 20 }
                         onClicked: AppCtrl.startRoomAsHost()
                     }
 
                     GameCard {
+                        id: ddzHostCard
+                        width: parent.width
+                        height: 182
+                        titleText: "创建斗地主房间"
+                        subtitleText: "房主为地主，等待两位玩家加入，三人准备后开始。"
+                        tagText: "3 人联机"
+                        dark: true
+                        opacity: 0
+                        transform: Translate { id: ddzHostCardOffset; y: 20 }
+                        onClicked: AppCtrl.startDouDiZhuRoomAsHost()
+                    }
+
+                    GameCard {
                         id: localCard
                         width: parent.width
                         height: 182
-                        titleText: "本地双人"
+                        titleText: "本地五子棋"
                         subtitleText: "不走网络，直接在当前设备上开始双人对局。"
                         tagText: "本地"
-                        dark: true
                         opacity: 0
                         transform: Translate { id: localCardOffset; y: 20 }
                         onClicked: AppCtrl.startLocalMode()
+                    }
+
+                    GameCard {
+                        id: ddzLocalCard
+                        width: parent.width
+                        height: 182
+                        titleText: "本地斗地主"
+                        subtitleText: "玩家默认地主，另外两家由简单 AI 自动出牌。"
+                        tagText: "本地"
+                        dark: true
+                        opacity: 0
+                        transform: Translate { id: ddzLocalCardOffset; y: 20 }
+                        onClicked: AppCtrl.startDouDiZhuLocalMode()
                     }
 
                     SettingCard {
@@ -522,7 +550,7 @@ Page {
                         width: parent.width
                         height: 84
                         titleText: "当前桌游"
-                        valueText: "五子棋"
+                        valueText: AppCtrl.roomManager.gameName
                         actionText: ""
                     }
 
@@ -573,7 +601,8 @@ Page {
                         width: parent.width
                         text: "添加本地对手"
                         secondary: true
-                        visible: !root.networkRoom && AppCtrl.roomManager.playerList.length < 2
+                        visible: !root.networkRoom
+                                 && AppCtrl.roomManager.playerList.length < AppCtrl.roomManager.maxPlayers
                         onClicked: AppCtrl.roomManager.addTestPlayer("本地对手")
                     }
 
@@ -608,8 +637,18 @@ Page {
         }
         PauseAnimation { duration: 70 }
         ParallelAnimation {
+            NumberAnimation { target: ddzHostCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: ddzHostCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
+        ParallelAnimation {
             NumberAnimation { target: localCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: localCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
+        ParallelAnimation {
+            NumberAnimation { target: ddzLocalCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: ddzLocalCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
     }
 }
