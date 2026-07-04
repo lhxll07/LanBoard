@@ -5,6 +5,7 @@ import LanBoard
 
 Page {
     id: root
+    objectName: "gamePage"
 
     function surrenderAndLeave() {
         if (AppCtrl.gameController.gameOver)
@@ -68,7 +69,7 @@ Page {
                     if (!inNet)
                         return AppCtrl.gameController.currentPlayer === 1
                             ? "黑方落子" : "白方落子";
-                    if (AppCtrl.networkManager.isHost)
+                    if (AppCtrl.roomManager.isHost)
                         return AppCtrl.gameController.currentPlayer === 1
                             ? "轮到你了" : "等待对方落子";
                     else
@@ -156,7 +157,7 @@ Page {
                         var inNet = AppCtrl.networkManager.isHost
                                  || AppCtrl.networkManager.isConnected;
                         if (inNet) {
-                            var myTurn = AppCtrl.networkManager.isHost
+                            var myTurn = AppCtrl.roomManager.isHost
                                 ? AppCtrl.gameController.currentPlayer === 1
                                 : AppCtrl.gameController.currentPlayer === 2;
                             if (!myTurn) return;

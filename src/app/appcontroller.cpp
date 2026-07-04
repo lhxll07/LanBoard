@@ -10,14 +10,27 @@ AppController::AppController(QObject *parent)
     , m_networkManager(new NetworkManager(this))
 {
     loadSettings();
+    m_networkManager->setDiscoveryHostName(m_nickname);
+    m_networkManager->setDiscoveryGameInProgress(false);
 
     // Local mode: room gameStarted → start game
     connect(m_roomManager, &RoomManager::gameStarted, this, [this]() {
-        m_gameController->startNewGame();
         if (m_networkManager->isHost()) {
+            m_networkManager->setDiscoveryGameInProgress(true);
+            m_gameController->startNewGame();
             m_activeGuestPlayerId = m_roomManager->firstGuestPlayerId();
             m_networkManager->broadcastGameStarted();
+            emit navigationRequested(2); // go to game page
+            return;
         }
+
+        if (m_networkManager->isConnected()) {
+            m_networkManager->sendStartGame();
+            return;
+        }
+
+        m_networkManager->setDiscoveryGameInProgress(true);
+        m_gameController->startNewGame();
         emit navigationRequested(2); // go to game page
     });
 
@@ -27,10 +40,12 @@ AppController::AppController(QObject *parent)
             return;
 
         if (m_networkManager->isHost()) {
+            m_networkManager->setDiscoveryGameInProgress(false);
             m_networkManager->broadcastGameOver(m_gameController->winner());
             m_roomManager->clearReadyStates();
             broadcastCurrentRoomState();
         } else if (!m_networkManager->isConnected()) {
+            m_networkManager->setDiscoveryGameInProgress(false);
             m_roomManager->clearReadyStates();
         }
 
@@ -60,6 +75,7 @@ AppController::AppController(QObject *parent)
         m_isClientMode = false;
         m_networkPlayerId = 0;
         m_activeGuestPlayerId = -1;
+        m_networkManager->setDiscoveryGameInProgress(false);
         emit modeChanged();
     });
     connect(m_networkManager, &NetworkManager::gameOverReceived,
@@ -98,6 +114,7 @@ void AppController::startLocalMode()
     m_activeGuestPlayerId = -1;
     emit modeChanged();
     m_networkManager->disconnectAll();
+    m_networkManager->setDiscoveryGameInProgress(false);
     m_gameController->reset();
     m_roomManager->reset();
     m_roomManager->setLocalPlayerId(0);
@@ -108,6 +125,7 @@ void AppController::startLocalMode()
 void AppController::startRoomAsHost()
 {
     m_networkManager->disconnectAll();
+    m_networkManager->setDiscoveryGameInProgress(false);
     m_gameController->reset();
     m_networkManager->startServer(m_defaultPort);
     if (!m_networkManager->isHost()) {
@@ -141,6 +159,7 @@ void AppController::joinRoom(const QString &ip, int port, const QString &playerN
         return;
 
     m_networkManager->disconnectAll();
+    m_networkManager->setDiscoveryGameInProgress(false);
     m_gameController->reset();
 
     m_isHostMode = false;
@@ -164,6 +183,7 @@ void AppController::joinRoom(const QString &ip, int port, const QString &playerN
 void AppController::leaveRoom()
 {
     m_networkManager->disconnectAll();
+    m_networkManager->setDiscoveryGameInProgress(false);
     m_gameController->reset();
     m_roomManager->reset();
     m_roomManager->setLocalPlayerId(-1);
@@ -173,6 +193,11 @@ void AppController::leaveRoom()
     m_networkPlayerId = 0;
     m_activeGuestPlayerId = -1;
     emit modeChanged();
+}
+
+void AppController::openOnlinePage()
+{
+    emit navigationRequested(3);
 }
 
 void AppController::toggleLocalReady()
@@ -190,6 +215,7 @@ bool AppController::updateNickname(const QString &nickname)
         return false;
 
     m_nickname = trimmed;
+    m_networkManager->setDiscoveryHostName(m_nickname);
     saveSettings();
     emit settingsChanged();
     return true;
@@ -267,6 +293,7 @@ void AppController::onRemoteStartGame()
         return;
 
     // Client received game_start from host
+    m_networkManager->setDiscoveryGameInProgress(true);
     m_gameController->startNewGame();
     emit navigationRequested(2); // go to game page
 }
