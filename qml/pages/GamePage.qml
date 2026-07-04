@@ -7,6 +7,35 @@ Page {
     id: root
     objectName: "gamePage"
 
+    function localRoomPlayer() {
+        var players = AppCtrl.roomManager.playerList
+        var idx = AppCtrl.roomManager.localPlayerIndex
+        return idx >= 0 && idx < players.length ? players[idx] : null
+    }
+
+    function localIsSpectator() {
+        var player = localRoomPlayer()
+        return !!player && (player.seatType || "active") === "spectator"
+    }
+
+    function gomokuPlayerName(piece) {
+        var players = AppCtrl.roomManager.playerList
+        for (var i = 0; i < players.length; ++i) {
+            var player = players[i]
+            if (piece === 1 && player.isHost)
+                return player.name
+            if (piece === 2 && !player.isHost && (player.seatType || "active") === "active")
+                return player.name
+        }
+        return piece === 1 ? "黑方" : "白方"
+    }
+
+    function gomokuStatus(piece) {
+        if (AppCtrl.gameController.gameOver)
+            return AppCtrl.gameController.winner === piece ? "获胜" : "结束"
+        return AppCtrl.gameController.currentPlayer === piece ? "落子中" : "等待"
+    }
+
     function surrenderAndLeave() {
         if (AppCtrl.gameController.gameOver)
             return;
@@ -42,18 +71,50 @@ Page {
         // -- 顶部信息区 --
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 56
+            Layout.preferredHeight: 124
 
-            Column {
-                anchors.left: parent.left
-                anchors.bottom: parent.bottom
-                spacing: 6
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 10
 
                 Text {
+                    Layout.fillWidth: true
                     text: "五子棋"
                     color: AppTheme.textPrimary
                     font.pixelSize: 20
                     font.weight: Font.DemiBold
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 76
+                    spacing: 10
+
+                    PlayerAvatar {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        playerName: root.gomokuPlayerName(1)
+                        roleText: "黑方"
+                        statusText: root.gomokuStatus(1)
+                        active: !AppCtrl.gameController.gameOver
+                                && AppCtrl.gameController.currentPlayer === 1
+                        winner: AppCtrl.gameController.gameOver
+                                && AppCtrl.gameController.winner === 1
+                        tone: 0
+                    }
+
+                    PlayerAvatar {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        playerName: root.gomokuPlayerName(2)
+                        roleText: "白方"
+                        statusText: root.gomokuStatus(2)
+                        active: !AppCtrl.gameController.gameOver
+                                && AppCtrl.gameController.currentPlayer === 2
+                        winner: AppCtrl.gameController.gameOver
+                                && AppCtrl.gameController.winner === 2
+                        tone: 2
+                    }
                 }
             }
         }
@@ -69,6 +130,9 @@ Page {
                     if (!inNet)
                         return AppCtrl.gameController.currentPlayer === 1
                             ? "黑方落子" : "白方落子";
+                    if (root.localIsSpectator())
+                        return AppCtrl.gameController.currentPlayer === 1
+                            ? "黑方落子中" : "白方落子中";
                     if (AppCtrl.roomManager.isHost)
                         return AppCtrl.gameController.currentPlayer === 1
                             ? "轮到你了" : "等待对方落子";
@@ -157,6 +221,8 @@ Page {
                         var inNet = AppCtrl.networkManager.isHost
                                  || AppCtrl.networkManager.isConnected;
                         if (inNet) {
+                            if (root.localIsSpectator())
+                                return;
                             var myTurn = AppCtrl.roomManager.isHost
                                 ? AppCtrl.gameController.currentPlayer === 1
                                 : AppCtrl.gameController.currentPlayer === 2;
@@ -192,10 +258,16 @@ Page {
         // -- 底部按钮 --
         ActionButton {
             Layout.fillWidth: true
-            text: "认输并返回房间"
+            text: root.localIsSpectator() ? "返回房间" : "认输并返回房间"
             secondary: true
-            enabled: !AppCtrl.gameController.gameOver
-            onClicked: root.surrenderAndLeave()
+            enabled: root.localIsSpectator() || !AppCtrl.gameController.gameOver
+            onClicked: {
+                if (root.localIsSpectator()) {
+                    root.StackView.view.pop()
+                    return
+                }
+                root.surrenderAndLeave()
+            }
         }
     }
 }
