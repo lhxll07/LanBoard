@@ -9,6 +9,9 @@ Rectangle {
     property string valueText: ""
     property string actionText: ""
     property bool emphasized: false
+    property bool clickable: false
+
+    signal clicked()
 
     radius: AppTheme.radiusCard
 
@@ -73,5 +76,12 @@ Rectangle {
             font.weight: Font.Medium
             Layout.alignment: Qt.AlignVCenter
         }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        enabled: root.clickable
+        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onClicked: root.clicked()
     }
 }
