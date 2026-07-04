@@ -23,6 +23,9 @@ class AppController : public QObject
     Q_PROPERTY(quint16 defaultPort READ defaultPort NOTIFY settingsChanged)
     Q_PROPERTY(QString recentJoinIp READ recentJoinIp NOTIFY settingsChanged)
     Q_PROPERTY(quint16 recentJoinPort READ recentJoinPort NOTIFY settingsChanged)
+    Q_PROPERTY(QString onlineServerName READ onlineServerName NOTIFY settingsChanged)
+    Q_PROPERTY(QString onlineServerHost READ onlineServerHost NOTIFY settingsChanged)
+    Q_PROPERTY(quint16 onlineServerPort READ onlineServerPort NOTIFY settingsChanged)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -38,6 +41,9 @@ public:
     quint16 defaultPort() const { return m_defaultPort; }
     QString recentJoinIp() const { return m_recentJoinIp; }
     quint16 recentJoinPort() const { return m_recentJoinPort; }
+    QString onlineServerName() const { return m_onlineServerName; }
+    QString onlineServerHost() const { return m_onlineServerHost; }
+    quint16 onlineServerPort() const { return m_onlineServerPort; }
 
     Q_INVOKABLE void startLocalMode();
     Q_INVOKABLE void startDouDiZhuLocalMode();
@@ -51,14 +57,16 @@ public:
     Q_INVOKABLE bool playDouDiZhuCards(const QVariantList &cardIds);
     Q_INVOKABLE bool passDouDiZhuTurn();
     Q_INVOKABLE void restartDouDiZhuGame();
+    Q_INVOKABLE void joinOnlineServer();
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
+    Q_INVOKABLE bool updateOnlineServerEndpoint(const QString &host, int port);
 
 signals:
     void modeChanged();
     void settingsChanged();
     void roomReady();  // Host: server started. Client: connected & received room_state
-    void navigationRequested(int page); // 0=home, 1=room, 2=game
+    void navigationRequested(int page); // 0=home, 1=room, 2=game, 3=online page, 4=doudizhu
 
 private slots:
     void onJoinRequested(const QString &name, QTcpSocket *socket);
@@ -92,4 +100,7 @@ private:
     quint16 m_defaultPort = 44567;
     QString m_recentJoinIp;
     quint16 m_recentJoinPort = 44567;
+    QString m_onlineServerName = QStringLiteral("ECS 演示服务器");
+    QString m_onlineServerHost = QStringLiteral("47.105.54.227");
+    quint16 m_onlineServerPort = 44567;
 };
