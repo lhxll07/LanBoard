@@ -1,118 +1,149 @@
 # LanBoard（桌域）
 
-一个基于 Qt Quick + QML + C++ 的局域网桌游对战平台。
+一个基于 `Qt Quick + QML + C++` 的局域网桌游对战项目，当前第一款游戏为五子棋。
+
+## 当前状态
+
+当前项目已经可以跑通一个完整闭环：
+
+1. 首页展示当前游戏和本地配置
+2. 房间页负责加入房间、创建房间和本地双人
+3. 主机和客户端在房间内同步玩家、准备状态和开始游戏
+4. 双方进入五子棋页面并同步落子
+5. 对局结束后自动返回房间，并清空双方准备状态
+6. 设置页可修改昵称和默认端口，且会本地持久化
+7. 最近一次加入房间的 IP 和端口会自动记住
+
+## 页面说明
+
+- `首页`：只展示游戏简介和当前本地配置
+- `房间页`：默认显示加入/创建/本地双人入口，进入房间后才显示房间状态
+- `游戏页`：五子棋棋盘、回合提示、认输并返回房间
+- `设置页`：昵称、默认端口、局域网地址
 
 ## 项目结构
 
-```
+```text
 LanBoard/
-├── qml/                    # UI 层（QML 页面与可复用组件）
-│   ├── Main.qml            应用入口
-│   ├── components/         可复用 UI 组件
-│   │   ├── AppTheme.qml          全局设计 Token
-│   │   ├── ActionButton.qml      操作按钮
-│   │   ├── BottomTextNav.qml     底部导航栏
-│   │   ├── GameCard.qml          游戏卡片
-│   │   ├── PageHeader.qml        页面标题
-│   │   ├── PlayerCard.qml        玩家卡片
-│   │   └── SettingCard.qml       设置卡片
-│   └── pages/              页面级组件
-│       ├── HomePage.qml          首页
-│       ├── RoomPage.qml          房间页
-│       ├── GamePage.qml          游戏页（五子棋）
-│       └── SettingsPage.qml      设置页
-├── src/                    # C++ 后端
-│   ├── app/                AppController 总协调
-│   ├── common/             共享类型定义
-│   ├── game/               GameController 游戏规则
-│   ├── lobby/              RoomManager 房间管理
-│   └── network/            NetworkManager 网络通信
-├── design/                 设计稿
-└── build-qt6103/           构建输出
+├── qml/
+│   ├── Main.qml
+│   ├── components/
+│   │   ├── ActionButton.qml
+│   │   ├── AppTheme.qml
+│   │   ├── BottomTextNav.qml
+│   │   ├── GameCard.qml
+│   │   ├── PageHeader.qml
+│   │   ├── PlayerCard.qml
+│   │   └── SettingCard.qml
+│   └── pages/
+│       ├── GamePage.qml
+│       ├── HomePage.qml
+│       ├── RoomPage.qml
+│       └── SettingsPage.qml
+├── src/
+│   ├── app/       AppController，负责整体流程与设置持久化
+│   ├── common/    预留共享类型目录
+│   ├── game/      GameController，负责五子棋规则
+│   ├── lobby/     RoomManager，负责房间玩家与准备状态
+│   └── network/   NetworkManager，负责局域网 TCP 通信
+├── design/
+├── build-qt6103/
+└── build-android/
 ```
 
-## 团队分工
+## 已实现的关键行为
 
-| 角色 | 负责 | 目录 |
-|------|------|------|
-| A — 界面与交互 | QML 页面、组件、布局、动效 | `qml/` |
-| B — 局域网通信 | TCP 监听/连接、消息收发 | `src/network/` |
-| C — 房间大厅逻辑 | 玩家列表、房间状态、准备机制 | `src/lobby/` |
-| D — 游戏逻辑与集成 | 五子棋规则、回合控制、模块串联 | `src/game/` + `src/app/` |
+### 房间与联机
 
-## 第一阶段目标
+- 加入房间时需要手动输入 IP 和端口
+- 创建房间时使用设置中的默认端口
+- 房间页只在真正进入房间后展示玩家列表和房间状态
+- 客户端断开后会自动退出房间状态
 
-1. 首页进入大厅
-2. 创建 / 加入房间
-3. 玩家准备
-4. 房主开始游戏
-5. 进入五子棋页面
-6. 双方局域网同步落子
-7. 判断胜负并显示结果
+### 对局流程
+
+- 房主开始游戏后同步进入棋盘
+- 网络对局只允许当前玩家落子
+- 认输会直接结束对局并返回房间
+- 任意一方胜负确定后，双方都会自动返回房间
+- 返回房间后双方准备状态会被重置，必须重新准备才能开始下一局
+
+### 设置与持久化
+
+通过 `QSettings` 本地保存：
+
+- `昵称`
+- `默认端口`
+- `最近一次加入房间的 IP`
+- `最近一次加入房间的端口`
 
 ## 构建方式
 
-### 首次构建
+### 桌面端
+
+首次配置：
 
 ```powershell
-# 1. 进入构建目录
-cd build-qt6103
-
-# 2. 配置 CMake（指定 MinGW 编译器和 Qt 路径）
-cmake .. -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64"
-
-# 3. 编译项目（-j8 表示 8 线程并行编译）
-mingw32-make -j8
+cmake -S . -B build-qt6103 -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64"
 ```
 
-编译成功后，可执行文件生成在 `build-qt6103/appLanBoard.exe`。
-
-### 修改代码后重新构建
-
-如果只改了 QML 文件（不涉及 C++ 头文件改动），只需要重新 make：
+编译：
 
 ```powershell
-cd build-qt6103
-mingw32-make -j8
+cmake --build build-qt6103 --parallel 8
 ```
 
-如果改了 CMakeLists.txt 或新增/删除了文件，需要先重新 cmake 再 make：
+可执行文件输出到：
+
+```text
+build-qt6103/appLanBoard.exe
+```
+
+### Android
+
+如果本地已经配置好 Android Qt Kit，可以直接编译：
 
 ```powershell
-cd build-qt6103
-cmake .. -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64"
-mingw32-make -j8
+cmake --build build-android --parallel 8
 ```
 
-### 从零重新构建
+## 常见问题
 
-如果想清掉所有编译缓存重新来：
+### 1. `cannot open output file appLanBoard.exe: Permission denied`
+
+说明桌面版程序还在运行，占用了输出文件。先关闭或结束：
 
 ```powershell
-cd build-qt6103
-mingw32-make clean
-cmake .. -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64"
-mingw32-make -j8
+Get-Process appLanBoard -ErrorAction SilentlyContinue | Stop-Process -Force
 ```
 
-### 常见问题
+然后重新执行构建。
 
-**cmake 找不到 Qt**：确认 `C:\Qt\6.10.3\mingw_64` 目录存在，如果 Qt 安装在其他路径，把上面命令中的路径改成你实际安装目录。
+### 2. 加入房间失败
 
-**mingw32-make 不是可运行的命令**：确保 MinGW（g++）已安装并添加到 PATH。可以从 https://winlibs.com 下载，或者用 Qt 自带的 MinGW（`C:\Qt\6.10.3\mingw_64\bin`）。
+优先检查：
 
-**编译通过但运行时报错 "无法定位程序输入点"**：确保运行目录下有 Qt 的 DLL 文件。`build-qt6103/` 目录已经在构建时自动复制了所需 DLL，直接在构建目录里双击 `appLanBoard.exe` 即可运行。
+- 主机 IP 是否正确
+- 端口是否与主机一致
+- 主机是否已经创建房间
+- Windows 防火墙是否拦截了程序
 
-## 统一开发环境
+### 3. 设置修改后没有生效
 
-| 环境 | 版本 |
-|------|------|
-| Qt | 6.10.3 |
-| 桌面架构 | win64_mingw |
-| Android 架构 | android_arm64_v8a |
-| JDK | 21 |
-| Android SDK Platform | 36 |
-| Android Build-Tools | 36.0.0 |
-| Android NDK | 27.2.12479018 |
+- 昵称会影响之后新建/加入的房间
+- 默认端口会影响之后创建房间时使用的端口
+- 最近加入房间的 IP/端口会用于回填输入框
 
-详见 [Qt安装流程.md](./Qt安装流程.md) 和 [Git协作流程.md](./Git协作流程.md)。
+## 开发说明
+
+- UI 主体在 `qml/`
+- 业务协调集中在 `src/app/appcontroller.cpp`
+- 房间逻辑集中在 `src/lobby/roommanager.cpp`
+- 网络同步集中在 `src/network/networkmanager.cpp`
+- 当前最大和最复杂的页面是 `qml/pages/RoomPage.qml`
+
+详见：
+
+- [Qt安装流程.md](./Qt安装流程.md)
+- [Git协作流程.md](./Git协作流程.md)
+- [任务分工.md](./任务分工.md)

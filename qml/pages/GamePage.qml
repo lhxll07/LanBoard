@@ -5,9 +5,30 @@ import LanBoard
 
 Page {
     id: root
+    objectName: "gamePage"
+
+    function surrenderAndLeave() {
+        if (AppCtrl.gameController.gameOver)
+            return;
+
+        var inNet = AppCtrl.networkManager.isHost
+                 || AppCtrl.networkManager.isConnected;
+        if (inNet && AppCtrl.networkManager.isHost) {
+            AppCtrl.gameController.surrender(1);
+        } else if (inNet) {
+            AppCtrl.networkManager.sendSurrender();
+        } else {
+            AppCtrl.gameController.surrender();
+        }
+    }
 
     background: Rectangle {
         color: "transparent"
+    }
+
+    Connections {
+        target: AppCtrl.gameController
+        function onBoardChanged() { boardCanvas.requestPaint() }
     }
 
     ColumnLayout {
@@ -37,10 +58,24 @@ Page {
             }
         }
 
-        // -- "轮到你了" 提示 --
+        // -- 当前回合提示 --
         Text {
             Layout.alignment: Qt.AlignHCenter
-            text: "轮到你了"
+            text: AppCtrl.gameController.gameOver
+                ? (AppCtrl.gameController.winner === 1 ? "黑子胜！" : "白子胜！")
+                : (function() {
+                    var inNet = AppCtrl.networkManager.isHost
+                             || AppCtrl.networkManager.isConnected;
+                    if (!inNet)
+                        return AppCtrl.gameController.currentPlayer === 1
+                            ? "黑方落子" : "白方落子";
+                    if (AppCtrl.roomManager.isHost)
+                        return AppCtrl.gameController.currentPlayer === 1
+                            ? "轮到你了" : "等待对方落子";
+                    else
+                        return AppCtrl.gameController.currentPlayer === 2
+                            ? "轮到你了" : "等待对方落子";
+                }())
             color: AppTheme.textPrimary
             font.pixelSize: 24
             font.weight: Font.DemiBold
@@ -62,47 +97,84 @@ Page {
                 anchors.fill: parent
                 anchors.margins: 16
 
+                property real cellW: width / 14
+                property real cellH: height / 14
+
                 onPaint: {
                     const ctx = getContext("2d");
                     ctx.reset();
                     ctx.strokeStyle = "#8A7248";
                     ctx.lineWidth = 1.2;
 
-                    const cells = 14;
-                    const stepX = width / cells;
-                    const stepY = height / cells;
+                    // Draw grid lines
+                    for (let i = 0; i < 14; ++i) {
+                        const x = i * cellW + cellW / 2;
+                        const y = i * cellH + cellH / 2;
 
-                    for (let i = 0; i <= cells; ++i) {
-                        const x = i * stepX;
-                        const y = i * stepY;
                         ctx.beginPath();
-                        ctx.moveTo(x, 0);
-                        ctx.lineTo(x, height);
+                        ctx.moveTo(cellW / 2, y);
+                        ctx.lineTo(width - cellW / 2, y);
                         ctx.stroke();
 
                         ctx.beginPath();
-                        ctx.moveTo(0, y);
-                        ctx.lineTo(width, y);
+                        ctx.moveTo(x, cellH / 2);
+                        ctx.lineTo(x, height - cellH / 2);
                         ctx.stroke();
                     }
 
-                    const pieces = [
-                        { x: 6, y: 6, fill: "#17382F", stroke: "" },
-                        { x: 7, y: 7, fill: "#F7F2E8", stroke: "#B2905D" },
-                        { x: 8, y: 8, fill: "#17382F", stroke: "" },
-                        { x: 9, y: 9, fill: "#F7F2E8", stroke: "#B2905D" }
-                    ];
+                    // Draw pieces from game board
+                    const boardData = AppCtrl.gameController.board;
+                    for (let r = 0; r < boardData.length; ++r) {
+                        const row = boardData[r];
+                        for (let c = 0; c < row.length; ++c) {
+                            const val = row[c];
+                            if (val === 0) continue;
 
-                    for (const piece of pieces) {
-                        const px = piece.x * stepX;
-                        const py = piece.y * stepY;
-                        ctx.beginPath();
-                        ctx.arc(px, py, 8, 0, Math.PI * 2);
-                        ctx.fillStyle = piece.fill;
-                        ctx.fill();
-                        if (piece.stroke) {
-                            ctx.strokeStyle = piece.stroke;
-                            ctx.stroke();
+                            const px = c * cellW + cellW / 2;
+                            const py = r * cellH + cellH / 2;
+
+                            ctx.beginPath();
+                            ctx.arc(px, py, 7, 0, Math.PI * 2);
+                            if (val === 1) {
+                                ctx.fillStyle = "#17382F";
+                                ctx.fill();
+                            } else {
+                                ctx.fillStyle = "#F7F2E8";
+                                ctx.fill();
+                                ctx.strokeStyle = "#B2905D";
+                                ctx.lineWidth = 1;
+                                ctx.stroke();
+                            }
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: !AppCtrl.gameController.gameOver
+                    onClicked: {
+                        // Check turn: only your own turn in network mode
+                        var inNet = AppCtrl.networkManager.isHost
+                                 || AppCtrl.networkManager.isConnected;
+                        if (inNet) {
+                            var myTurn = AppCtrl.roomManager.isHost
+                                ? AppCtrl.gameController.currentPlayer === 1
+                                : AppCtrl.gameController.currentPlayer === 2;
+                            if (!myTurn) return;
+                        }
+
+                        const col = Math.floor(mouse.x / boardCanvas.cellW);
+                        const row = Math.floor(mouse.y / boardCanvas.cellH);
+                        if (col >= 0 && col < 14 && row >= 0 && row < 14) {
+                            if (inNet && AppCtrl.networkManager.isHost) {
+                                if (AppCtrl.gameController.placePiece(row, col, 1)) {
+                                    AppCtrl.networkManager.broadcastMove(1, row, col);
+                                }
+                            } else if (inNet) {
+                                AppCtrl.networkManager.sendPlacePiece(row, col);
+                            } else {
+                                AppCtrl.gameController.placePiece(row, col);
+                            }
                         }
                     }
                 }
@@ -112,27 +184,18 @@ Page {
         // -- 当前玩家 --
         Text {
             Layout.alignment: Qt.AlignHCenter
-            text: "黑子 · 你"
+            text: AppCtrl.gameController.currentPlayer === 1 ? "黑子" : "白子"
             color: AppTheme.textSecondary
             font.pixelSize: 14
         }
 
         // -- 底部按钮 --
-        RowLayout {
+        ActionButton {
             Layout.fillWidth: true
-            spacing: AppTheme.spacingMd
-
-            ActionButton {
-                Layout.fillWidth: true
-                text: "退出"
-                secondary: true
-                onClicked: StackView.view.pop()
-            }
-
-            ActionButton {
-                Layout.fillWidth: true
-                text: "认输"
-            }
+            text: "认输并返回房间"
+            secondary: true
+            enabled: !AppCtrl.gameController.gameOver
+            onClicked: root.surrenderAndLeave()
         }
     }
 }
