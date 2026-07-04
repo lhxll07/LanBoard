@@ -7,6 +7,8 @@ Page {
     id: root
     objectName: "onlinePage"
     property int lobbyMode: 0
+    property string onlineGameId: "gomoku"
+    property bool roomGamePickerOpen: false
 
     property bool networkRoom: AppCtrl.networkManager.isHost
                             || AppCtrl.networkManager.isConnected
@@ -14,11 +16,17 @@ Page {
     property string joinErrorText: ""
 
     function syncDiscoveryState() {
-        if (visible && !inRoom && lobbyMode === 0) {
+        if (!visible || inRoom) {
+            AppCtrl.networkManager.stopRoomDiscovery()
+            return
+        }
+
+        if (lobbyMode === 0) {
             AppCtrl.networkManager.startRoomDiscovery()
             AppCtrl.networkManager.refreshRoomDiscovery()
         } else {
             AppCtrl.networkManager.stopRoomDiscovery()
+            AppCtrl.refreshOnlineRooms()
         }
     }
 
@@ -44,9 +52,22 @@ Page {
         AppCtrl.joinRoom(room.hostIp, room.port, AppCtrl.nickname, room.gameId || "gomoku")
     }
 
-    function joinOnlineRoom(gameId) {
+    function createOnlineRoom() {
         joinErrorText = ""
-        AppCtrl.joinOnlineServer(gameId || "gomoku")
+        AppCtrl.createOnlineRoom(onlineGameId)
+    }
+
+    function joinOnlineRoomEntry(roomId) {
+        joinErrorText = ""
+        AppCtrl.joinOnlineRoom(roomId)
+    }
+
+    function nextGameId(gameId) {
+        return gameId === "doudizhu" ? "gomoku" : "doudizhu"
+    }
+
+    function canSwitchCurrentRoomGame() {
+        return AppCtrl.roomManager.isHost
     }
 
     function isOnlineServerConnection() {
@@ -55,10 +76,100 @@ Page {
             && AppCtrl.networkManager.connectedPort === AppCtrl.onlineServerPort
     }
 
+    function onlineGameName(gameId) {
+        return gameId === "doudizhu" ? "斗地主" : "五子棋"
+    }
+
+    function onlineGameSubtitle(gameId) {
+        return gameId === "doudizhu"
+            ? "三人联机斗地主，房主为地主，满 3 人后全部准备才能开始。"
+            : "双人五子棋，规则直观，适合快速进入在线演示。"
+    }
+
+    function roomAvailabilityText(room) {
+        return room.inGame ? "对局中" : room.isFull ? "房间已满" : "可加入"
+    }
+
+    function roomCapacityValue(room) {
+        return room.roomCapacity || room.maxPlayers
+    }
+
+    function roomAvailabilityColor(room) {
+        return room.inGame || room.isFull ? AppTheme.textMuted : AppTheme.accent
+    }
+
+    function roomJoinEnabled(room) {
+        return !room.inGame && !room.isFull
+    }
+
+    function switchCurrentRoomGame() {
+        var nextId = root.nextGameId(AppCtrl.roomManager.gameId)
+        AppCtrl.switchRoomGame(nextId)
+    }
+
+    function selectCurrentRoomGame(gameId) {
+        roomGamePickerOpen = false
+        if (AppCtrl.roomManager.gameId === gameId)
+            return
+
+        AppCtrl.switchRoomGame(gameId)
+    }
+
+    function toggleRoomGamePicker() {
+        if (!root.canSwitchCurrentRoomGame())
+            return
+        roomGamePickerOpen = !roomGamePickerOpen
+    }
+
     function localPlayer() {
         var idx = AppCtrl.roomManager.localPlayerIndex
         var players = AppCtrl.roomManager.playerList
         return idx >= 0 && idx < players.length ? players[idx] : null
+    }
+
+    function activeRoomPlayers() {
+        var players = AppCtrl.roomManager.playerList
+        var result = []
+        for (var i = 0; i < players.length; ++i) {
+            if ((players[i].seatType || "active") === "active")
+                result.push(players[i])
+        }
+        return result
+    }
+
+    function spectatorRoomPlayers() {
+        var players = AppCtrl.roomManager.playerList
+        var result = []
+        for (var i = 0; i < players.length; ++i) {
+            if ((players[i].seatType || "active") === "spectator")
+                result.push(players[i])
+        }
+        return result
+    }
+
+    function canToggleSeat(player) {
+        var local = localPlayer()
+        if (!player || !local || player.isHost || player.playerId !== local.playerId)
+            return false
+        return AppCtrl.networkManager.isConnected || AppCtrl.networkManager.isHost
+    }
+
+    function seatActionText(player) {
+        if (!root.canToggleSeat(player))
+            return ""
+        return (player.seatType || "active") === "active" ? "转旁观" : "上桌"
+    }
+
+    function seatStatusText(player) {
+        return (player.seatType || "active") === "active"
+            ? (player.isReady ? AppTheme.zhReady() : AppTheme.zhNotReady())
+            : "旁观中"
+    }
+
+    function toggleSeat(player) {
+        if (!player || !root.canToggleSeat(player))
+            return
+        AppCtrl.requestSeatChange((player.seatType || "active") === "active" ? "spectator" : "active")
     }
 
     function toggleReadyState() {
@@ -81,6 +192,8 @@ Page {
     onVisibleChanged: syncDiscoveryState()
     onLobbyModeChanged: syncDiscoveryState()
     onInRoomChanged: {
+        if (!inRoom)
+            roomGamePickerOpen = false
         if (inRoom) {
             AppCtrl.networkManager.stopRoomDiscovery()
             AppCtrl.networkManager.clearDiscoveredRooms()
@@ -96,6 +209,13 @@ Page {
             if (!root.inRoom)
                 root.joinErrorText = message
         }
+    }
+
+    Timer {
+        interval: 4000
+        repeat: true
+        running: root.visible && !root.inRoom && root.lobbyMode === 1
+        onTriggered: AppCtrl.refreshOnlineRooms()
     }
 
     Flickable {
@@ -123,7 +243,7 @@ Page {
                         ? "自动发现局域网房间，也可以手动输入地址加入。"
                         : "连接 ECS 演示服务器，直接进入在线联机大厅。")
                 trailingText: root.inRoom
-                    ? (AppCtrl.roomManager.playerList.length + " / " + AppCtrl.roomManager.maxPlayers)
+                    ? (AppCtrl.roomManager.playerList.length + " / " + AppCtrl.roomManager.roomCapacity)
                     : ""
             }
 
@@ -276,17 +396,17 @@ Page {
 
                                     delegate: Rectangle {
                                         width: discoverLayout.width
-                                        implicitHeight: roomLayout.implicitHeight + 24
+                                        implicitHeight: lanRoomColumn.implicitHeight + 24
                                         radius: 18
-                                        color: AppTheme.cardBackgroundSoft
+                                        color: AppTheme.cardBackground
                                         border.width: 1
                                         border.color: AppTheme.cardBorder
 
-                                        RowLayout {
-                                            id: roomLayout
+                                        ColumnLayout {
+                                            id: lanRoomColumn
                                             anchors.fill: parent
                                             anchors.margins: 16
-                                            spacing: 12
+                                            spacing: 10
 
                                             ColumnLayout {
                                                 Layout.fillWidth: true
@@ -301,41 +421,59 @@ Page {
 
                                                 Text {
                                                     Layout.fillWidth: true
-                                                    text: (modelData.gameName || "五子棋") + " · "
-                                                        + modelData.hostIp + " : " + modelData.port
+                                                    text: (modelData.gameName || "五子棋")
+                                                        + " · " + modelData.hostIp + " : " + modelData.port
                                                     color: AppTheme.textMuted
                                                     font.pixelSize: AppTheme.fontSizeCaption
-                                                    elide: Text.ElideRight
+                                                    wrapMode: Text.WordWrap
                                                 }
                                             }
 
-                                            ColumnLayout {
-                                                spacing: 4
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 12
+
+                                                Rectangle {
+                                                    radius: 12
+                                                    color: AppTheme.cardBackgroundSoft
+                                                    implicitWidth: lanRoomGameTag.implicitWidth + 18
+                                                    implicitHeight: 26
+
+                                                    Text {
+                                                        id: lanRoomGameTag
+                                                        anchors.centerIn: parent
+                                                        text: modelData.gameName || "五子棋"
+                                                        color: AppTheme.textPrimary
+                                                        font.pixelSize: AppTheme.fontSizeCaption
+                                                        font.weight: Font.DemiBold
+                                                    }
+                                                }
+
+                                                Item {
+                                                    Layout.fillWidth: true
+                                                }
 
                                                 Text {
-                                                    Layout.alignment: Qt.AlignRight
-                                                    text: modelData.playerCount + " / " + modelData.maxPlayers
+                                                    text: modelData.playerCount + " / " + root.roomCapacityValue(modelData)
                                                     color: AppTheme.textPrimary
                                                     font.pixelSize: 13
                                                     font.weight: Font.Medium
                                                 }
 
                                                 Text {
-                                                    Layout.alignment: Qt.AlignRight
-                                                    text: modelData.inGame
-                                                        ? "对局中"
-                                                        : modelData.isFull ? "房间已满" : "可加入"
-                                                    color: modelData.inGame || modelData.isFull
-                                                        ? AppTheme.textMuted
-                                                        : AppTheme.accent
+                                                    text: root.roomAvailabilityText(modelData)
+                                                    color: root.roomAvailabilityColor(modelData)
                                                     font.pixelSize: AppTheme.fontSizeCaption
                                                 }
                                             }
-                                        }
 
-                                        TapHandler {
-                                            enabled: !modelData.isFull && !modelData.inGame
-                                            onTapped: root.joinDiscoveredRoom(modelData)
+                                            ActionButton {
+                                                Layout.fillWidth: true
+                                                text: root.roomJoinEnabled(modelData) ? "加入房间" : root.roomAvailabilityText(modelData)
+                                                enabled: root.roomJoinEnabled(modelData)
+                                                secondary: !root.roomJoinEnabled(modelData)
+                                                onClicked: root.joinDiscoveredRoom(modelData)
+                                            }
                                         }
                                     }
                                 }
@@ -467,31 +605,110 @@ Page {
                         }
                     }
 
-                    GameCard {
+                    Rectangle {
                         id: hostCard
                         width: parent.width
-                        height: 182
-                        titleText: "创建五子棋房间"
-                        subtitleText: "使用默认端口开房，等待另一位玩家加入。"
-                        tagText: "2 人联机"
+                        implicitHeight: hostCardLayout.implicitHeight + 52
+                        radius: AppTheme.radiusCard + 4
+                        color: AppTheme.cardBackground
+                        border.width: 1
+                        border.color: AppTheme.cardBorder
                         opacity: 0
                         transform: Translate { id: hostCardOffset; y: 20 }
                         visible: root.lobbyMode === 0
-                        onClicked: AppCtrl.startRoomAsHost()
-                    }
 
-                    GameCard {
-                        id: ddzHostCard
-                        width: parent.width
-                        height: 182
-                        titleText: "创建斗地主房间"
-                        subtitleText: "房主为地主，等待一位玩家加入，另一家由机器人托管。"
-                        tagText: "2 人联机"
-                        dark: true
-                        opacity: 0
-                        transform: Translate { id: ddzHostCardOffset; y: 20 }
-                        visible: root.lobbyMode === 0
-                        onClicked: AppCtrl.startDouDiZhuRoomAsHost()
+                        Rectangle {
+                            x: 0
+                            y: 6
+                            width: parent.width - 2
+                            height: parent.height + 2
+                            radius: parent.radius
+                            color: AppTheme.shadowMedium
+                        }
+
+                        Rectangle {
+                            x: 0
+                            y: 3
+                            width: parent.width - 1
+                            height: parent.height + 1
+                            radius: parent.radius
+                            color: AppTheme.shadowLight
+                        }
+
+                        ColumnLayout {
+                            id: hostCardLayout
+                            anchors.fill: parent
+                            anchors.margins: 24
+                            spacing: 14
+
+                            RowLayout {
+                                Layout.fillWidth: true
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Text {
+                                        text: "局域网房间"
+                                        color: AppTheme.textPrimary
+                                        font.pixelSize: 15
+                                        font.weight: Font.DemiBold
+                                    }
+
+                                    Text {
+                                        text: "默认端口 " + AppCtrl.defaultPort
+                                        color: AppTheme.textMuted
+                                        font.pixelSize: AppTheme.fontSizeCaption
+                                    }
+                                }
+
+                                Rectangle {
+                                    radius: 12
+                                    color: AppTheme.accentSoft
+                                    implicitWidth: hostCardBadge.implicitWidth + 18
+                                    implicitHeight: 26
+
+                                    Text {
+                                        id: hostCardBadge
+                                        anchors.centerIn: parent
+                                        text: "局域网"
+                                        color: AppTheme.accent
+                                        font.pixelSize: AppTheme.fontSizeCaption
+                                        font.weight: Font.DemiBold
+                                    }
+                                }
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "先开房，再在房间里选择桌游并开始对局。"
+                                color: AppTheme.textSecondary
+                                font.pixelSize: AppTheme.fontSizeBody
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 44
+                                radius: 16
+                                color: AppTheme.cardBackgroundSoft
+                                border.width: 1
+                                border.color: AppTheme.cardBorder
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "房间内可选：五子棋 / 斗地主"
+                                    color: AppTheme.textMuted
+                                    font.pixelSize: AppTheme.fontSizeCaption
+                                }
+                            }
+
+                            ActionButton {
+                                Layout.fillWidth: true
+                                text: "创建房间"
+                                onClicked: AppCtrl.startRoomAsHost()
+                            }
+                        }
                     }
 
                     SettingCard {
@@ -503,31 +720,268 @@ Page {
                         visible: root.lobbyMode === 0
                     }
 
-                    GameCard {
-                        id: onlineGomokuCard
+                    Rectangle {
+                        id: onlineEntryCard
                         width: parent.width
-                        height: 182
-                        titleText: "在线五子棋"
-                        subtitleText: "连接 ECS 演示服务器，进入在线五子棋房间。"
-                        tagText: "在线联机"
+                        implicitHeight: onlineCardLayout.implicitHeight + 52
+                        radius: AppTheme.radiusCard + 4
+                        color: "#F7FAF8"
+                        border.width: 1
+                        border.color: AppTheme.cardBorder
                         opacity: 0
                         visible: root.lobbyMode === 1
-                        transform: Translate { id: onlineGomokuCardOffset; y: 20 }
-                        onClicked: root.joinOnlineRoom("gomoku")
-                    }
+                        transform: Translate { id: onlineEntryCardOffset; y: 20 }
 
-                    GameCard {
-                        id: onlineDouDiZhuCard
-                        width: parent.width
-                        height: 182
-                        titleText: "在线斗地主"
-                        subtitleText: "连接 ECS 演示服务器，进入两人在线斗地主房间，第三家由机器人托管。"
-                        tagText: "在线联机"
-                        dark: true
-                        opacity: 0
-                        visible: root.lobbyMode === 1
-                        transform: Translate { id: onlineDouDiZhuCardOffset; y: 20 }
-                        onClicked: root.joinOnlineRoom("doudizhu")
+                        Rectangle {
+                            x: 0
+                            y: 6
+                            width: parent.width - 2
+                            height: parent.height + 2
+                            radius: parent.radius
+                            color: AppTheme.shadowMedium
+                        }
+
+                        Rectangle {
+                            x: 0
+                            y: 3
+                            width: parent.width - 1
+                            height: parent.height + 1
+                            radius: parent.radius
+                            color: AppTheme.shadowLight
+                        }
+
+                        ColumnLayout {
+                            id: onlineCardLayout
+                            anchors.fill: parent
+                            anchors.margins: 24
+                            spacing: 14
+
+                            RowLayout {
+                                Layout.fillWidth: true
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Text {
+                                        text: "在线房间"
+                                        color: AppTheme.textPrimary
+                                        font.pixelSize: 15
+                                        font.weight: Font.DemiBold
+                                    }
+
+                                    Text {
+                                        text: AppCtrl.onlineServerName
+                                        color: AppTheme.textMuted
+                                        font.pixelSize: AppTheme.fontSizeCaption
+                                    }
+                                }
+
+                                Rectangle {
+                                    radius: 12
+                                    color: root.isOnlineServerConnection() ? AppTheme.accentSoft : "#F2E8D3"
+                                    implicitWidth: onlineCardBadge.implicitWidth + 18
+                                    implicitHeight: 26
+
+                                    Text {
+                                        id: onlineCardBadge
+                                        anchors.centerIn: parent
+                                        text: root.isOnlineServerConnection() ? "已连接" : "ECS"
+                                        color: root.isOnlineServerConnection() ? AppTheme.accent : "#7A6136"
+                                        font.pixelSize: AppTheme.fontSizeCaption
+                                        font.weight: Font.DemiBold
+                                    }
+                                }
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "在线房间由 ECS 统一维护。创建后其他人从下面的房间列表加入。"
+                                color: AppTheme.textSecondary
+                                font.pixelSize: AppTheme.fontSizeBody
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 44
+                                radius: 16
+                                color: AppTheme.cardBackground
+                                border.width: 1
+                                border.color: AppTheme.cardBorder
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: AppCtrl.onlineServerHost + " : " + AppCtrl.onlineServerPort
+                                    color: AppTheme.textMuted
+                                    font.pixelSize: AppTheme.fontSizeCaption
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 44
+                                    radius: 16
+                                    color: AppTheme.cardBackgroundSoft
+                                    border.width: 1
+                                    border.color: AppTheme.cardBorder
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 6
+                                        spacing: 6
+
+                                        Repeater {
+                                            model: [
+                                                { gameId: "gomoku", title: "五子棋" },
+                                                { gameId: "doudizhu", title: "斗地主" }
+                                            ]
+
+                                            delegate: Rectangle {
+                                                Layout.fillWidth: true
+                                                Layout.preferredHeight: 32
+                                                radius: 12
+                                                color: root.onlineGameId === modelData.gameId
+                                                    ? AppTheme.accentSoft
+                                                    : "transparent"
+                                                border.width: root.onlineGameId === modelData.gameId ? 1 : 0
+                                                border.color: AppTheme.accent
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: modelData.title
+                                                    color: root.onlineGameId === modelData.gameId
+                                                        ? AppTheme.accent
+                                                        : AppTheme.textMuted
+                                                    font.pixelSize: AppTheme.fontSizeCaption
+                                                    font.weight: Font.DemiBold
+                                                }
+
+                                                TapHandler {
+                                                    onTapped: root.onlineGameId = modelData.gameId
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            ActionButton {
+                                Layout.fillWidth: true
+                                text: "创建在线房间"
+                                onClicked: root.createOnlineRoom()
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "当前房间数：" + AppCtrl.networkManager.onlineRooms.length
+                                    color: AppTheme.textPrimary
+                                    font.pixelSize: 14
+                                    font.weight: Font.DemiBold
+                                }
+
+                                ActionButton {
+                                    Layout.preferredWidth: 88
+                                    text: "刷新"
+                                    secondary: true
+                                    onClicked: AppCtrl.refreshOnlineRooms()
+                                }
+                            }
+
+                            Column {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                Repeater {
+                                    model: AppCtrl.networkManager.onlineRooms
+
+                                    delegate: Rectangle {
+                                        width: onlineCardLayout.width
+                                        implicitHeight: onlineRoomColumn.implicitHeight + 24
+                                        radius: 18
+                                        color: AppTheme.cardBackground
+                                        border.width: 1
+                                        border.color: AppTheme.cardBorder
+
+                                        ColumnLayout {
+                                            id: onlineRoomColumn
+                                            anchors.fill: parent
+                                            anchors.margins: 16
+                                            spacing: 10
+
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 12
+
+                                                ColumnLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: 3
+
+                                                    Text {
+                                                        text: modelData.roomName || "未命名房间"
+                                                        color: AppTheme.textPrimary
+                                                        font.pixelSize: 15
+                                                        font.weight: Font.DemiBold
+                                                    }
+
+                                                    Text {
+                                                        Layout.fillWidth: true
+                                                        text: (modelData.gameName || "五子棋")
+                                                            + " · 房主 " + (modelData.hostName || "host")
+                                                            + " · 房间号 " + (modelData.roomId || "--")
+                                                        color: AppTheme.textMuted
+                                                        font.pixelSize: AppTheme.fontSizeCaption
+                                                        wrapMode: Text.WordWrap
+                                                    }
+                                                }
+
+                                                ColumnLayout {
+                                                    spacing: 4
+
+                                                    Text {
+                                                        Layout.alignment: Qt.AlignRight
+                                                        text: modelData.playerCount + " / " + root.roomCapacityValue(modelData)
+                                                        color: AppTheme.textPrimary
+                                                        font.pixelSize: 13
+                                                        font.weight: Font.Medium
+                                                    }
+
+                                                    Text {
+                                                        Layout.alignment: Qt.AlignRight
+                                                        text: root.roomAvailabilityText(modelData)
+                                                        color: root.roomAvailabilityColor(modelData)
+                                                        font.pixelSize: AppTheme.fontSizeCaption
+                                                    }
+                                                }
+                                            }
+
+                                            ActionButton {
+                                                Layout.fillWidth: true
+                                                text: root.roomJoinEnabled(modelData) ? "加入房间" : root.roomAvailabilityText(modelData)
+                                                enabled: root.roomJoinEnabled(modelData)
+                                                secondary: !root.roomJoinEnabled(modelData)
+                                                onClicked: root.joinOnlineRoomEntry(modelData.roomId)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    visible: AppCtrl.networkManager.onlineRooms.length === 0
+                                    text: "当前 ECS 还没有可加入的房间。你可以先创建一个在线房间。"
+                                    color: AppTheme.textMuted
+                                    font.pixelSize: AppTheme.fontSizeCaption
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+                        }
                     }
 
                     Text {
@@ -539,286 +993,6 @@ Page {
                         wrapMode: Text.WordWrap
                     }
 
-                    Rectangle {
-                        id: serverCard
-                        width: parent.width
-                        implicitHeight: serverLayout.implicitHeight + 54
-                        radius: AppTheme.radiusCard + 4
-                        color: AppTheme.cardBackground
-                        border.width: 1
-                        border.color: AppTheme.cardBorder
-                        opacity: 0
-                        visible: root.lobbyMode === 1
-                        transform: Translate { id: serverCardOffset; y: 20 }
-
-                        Rectangle {
-                            x: 0
-                            y: 6
-                            width: parent.width - 2
-                            height: parent.height + 2
-                            radius: parent.radius
-                            color: AppTheme.shadowMedium
-                        }
-
-                        Rectangle {
-                            x: 0
-                            y: 3
-                            width: parent.width - 1
-                            height: parent.height + 1
-                            radius: parent.radius
-                            color: AppTheme.shadowLight
-                        }
-
-                        ColumnLayout {
-                            id: serverLayout
-                            anchors.fill: parent
-                            anchors.margins: 24
-                            spacing: 12
-
-                            RowLayout {
-                                Layout.fillWidth: true
-
-                                Row {
-                                    spacing: 10
-
-                                    Rectangle {
-                                        width: 10
-                                        height: 10
-                                        radius: 5
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        color: root.isOnlineServerConnection() ? "#34A853" : "#FBBC04"
-                                    }
-
-                                    Column {
-                                        spacing: 4
-
-                                        Text {
-                                            text: AppCtrl.onlineServerName
-                                            color: AppTheme.textPrimary
-                                            font.pixelSize: AppTheme.fontSizeHeading
-                                            font.weight: Font.DemiBold
-                                        }
-
-                                        Text {
-                                            text: AppCtrl.onlineServerHost + " : " + AppCtrl.onlineServerPort
-                                            color: AppTheme.textSecondary
-                                            font.pixelSize: AppTheme.fontSizeBody
-                                        }
-                                    }
-                                }
-
-                                Item { Layout.fillWidth: true }
-
-                                ActionButton {
-                                    Layout.preferredWidth: 88
-                                    text: root.isOnlineServerConnection() ? "重连" : "连接"
-                                    onClicked: root.joinOnlineRoom()
-                                }
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: root.isOnlineServerConnection()
-                                    ? "当前已连接演示服务器，进入房间后可直接准备并开始对局。"
-                                    : "固定连接 ECS 演示服务器，适合异地演示，不依赖同一局域网。"
-                                color: AppTheme.textSecondary
-                                font.pixelSize: AppTheme.fontSizeBody
-                                wrapMode: Text.WordWrap
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        id: roomListCard
-                        width: parent.width
-                        implicitHeight: roomListLayout.implicitHeight + 54
-                        radius: AppTheme.radiusCard + 4
-                        color: AppTheme.cardBackground
-                        border.width: 1
-                        border.color: AppTheme.cardBorder
-                        opacity: 0
-                        visible: root.lobbyMode === 1
-                        transform: Translate { id: roomListCardOffset; y: 20 }
-
-                        Rectangle {
-                            x: 0
-                            y: 6
-                            width: parent.width - 2
-                            height: parent.height + 2
-                            radius: parent.radius
-                            color: AppTheme.shadowMedium
-                        }
-
-                        Rectangle {
-                            x: 0
-                            y: 3
-                            width: parent.width - 1
-                            height: parent.height + 1
-                            radius: parent.radius
-                            color: AppTheme.shadowLight
-                        }
-
-                        ColumnLayout {
-                            id: roomListLayout
-                            anchors.fill: parent
-                            anchors.margins: 24
-                            spacing: 12
-
-                            Text {
-                                text: "在线房间"
-                                color: AppTheme.textPrimary
-                                font.pixelSize: AppTheme.fontSizeHeading
-                                font.weight: Font.DemiBold
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: "当前服务端还是单房间演示模式，这里先展示一个固定在线房间入口，后面再接真正的多房间列表。"
-                                color: AppTheme.textSecondary
-                                font.pixelSize: AppTheme.fontSizeBody
-                                wrapMode: Text.WordWrap
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                implicitHeight: onlineRoomRow.implicitHeight + 24
-                                radius: 18
-                                color: AppTheme.cardBackgroundSoft
-                                border.width: 1
-                                border.color: AppTheme.cardBorder
-
-                                RowLayout {
-                                    id: onlineRoomRow
-                                    anchors.fill: parent
-                                    anchors.margins: 16
-                                    spacing: 12
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 3
-
-                                        Text {
-                                            text: "演示大厅"
-                                            color: AppTheme.textPrimary
-                                            font.pixelSize: 15
-                                            font.weight: Font.DemiBold
-                                        }
-
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: "固定单房间 · " + AppCtrl.onlineServerHost + " : " + AppCtrl.onlineServerPort
-                                            color: AppTheme.textMuted
-                                            font.pixelSize: AppTheme.fontSizeCaption
-                                            elide: Text.ElideRight
-                                        }
-                                    }
-
-                                    ColumnLayout {
-                                        spacing: 4
-
-                                        Text {
-                                            Layout.alignment: Qt.AlignRight
-                                            text: "1 个入口"
-                                            color: AppTheme.textPrimary
-                                            font.pixelSize: 13
-                                            font.weight: Font.Medium
-                                        }
-
-                                        Text {
-                                            Layout.alignment: Qt.AlignRight
-                                            text: "进入服务器"
-                                            color: AppTheme.accent
-                                            font.pixelSize: AppTheme.fontSizeCaption
-                                        }
-                                    }
-                                }
-
-                                TapHandler {
-                                    onTapped: root.joinOnlineRoom()
-                                }
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        id: quickJoinCard
-                        width: parent.width
-                        implicitHeight: quickJoinLayout.implicitHeight + 54
-                        radius: AppTheme.radiusCard + 4
-                        color: AppTheme.cardBackground
-                        border.width: 1
-                        border.color: AppTheme.cardBorder
-                        opacity: 0
-                        visible: root.lobbyMode === 1
-                        transform: Translate { id: quickJoinCardOffset; y: 20 }
-
-                        Rectangle {
-                            x: 0
-                            y: 6
-                            width: parent.width - 2
-                            height: parent.height + 2
-                            radius: parent.radius
-                            color: AppTheme.shadowMedium
-                        }
-
-                        Rectangle {
-                            x: 0
-                            y: 3
-                            width: parent.width - 1
-                            height: parent.height + 1
-                            radius: parent.radius
-                            color: AppTheme.shadowLight
-                        }
-
-                        ColumnLayout {
-                            id: quickJoinLayout
-                            anchors.fill: parent
-                            anchors.margins: 24
-                            spacing: 12
-
-                            Text {
-                                text: "在线入口"
-                                color: AppTheme.textPrimary
-                                font.pixelSize: AppTheme.fontSizeHeading
-                                font.weight: Font.DemiBold
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: "如果只是演示公网联机，可以直接快速进入在线大厅，省掉手动输入地址。"
-                                color: AppTheme.textSecondary
-                                font.pixelSize: AppTheme.fontSizeBody
-                                wrapMode: Text.WordWrap
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 38
-                                    radius: 19
-                                    color: AppTheme.cardBackgroundSoft
-                                    border.width: 1
-                                    border.color: AppTheme.cardBorder
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: AppCtrl.onlineServerHost + " : " + AppCtrl.onlineServerPort
-                                        color: AppTheme.textMuted
-                                        font.pixelSize: AppTheme.fontSizeCaption
-                                    }
-                                }
-
-                                ActionButton {
-                                    Layout.preferredWidth: 126
-                                    text: "快速进入大厅"
-                                    onClicked: root.joinOnlineRoom()
-                                }
-                            }
-                        }
-                    }
                 }
             }
 
@@ -926,32 +1100,257 @@ Page {
                         }
                     }
 
-                    SettingCard {
+                    Rectangle {
+                        id: roomGameCard
                         width: parent.width
-                        height: 84
-                        titleText: "当前桌游"
-                        valueText: AppCtrl.roomManager.gameName
-                        actionText: ""
+                        implicitHeight: roomGameCardColumn.implicitHeight + 28
+                        z: root.roomGamePickerOpen ? 20 : 1
+                        radius: AppTheme.radiusCard
+                        color: AppTheme.cardBackground
+                        border.width: 1
+                        border.color: AppTheme.cardBorder
+
+                        Rectangle {
+                            x: 0
+                            y: 4
+                            width: parent.width - 2
+                            height: parent.height + 1
+                            radius: parent.radius
+                            color: AppTheme.shadowMedium
+                        }
+
+                        Rectangle {
+                            x: 0
+                            y: 2
+                            width: parent.width - 1
+                            height: parent.height
+                            radius: parent.radius
+                            color: AppTheme.shadowLight
+                        }
+
+                        ColumnLayout {
+                            id: roomGameCardColumn
+                            anchors.fill: parent
+                            anchors.margins: 20
+                            spacing: 12
+
+                            Item {
+                                Layout.fillWidth: true
+                                implicitHeight: Math.max(roomGameInfoColumn.implicitHeight, roomGameActionButton.implicitHeight)
+
+                                Column {
+                                    id: roomGameInfoColumn
+                                    anchors.left: parent.left
+                                    anchors.right: roomGameActionButton.visible ? roomGameActionButton.left : parent.right
+                                    anchors.rightMargin: roomGameActionButton.visible ? 14 : 0
+                                    spacing: 4
+
+                                    Text {
+                                        text: "当前桌游"
+                                        color: AppTheme.textPrimary
+                                        font.pixelSize: 15
+                                        font.weight: Font.Medium
+                                    }
+
+                                    Text {
+                                        text: AppCtrl.roomManager.gameName
+                                        color: AppTheme.textSecondary
+                                        font.pixelSize: 13
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: roomGameActionButton
+                                    visible: root.canSwitchCurrentRoomGame()
+                                    anchors.top: parent.top
+                                    anchors.right: parent.right
+                                    z: 3
+                                    width: roomGameCardAction.implicitWidth + 22
+                                    height: 32
+                                    radius: 14
+                                    color: roomGamePickerOpen ? AppTheme.accentSoft : AppTheme.cardBackgroundSoft
+                                    border.width: 1
+                                    border.color: roomGamePickerOpen ? AppTheme.accent : AppTheme.cardBorder
+
+                                    Text {
+                                        id: roomGameCardAction
+                                        anchors.centerIn: parent
+                                        text: roomGamePickerOpen ? "收起" : "选择"
+                                        color: roomGamePickerOpen ? AppTheme.accent : AppTheme.textPrimary
+                                        font.pixelSize: 13
+                                        font.weight: Font.DemiBold
+                                    }
+
+                                    TapHandler {
+                                        enabled: root.canSwitchCurrentRoomGame()
+                                        onTapped: root.toggleRoomGamePicker()
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                z: 2
+                                color: "transparent"
+                                clip: true
+                                height: root.roomGamePickerOpen && root.canSwitchCurrentRoomGame()
+                                    ? roomGameOptionColumn.implicitHeight + 16
+                                    : 0
+                                opacity: root.roomGamePickerOpen && root.canSwitchCurrentRoomGame() ? 1 : 0
+
+                                Behavior on height {
+                                    NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                                }
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 18
+                                    color: AppTheme.cardBackgroundSoft
+                                    border.width: 1
+                                    border.color: AppTheme.cardBorder
+                                }
+
+                                Column {
+                                    id: roomGameOptionColumn
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.margins: 8
+                                    spacing: 8
+
+                                    Repeater {
+                                        model: [
+                                            {
+                                                gameId: "gomoku",
+                                                title: "五子棋",
+                                                subtitle: "双人对弈，适合快速开始。"
+                                            },
+                                            {
+                                                gameId: "doudizhu",
+                                                title: "斗地主",
+                                                subtitle: "三人房，全部准备后由房主开局。"
+                                            }
+                                        ]
+
+                                        delegate: Rectangle {
+                                            width: parent.width
+                                            height: 58
+                                            radius: 14
+                                            color: AppCtrl.roomManager.gameId === modelData.gameId
+                                                ? AppTheme.accentSoft
+                                                : AppTheme.cardBackground
+                                            border.width: 1
+                                            border.color: AppCtrl.roomManager.gameId === modelData.gameId
+                                                ? AppTheme.accent
+                                                : AppTheme.cardBorder
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.margins: 14
+                                                spacing: 12
+
+                                                ColumnLayout {
+                                                    Layout.fillWidth: true
+                                                    spacing: 2
+
+                                                    Text {
+                                                        text: modelData.title
+                                                        color: AppTheme.textPrimary
+                                                        font.pixelSize: 14
+                                                        font.weight: Font.DemiBold
+                                                    }
+
+                                                    Text {
+                                                        Layout.fillWidth: true
+                                                        text: modelData.subtitle
+                                                        color: AppTheme.textMuted
+                                                        font.pixelSize: AppTheme.fontSizeCaption
+                                                        elide: Text.ElideRight
+                                                    }
+                                                }
+
+                                                Text {
+                                                    text: AppCtrl.roomManager.gameId === modelData.gameId ? "当前" : "切换"
+                                                    color: AppCtrl.roomManager.gameId === modelData.gameId
+                                                        ? AppTheme.accent
+                                                        : AppTheme.textMuted
+                                                    font.pixelSize: AppTheme.fontSizeCaption
+                                                    font.weight: Font.DemiBold
+                                                }
+                                            }
+
+                                            TapHandler {
+                                                enabled: root.canSwitchCurrentRoomGame()
+                                                onTapped: root.selectCurrentRoomGame(modelData.gameId)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Text {
+                                visible: root.canSwitchCurrentRoomGame()
+                                text: AppCtrl.networkManager.isHost
+                                    ? "切换后会同步房间桌游，并清空当前准备状态。"
+                                    : "切换后会重新进入对应的在线房间。"
+                                color: AppTheme.textMuted
+                                font.pixelSize: AppTheme.fontSizeCaption
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+
                     }
 
                     Text {
                         width: parent.width
-                        text: AppTheme.zhPlayers()
+                        text: "游戏位"
                         color: AppTheme.textPrimary
                         font.pixelSize: 15
                         font.weight: Font.DemiBold
                     }
 
                     Repeater {
-                        model: AppCtrl.roomManager.playerList
+                        model: root.activeRoomPlayers()
 
                         delegate: PlayerCard {
                             width: parent.width
                             height: 84
                             playerName: modelData.name
                             roleText: modelData.isHost ? AppTheme.zhHost() : AppTheme.zhMember()
-                            statusText: modelData.isReady ? AppTheme.zhReady() : AppTheme.zhNotReady()
+                            statusText: root.seatStatusText(modelData)
                             ready: modelData.isReady
+                            actionText: root.seatActionText(modelData)
+                            actionEnabled: true
+                            onActionTriggered: root.toggleSeat(modelData)
+                        }
+                    }
+
+                    Text {
+                        width: parent.width
+                        visible: root.spectatorRoomPlayers().length > 0
+                        text: "旁观位"
+                        color: AppTheme.textPrimary
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
+                    }
+
+                    Repeater {
+                        model: root.spectatorRoomPlayers()
+
+                        delegate: PlayerCard {
+                            width: parent.width
+                            height: 84
+                            playerName: modelData.name
+                            roleText: modelData.isHost ? AppTheme.zhHost() : "旁观"
+                            statusText: root.seatStatusText(modelData)
+                            ready: false
+                            actionText: root.seatActionText(modelData)
+                            actionEnabled: true
+                            onActionTriggered: root.toggleSeat(modelData)
                         }
                     }
 
@@ -963,9 +1362,15 @@ Page {
                             width: (parent.width - parent.spacing) / 2
                             text: {
                                 var player = root.localPlayer()
+                                if (player && (player.seatType || "active") === "spectator")
+                                    return "旁观中"
                                 return player && player.isReady ? "取消准备" : AppTheme.zhPrepare()
                             }
                             secondary: true
+                            enabled: {
+                                var player = root.localPlayer()
+                                return !!player && (player.seatType || "active") === "active"
+                            }
                             onClicked: root.toggleReadyState()
                         }
 
@@ -982,7 +1387,7 @@ Page {
                         text: "添加本地对手"
                         secondary: true
                         visible: !root.networkRoom
-                                 && AppCtrl.roomManager.playerList.length < AppCtrl.roomManager.maxPlayers
+                                 && AppCtrl.roomManager.playerList.length < AppCtrl.roomManager.roomCapacity
                         onClicked: AppCtrl.roomManager.addTestPlayer("本地对手")
                     }
 
@@ -1017,33 +1422,8 @@ Page {
         }
         PauseAnimation { duration: 70 }
         ParallelAnimation {
-            NumberAnimation { target: ddzHostCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: ddzHostCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 70 }
-        ParallelAnimation {
-            NumberAnimation { target: onlineGomokuCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: onlineGomokuCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 70 }
-        ParallelAnimation {
-            NumberAnimation { target: onlineDouDiZhuCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: onlineDouDiZhuCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 70 }
-        ParallelAnimation {
-            NumberAnimation { target: serverCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: serverCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 70 }
-        ParallelAnimation {
-            NumberAnimation { target: roomListCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: roomListCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 70 }
-        ParallelAnimation {
-            NumberAnimation { target: quickJoinCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: quickJoinCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: onlineEntryCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: onlineEntryCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
     }
 }

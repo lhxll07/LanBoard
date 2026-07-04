@@ -79,7 +79,7 @@ if (LANBOARD_BUILD_APP)
             android.permission.CHANGE_WIFI_MULTICAST_STATE
         )
             set_property(TARGET appLanBoard APPEND PROPERTY QT_ANDROID_PERMISSIONS
-                "name\\;${permission_name}"
+                "${permission_name}"
             )
         endforeach()
     endif()

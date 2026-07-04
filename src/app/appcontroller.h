@@ -54,12 +54,18 @@ public:
                               const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE void leaveRoom();
     Q_INVOKABLE void toggleLocalReady();
+    Q_INVOKABLE void switchRoomGame(const QString &gameId);
+    Q_INVOKABLE void requestSeatChange(const QString &seatType);
     Q_INVOKABLE void openOnlinePage();
     Q_INVOKABLE void openDouDiZhuPage();
     Q_INVOKABLE bool playDouDiZhuCards(const QVariantList &cardIds);
     Q_INVOKABLE bool passDouDiZhuTurn();
     Q_INVOKABLE void restartDouDiZhuGame();
     Q_INVOKABLE void joinOnlineServer(const QString &gameId = QStringLiteral("gomoku"));
+    Q_INVOKABLE void refreshOnlineRooms();
+    Q_INVOKABLE void createOnlineRoom(const QString &gameId,
+                                      const QString &roomName = QString());
+    Q_INVOKABLE void joinOnlineRoom(const QString &roomId);
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
     Q_INVOKABLE bool updateOnlineServerEndpoint(const QString &host, int port);
@@ -75,6 +81,7 @@ private slots:
     void onRemoteReadyChanged(int playerId, bool ready);
     void onRemoteMoveReceived(int playerId, int row, int col);
     void onRemoteSurrender(int playerId);
+    void onRemoteSeatChanged(int playerId, const QString &seatType);
     void onRemoteStartGame(const QString &gameId);
     void onRemoteDouDiZhuPlay(int playerId, const QJsonArray &cardIds);
     void onRemoteDouDiZhuPass(int playerId);
@@ -88,8 +95,10 @@ private:
     QJsonArray currentRoomState() const;
     bool isDouDiZhuRoom() const;
     void configureRoomGame(const QString &gameId);
-    void cancelNetworkDouDiZhuRobotTurn();
-    void scheduleNetworkDouDiZhuRobotTurn();
+    void normalizeRoomSeatsForCurrentGame();
+    bool isGameInProgress() const;
+    int roomCapacity() const;
+    int activeGuestLimit() const;
 
     RoomManager *m_roomManager = nullptr;
     GameController *m_gameController = nullptr;
@@ -107,6 +116,4 @@ private:
     QString m_onlineServerName = QStringLiteral("ECS 演示服务器");
     QString m_onlineServerHost = QStringLiteral("47.105.54.227");
     quint16 m_onlineServerPort = 44567;
-    bool m_douDiZhuRobotTurnPending = false;
-    int m_douDiZhuRobotTurnToken = 0;
 };

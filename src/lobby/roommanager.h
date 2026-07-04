@@ -14,12 +14,15 @@ class RoomManager : public QObject
     Q_PROPERTY(QString gameId READ gameId NOTIFY gameChanged)
     Q_PROPERTY(QString gameName READ gameName NOTIFY gameChanged)
     Q_PROPERTY(int maxPlayers READ maxPlayers NOTIFY gameChanged)
+    Q_PROPERTY(int roomCapacity READ roomCapacity CONSTANT)
+    Q_PROPERTY(int activePlayerCount READ activePlayerCount NOTIFY playerListChanged)
 
 public:
     explicit RoomManager(QObject *parent = nullptr);
 
     Q_INVOKABLE void addPlayer(const QString &name, bool host = false, bool ready = false,
-                               int playerId = -1);
+                               int playerId = -1,
+                               const QString &seatType = QStringLiteral("active"));
     Q_INVOKABLE void addTestPlayer(const QString &name);
     Q_INVOKABLE void toggleReady();
     Q_INVOKABLE void startGame();
@@ -33,11 +36,19 @@ public:
     QString gameId() const { return m_gameId; }
     QString gameName() const;
     int maxPlayers() const;
+    int roomCapacity() const { return 3; }
+    int activePlayerCount() const;
     void setLocalPlayerId(int playerId);
     bool setPlayerReadyById(int playerId, bool ready);
+    bool setPlayerSeatById(int playerId, const QString &seatType);
     bool clearReadyStates();
     bool removePlayerById(int playerId);
     int firstGuestPlayerId() const;
+    int firstSpectatorPlayerId() const;
+    int activeGuestCount() const;
+    QString seatTypeById(int playerId) const;
+    bool isPlayerActive(int playerId) const;
+    bool localPlayerIsActive() const;
 
 signals:
     void playerListChanged();
@@ -52,6 +63,7 @@ private:
         QString name;
         bool isHost = false;
         bool isReady = false;
+        QString seatType = QStringLiteral("active");
     };
 
     int indexOfPlayerId(int playerId) const;
