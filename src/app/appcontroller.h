@@ -40,6 +40,7 @@ public:
     Q_INVOKABLE void joinRoom(const QString &ip, int port, const QString &playerName);
     Q_INVOKABLE void leaveRoom();
     Q_INVOKABLE void toggleLocalReady();
+    Q_INVOKABLE void openOnlinePage();
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
 
