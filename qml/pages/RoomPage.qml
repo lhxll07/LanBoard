@@ -6,6 +6,7 @@ import LanBoard
 Page {
     id: root
     objectName: "onlinePage"
+    property int lobbyMode: 1
 
     property bool inRoom: AppCtrl.networkManager.isHost
                        || AppCtrl.networkManager.isConnected
@@ -15,7 +16,7 @@ Page {
     property string joinErrorText: ""
 
     function syncDiscoveryState() {
-        if (visible && !inRoom) {
+        if (visible && !inRoom && lobbyMode === 0) {
             AppCtrl.networkManager.startRoomDiscovery()
             AppCtrl.networkManager.refreshRoomDiscovery()
         } else {
@@ -45,6 +46,17 @@ Page {
         AppCtrl.joinRoom(room.hostIp, room.port, AppCtrl.nickname)
     }
 
+    function joinOnlineRoom() {
+        joinErrorText = ""
+        AppCtrl.joinOnlineServer()
+    }
+
+    function isOnlineServerConnection() {
+        return AppCtrl.networkManager.isConnected
+            && AppCtrl.networkManager.connectedIp === AppCtrl.onlineServerHost
+            && AppCtrl.networkManager.connectedPort === AppCtrl.onlineServerPort
+    }
+
     function localPlayer() {
         var idx = AppCtrl.roomManager.localPlayerIndex
         var players = AppCtrl.roomManager.playerList
@@ -69,14 +81,14 @@ Page {
 
     Component.onCompleted: syncDiscoveryState()
     onVisibleChanged: syncDiscoveryState()
+    onLobbyModeChanged: syncDiscoveryState()
     onInRoomChanged: {
         if (inRoom) {
             AppCtrl.networkManager.stopRoomDiscovery()
             AppCtrl.networkManager.clearDiscoveredRooms()
         } else if (visible) {
             AppCtrl.networkManager.clearDiscoveredRooms()
-            AppCtrl.networkManager.refreshRoomDiscovery()
-            AppCtrl.networkManager.startRoomDiscovery()
+            syncDiscoveryState()
         }
     }
 
@@ -106,9 +118,75 @@ Page {
             PageHeader {
                 titleText: root.inRoom ? "房间" : "在线游戏"
                 subtitleText: root.inRoom
-                    ? "房间状态只在加入或创建房间后显示。"
-                    : "自动发现局域网房间，也可以手动输入地址加入。"
+                    ? (root.isOnlineServerConnection()
+                        ? "当前已进入 ECS 在线演示房间。"
+                        : "房间状态只在加入或创建房间后显示。")
+                    : (root.lobbyMode === 0
+                        ? "自动发现局域网房间，也可以手动输入地址加入。"
+                        : "连接 ECS 演示服务器，直接进入在线联机大厅。")
                 trailingText: root.inRoom ? (AppCtrl.roomManager.playerList.length + " / 2") : ""
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 56
+                radius: 28
+                color: "#ECE4D8"
+                visible: !root.inRoom
+
+                Rectangle {
+                    width: (parent.width - 8) / 2
+                    height: 40
+                    x: root.lobbyMode === 0 ? 4 : parent.width / 2
+                    y: 8
+                    radius: 20
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: "#203E36" }
+                        GradientStop { position: 1.0; color: "#2F5A4F" }
+                    }
+
+                    Behavior on x {
+                        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                    }
+                }
+
+                Row {
+                    anchors.fill: parent
+
+                    Item {
+                        width: parent.width / 2
+                        height: parent.height
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "局域网"
+                            color: root.lobbyMode === 0 ? "#F4EFE7" : AppTheme.textMuted
+                            font.pixelSize: root.lobbyMode === 0 ? 15 : 14
+                            font.weight: root.lobbyMode === 0 ? Font.DemiBold : Font.Medium
+                        }
+
+                        TapHandler {
+                            onTapped: root.lobbyMode = 0
+                        }
+                    }
+
+                    Item {
+                        width: parent.width / 2
+                        height: parent.height
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "在线"
+                            color: root.lobbyMode === 1 ? "#F4EFE7" : AppTheme.textMuted
+                            font.pixelSize: root.lobbyMode === 1 ? 15 : 14
+                            font.weight: root.lobbyMode === 1 ? Font.DemiBold : Font.Medium
+                        }
+
+                        TapHandler {
+                            onTapped: root.lobbyMode = 1
+                        }
+                    }
+                }
             }
 
             Item {
@@ -131,6 +209,7 @@ Page {
                         border.color: AppTheme.cardBorder
                         opacity: 0
                         transform: Translate { id: discoverCardOffset; y: 20 }
+                        visible: root.lobbyMode === 0
 
                         Rectangle {
                             x: 0
@@ -282,6 +361,7 @@ Page {
                         border.color: AppTheme.cardBorder
                         opacity: 0
                         transform: Translate { id: joinCardOffset; y: 20 }
+                        visible: root.lobbyMode === 0
 
                         Rectangle {
                             x: 0
@@ -395,6 +475,7 @@ Page {
                         tagText: "主机"
                         opacity: 0
                         transform: Translate { id: hostCardOffset; y: 20 }
+                        visible: root.lobbyMode === 0
                         onClicked: AppCtrl.startRoomAsHost()
                     }
 
@@ -408,6 +489,7 @@ Page {
                         dark: true
                         opacity: 0
                         transform: Translate { id: localCardOffset; y: 20 }
+                        visible: root.lobbyMode === 0
                         onClicked: AppCtrl.startLocalMode()
                     }
 
@@ -417,6 +499,288 @@ Page {
                         titleText: "默认端口"
                         valueText: AppCtrl.defaultPort + "，可在设置页修改"
                         actionText: ""
+                        visible: root.lobbyMode === 0
+                    }
+
+                    Rectangle {
+                        id: serverCard
+                        width: parent.width
+                        implicitHeight: serverLayout.implicitHeight + 54
+                        radius: AppTheme.radiusCard + 4
+                        color: AppTheme.cardBackground
+                        border.width: 1
+                        border.color: AppTheme.cardBorder
+                        opacity: 0
+                        visible: root.lobbyMode === 1
+                        transform: Translate { id: serverCardOffset; y: 20 }
+
+                        Rectangle {
+                            x: 0
+                            y: 6
+                            width: parent.width - 2
+                            height: parent.height + 2
+                            radius: parent.radius
+                            color: AppTheme.shadowMedium
+                        }
+
+                        Rectangle {
+                            x: 0
+                            y: 3
+                            width: parent.width - 1
+                            height: parent.height + 1
+                            radius: parent.radius
+                            color: AppTheme.shadowLight
+                        }
+
+                        ColumnLayout {
+                            id: serverLayout
+                            anchors.fill: parent
+                            anchors.margins: 24
+                            spacing: 12
+
+                            RowLayout {
+                                Layout.fillWidth: true
+
+                                Row {
+                                    spacing: 10
+
+                                    Rectangle {
+                                        width: 10
+                                        height: 10
+                                        radius: 5
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        color: root.isOnlineServerConnection() ? "#34A853" : "#FBBC04"
+                                    }
+
+                                    Column {
+                                        spacing: 4
+
+                                        Text {
+                                            text: AppCtrl.onlineServerName
+                                            color: AppTheme.textPrimary
+                                            font.pixelSize: AppTheme.fontSizeHeading
+                                            font.weight: Font.DemiBold
+                                        }
+
+                                        Text {
+                                            text: AppCtrl.onlineServerHost + " : " + AppCtrl.onlineServerPort
+                                            color: AppTheme.textSecondary
+                                            font.pixelSize: AppTheme.fontSizeBody
+                                        }
+                                    }
+                                }
+
+                                Item { Layout.fillWidth: true }
+
+                                ActionButton {
+                                    Layout.preferredWidth: 88
+                                    text: root.isOnlineServerConnection() ? "重连" : "连接"
+                                    onClicked: root.joinOnlineRoom()
+                                }
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: root.isOnlineServerConnection()
+                                    ? "当前已连接演示服务器，进入房间后可直接准备并开始对局。"
+                                    : "固定连接 ECS 演示服务器，适合异地演示，不依赖同一局域网。"
+                                color: AppTheme.textSecondary
+                                font.pixelSize: AppTheme.fontSizeBody
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        id: roomListCard
+                        width: parent.width
+                        implicitHeight: roomListLayout.implicitHeight + 54
+                        radius: AppTheme.radiusCard + 4
+                        color: AppTheme.cardBackground
+                        border.width: 1
+                        border.color: AppTheme.cardBorder
+                        opacity: 0
+                        visible: root.lobbyMode === 1
+                        transform: Translate { id: roomListCardOffset; y: 20 }
+
+                        Rectangle {
+                            x: 0
+                            y: 6
+                            width: parent.width - 2
+                            height: parent.height + 2
+                            radius: parent.radius
+                            color: AppTheme.shadowMedium
+                        }
+
+                        Rectangle {
+                            x: 0
+                            y: 3
+                            width: parent.width - 1
+                            height: parent.height + 1
+                            radius: parent.radius
+                            color: AppTheme.shadowLight
+                        }
+
+                        ColumnLayout {
+                            id: roomListLayout
+                            anchors.fill: parent
+                            anchors.margins: 24
+                            spacing: 12
+
+                            Text {
+                                text: "在线房间"
+                                color: AppTheme.textPrimary
+                                font.pixelSize: AppTheme.fontSizeHeading
+                                font.weight: Font.DemiBold
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "当前服务端还是单房间演示模式，这里先展示一个固定在线房间入口，后面再接真正的多房间列表。"
+                                color: AppTheme.textSecondary
+                                font.pixelSize: AppTheme.fontSizeBody
+                                wrapMode: Text.WordWrap
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: onlineRoomRow.implicitHeight + 24
+                                radius: 18
+                                color: AppTheme.cardBackgroundSoft
+                                border.width: 1
+                                border.color: AppTheme.cardBorder
+
+                                RowLayout {
+                                    id: onlineRoomRow
+                                    anchors.fill: parent
+                                    anchors.margins: 16
+                                    spacing: 12
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 3
+
+                                        Text {
+                                            text: "演示大厅"
+                                            color: AppTheme.textPrimary
+                                            font.pixelSize: 15
+                                            font.weight: Font.DemiBold
+                                        }
+
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: "固定单房间 · " + AppCtrl.onlineServerHost + " : " + AppCtrl.onlineServerPort
+                                            color: AppTheme.textMuted
+                                            font.pixelSize: AppTheme.fontSizeCaption
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        spacing: 4
+
+                                        Text {
+                                            Layout.alignment: Qt.AlignRight
+                                            text: "1 个入口"
+                                            color: AppTheme.textPrimary
+                                            font.pixelSize: 13
+                                            font.weight: Font.Medium
+                                        }
+
+                                        Text {
+                                            Layout.alignment: Qt.AlignRight
+                                            text: "进入服务器"
+                                            color: AppTheme.accent
+                                            font.pixelSize: AppTheme.fontSizeCaption
+                                        }
+                                    }
+                                }
+
+                                TapHandler {
+                                    onTapped: root.joinOnlineRoom()
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        id: quickJoinCard
+                        width: parent.width
+                        implicitHeight: quickJoinLayout.implicitHeight + 54
+                        radius: AppTheme.radiusCard + 4
+                        color: AppTheme.cardBackground
+                        border.width: 1
+                        border.color: AppTheme.cardBorder
+                        opacity: 0
+                        visible: root.lobbyMode === 1
+                        transform: Translate { id: quickJoinCardOffset; y: 20 }
+
+                        Rectangle {
+                            x: 0
+                            y: 6
+                            width: parent.width - 2
+                            height: parent.height + 2
+                            radius: parent.radius
+                            color: AppTheme.shadowMedium
+                        }
+
+                        Rectangle {
+                            x: 0
+                            y: 3
+                            width: parent.width - 1
+                            height: parent.height + 1
+                            radius: parent.radius
+                            color: AppTheme.shadowLight
+                        }
+
+                        ColumnLayout {
+                            id: quickJoinLayout
+                            anchors.fill: parent
+                            anchors.margins: 24
+                            spacing: 12
+
+                            Text {
+                                text: "在线入口"
+                                color: AppTheme.textPrimary
+                                font.pixelSize: AppTheme.fontSizeHeading
+                                font.weight: Font.DemiBold
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "如果只是演示公网联机，可以直接快速进入在线大厅，省掉手动输入地址。"
+                                color: AppTheme.textSecondary
+                                font.pixelSize: AppTheme.fontSizeBody
+                                wrapMode: Text.WordWrap
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 12
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 38
+                                    radius: 19
+                                    color: AppTheme.cardBackgroundSoft
+                                    border.width: 1
+                                    border.color: AppTheme.cardBorder
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: AppCtrl.onlineServerHost + " : " + AppCtrl.onlineServerPort
+                                        color: AppTheme.textMuted
+                                        font.pixelSize: AppTheme.fontSizeCaption
+                                    }
+                                }
+
+                                ActionButton {
+                                    Layout.preferredWidth: 126
+                                    text: "快速进入大厅"
+                                    onClicked: root.joinOnlineRoom()
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -480,6 +844,8 @@ Page {
                                     text: {
                                         if (AppCtrl.networkManager.isHost)
                                             return "主机房间"
+                                        if (root.isOnlineServerConnection())
+                                            return "在线演示房间"
                                         if (AppCtrl.networkManager.isConnected)
                                             return "已加入房间"
                                         return "本地双人"
@@ -494,6 +860,9 @@ Page {
                                         if (AppCtrl.networkManager.isHost)
                                             return "IP: " + AppCtrl.networkManager.localIp
                                                 + " : " + AppCtrl.networkManager.serverPort
+                                        if (root.isOnlineServerConnection())
+                                            return "ECS: " + AppCtrl.networkManager.connectedIp
+                                                + " : " + AppCtrl.networkManager.connectedPort
                                         if (AppCtrl.networkManager.isConnected)
                                             return "IP: " + AppCtrl.networkManager.connectedIp
                                                 + " : " + AppCtrl.networkManager.connectedPort
@@ -511,7 +880,9 @@ Page {
                             anchors.verticalCenter: parent.verticalCenter
                             text: AppCtrl.networkManager.isHost
                                 ? (AppCtrl.networkManager.clientCount > 0 ? "等待开始" : "等待加入...")
-                                : (AppCtrl.networkManager.isConnected ? "已连接" : "可直接开始")
+                                : (root.isOnlineServerConnection()
+                                    ? "在线已连接"
+                                    : (AppCtrl.networkManager.isConnected ? "已连接" : "可直接开始"))
                             color: AppTheme.accent
                             font.pixelSize: 12
                             font.weight: Font.Medium
@@ -610,6 +981,21 @@ Page {
         ParallelAnimation {
             NumberAnimation { target: localCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: localCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
+        ParallelAnimation {
+            NumberAnimation { target: serverCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: serverCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
+        ParallelAnimation {
+            NumberAnimation { target: roomListCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: roomListCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
+        ParallelAnimation {
+            NumberAnimation { target: quickJoinCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: quickJoinCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
     }
 }
