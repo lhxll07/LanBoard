@@ -343,6 +343,11 @@ void AppController::restartDouDiZhuGame()
     m_douDiZhuController->startNewGame();
 }
 
+void AppController::joinOnlineServer()
+{
+    joinRoom(m_onlineServerHost, m_onlineServerPort, m_nickname);
+}
+
 void AppController::toggleLocalReady()
 {
     m_roomManager->toggleReady();
@@ -354,8 +359,10 @@ void AppController::toggleLocalReady()
 bool AppController::updateNickname(const QString &nickname)
 {
     const QString trimmed = nickname.trimmed();
-    if (trimmed.isEmpty() || trimmed == m_nickname)
+    if (trimmed.isEmpty())
         return false;
+    if (trimmed == m_nickname)
+        return true;
 
     m_nickname = trimmed;
     m_networkManager->setDiscoveryHostName(m_nickname);
@@ -371,9 +378,26 @@ bool AppController::updateDefaultPort(int port)
 
     const quint16 normalizedPort = static_cast<quint16>(port);
     if (normalizedPort == m_defaultPort)
-        return false;
+        return true;
 
     m_defaultPort = normalizedPort;
+    saveSettings();
+    emit settingsChanged();
+    return true;
+}
+
+bool AppController::updateOnlineServerEndpoint(const QString &host, int port)
+{
+    const QString trimmedHost = host.trimmed();
+    if (trimmedHost.isEmpty() || port < 1 || port > 65535)
+        return false;
+
+    const quint16 normalizedPort = static_cast<quint16>(port);
+    if (trimmedHost == m_onlineServerHost && normalizedPort == m_onlineServerPort)
+        return true;
+
+    m_onlineServerHost = trimmedHost;
+    m_onlineServerPort = normalizedPort;
     saveSettings();
     emit settingsChanged();
     return true;
@@ -549,6 +573,16 @@ void AppController::loadSettings()
         m_recentJoinPort = static_cast<quint16>(recentPort);
     else
         m_recentJoinPort = m_defaultPort;
+
+    const QString onlineHost = settings.value(QStringLiteral("network/onlineServerHost"),
+                                              m_onlineServerHost).toString().trimmed();
+    if (!onlineHost.isEmpty())
+        m_onlineServerHost = onlineHost;
+
+    const int onlinePort = settings.value(QStringLiteral("network/onlineServerPort"),
+                                          m_onlineServerPort).toInt();
+    if (onlinePort >= 1 && onlinePort <= 65535)
+        m_onlineServerPort = static_cast<quint16>(onlinePort);
 }
 
 void AppController::saveSettings() const
@@ -558,6 +592,8 @@ void AppController::saveSettings() const
     settings.setValue(QStringLiteral("network/defaultPort"), m_defaultPort);
     settings.setValue(QStringLiteral("network/recentJoinIp"), m_recentJoinIp);
     settings.setValue(QStringLiteral("network/recentJoinPort"), m_recentJoinPort);
+    settings.setValue(QStringLiteral("network/onlineServerHost"), m_onlineServerHost);
+    settings.setValue(QStringLiteral("network/onlineServerPort"), m_onlineServerPort);
 }
 
 QJsonArray AppController::currentRoomState() const
