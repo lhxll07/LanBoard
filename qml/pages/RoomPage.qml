@@ -5,6 +5,7 @@ import LanBoard
 
 Page {
     id: root
+    objectName: "onlinePage"
 
     property bool inRoom: AppCtrl.networkManager.isHost
                        || AppCtrl.networkManager.isConnected
@@ -12,6 +13,15 @@ Page {
     property bool networkRoom: AppCtrl.networkManager.isHost
                             || AppCtrl.networkManager.isConnected
     property string joinErrorText: ""
+
+    function syncDiscoveryState() {
+        if (visible && !inRoom) {
+            AppCtrl.networkManager.startRoomDiscovery()
+            AppCtrl.networkManager.refreshRoomDiscovery()
+        } else {
+            AppCtrl.networkManager.stopRoomDiscovery()
+        }
+    }
 
     function joinCurrentRoom() {
         var ip = ipInput.text.trim()
@@ -28,6 +38,11 @@ Page {
 
         joinErrorText = ""
         AppCtrl.joinRoom(ip, port, AppCtrl.nickname)
+    }
+
+    function joinDiscoveredRoom(room) {
+        joinErrorText = ""
+        AppCtrl.joinRoom(room.hostIp, room.port, AppCtrl.nickname)
     }
 
     function localPlayer() {
@@ -50,6 +65,19 @@ Page {
 
     background: Rectangle {
         color: "transparent"
+    }
+
+    Component.onCompleted: syncDiscoveryState()
+    onVisibleChanged: syncDiscoveryState()
+    onInRoomChanged: {
+        if (inRoom) {
+            AppCtrl.networkManager.stopRoomDiscovery()
+            AppCtrl.networkManager.clearDiscoveredRooms()
+        } else if (visible) {
+            AppCtrl.networkManager.clearDiscoveredRooms()
+            AppCtrl.networkManager.refreshRoomDiscovery()
+            AppCtrl.networkManager.startRoomDiscovery()
+        }
     }
 
     Connections {
@@ -76,10 +104,10 @@ Page {
             spacing: 18
 
             PageHeader {
-                titleText: root.inRoom ? "房间" : AppTheme.zhMatch()
+                titleText: root.inRoom ? "房间" : "在线游戏"
                 subtitleText: root.inRoom
                     ? "房间状态只在加入或创建房间后显示。"
-                    : "从这里加入房间，也可以直接创建房间或开始本地双人。"
+                    : "自动发现局域网房间，也可以手动输入地址加入。"
                 trailingText: root.inRoom ? (AppCtrl.roomManager.playerList.length + " / 2") : ""
             }
 
@@ -92,6 +120,157 @@ Page {
                     id: joinStateColumn
                     width: parent.width
                     spacing: 18
+
+                    Rectangle {
+                        id: discoverCard
+                        width: parent.width
+                        implicitHeight: discoverLayout.implicitHeight + 54
+                        radius: AppTheme.radiusCard + 4
+                        color: AppTheme.cardBackground
+                        border.width: 1
+                        border.color: AppTheme.cardBorder
+                        opacity: 0
+                        transform: Translate { id: discoverCardOffset; y: 20 }
+
+                        Rectangle {
+                            x: 0
+                            y: 6
+                            width: parent.width - 2
+                            height: parent.height + 2
+                            radius: parent.radius
+                            color: AppTheme.shadowMedium
+                        }
+
+                        Rectangle {
+                            x: 0
+                            y: 3
+                            width: parent.width - 1
+                            height: parent.height + 1
+                            radius: parent.radius
+                            color: AppTheme.shadowLight
+                        }
+
+                        ColumnLayout {
+                            id: discoverLayout
+                            anchors.fill: parent
+                            anchors.margins: 24
+                            spacing: 12
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Text {
+                                        text: "局域网可用房间"
+                                        color: AppTheme.textPrimary
+                                        font.pixelSize: AppTheme.fontSizeHeading
+                                        font.weight: Font.DemiBold
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: "自动扫描同一局域网内正在开房的主机。"
+                                        color: AppTheme.textSecondary
+                                        font.pixelSize: AppTheme.fontSizeBody
+                                        wrapMode: Text.WordWrap
+                                    }
+                                }
+
+                                ActionButton {
+                                    Layout.preferredWidth: 88
+                                    text: "刷新"
+                                    secondary: true
+                                    onClicked: AppCtrl.networkManager.refreshRoomDiscovery()
+                                }
+                            }
+
+                            Column {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                Repeater {
+                                    model: AppCtrl.networkManager.discoveredRooms
+
+                                    delegate: Rectangle {
+                                        width: discoverLayout.width
+                                        implicitHeight: roomLayout.implicitHeight + 24
+                                        radius: 18
+                                        color: AppTheme.cardBackgroundSoft
+                                        border.width: 1
+                                        border.color: AppTheme.cardBorder
+
+                                        RowLayout {
+                                            id: roomLayout
+                                            anchors.fill: parent
+                                            anchors.margins: 16
+                                            spacing: 12
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 3
+
+                                                Text {
+                                                    text: modelData.hostName.length > 0 ? modelData.hostName : "未命名房主"
+                                                    color: AppTheme.textPrimary
+                                                    font.pixelSize: 15
+                                                    font.weight: Font.DemiBold
+                                                }
+
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    text: modelData.hostIp + " : " + modelData.port
+                                                    color: AppTheme.textMuted
+                                                    font.pixelSize: AppTheme.fontSizeCaption
+                                                    elide: Text.ElideRight
+                                                }
+                                            }
+
+                                            ColumnLayout {
+                                                spacing: 4
+
+                                                Text {
+                                                    Layout.alignment: Qt.AlignRight
+                                                    text: modelData.playerCount + " / " + modelData.maxPlayers
+                                                    color: AppTheme.textPrimary
+                                                    font.pixelSize: 13
+                                                    font.weight: Font.Medium
+                                                }
+
+                                                Text {
+                                                    Layout.alignment: Qt.AlignRight
+                                                    text: modelData.inGame
+                                                        ? "对局中"
+                                                        : modelData.isFull ? "房间已满" : "可加入"
+                                                    color: modelData.inGame || modelData.isFull
+                                                        ? AppTheme.textMuted
+                                                        : AppTheme.accent
+                                                    font.pixelSize: AppTheme.fontSizeCaption
+                                                }
+                                            }
+                                        }
+
+                                        TapHandler {
+                                            enabled: !modelData.isFull && !modelData.inGame
+                                            onTapped: root.joinDiscoveredRoom(modelData)
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    visible: AppCtrl.networkManager.discoveredRooms.length === 0
+                                    text: "还没有发现可用房间。确认双方在同一局域网，并且房主已经创建房间。"
+                                    color: AppTheme.textMuted
+                                    font.pixelSize: AppTheme.fontSizeCaption
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+                        }
+                    }
 
                     Rectangle {
                         id: joinCard
@@ -413,6 +592,11 @@ Page {
         id: joinEntryAnim
         running: !root.inRoom
 
+        ParallelAnimation {
+            NumberAnimation { target: discoverCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: discoverCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
         ParallelAnimation {
             NumberAnimation { target: joinCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: joinCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
