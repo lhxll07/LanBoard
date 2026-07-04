@@ -49,6 +49,7 @@ if (LANBOARD_BUILD_APP)
             qml/components/BottomTextNav.qml
             qml/components/GameCard.qml
             qml/components/PageHeader.qml
+            qml/components/PlayerAvatar.qml
             qml/components/PlayerCard.qml
             qml/components/SettingCard.qml
             qml/pages/HomePage.qml

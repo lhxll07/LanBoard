@@ -9,6 +9,42 @@ Page {
 
     property var selectedIds: []
 
+    function ddzPlayerName(player) {
+        var players = AppCtrl.roomManager.playerList
+        for (var i = 0; i < players.length; ++i) {
+            if (players[i].playerId === player)
+                return players[i].name
+        }
+
+        if (player === AppCtrl.douDiZhuController.localPlayer)
+            return AppCtrl.nickname
+        if (player === AppCtrl.douDiZhuController.leftOpponentPlayer)
+            return "下家"
+        if (player === AppCtrl.douDiZhuController.rightOpponentPlayer)
+            return "上家"
+        return "玩家"
+    }
+
+    function ddzRoleText(player) {
+        return AppCtrl.douDiZhuController.landlord === player ? "地主" : "农民"
+    }
+
+    function ddzStatusText(player) {
+        if (AppCtrl.douDiZhuController.gameOver)
+            return AppCtrl.douDiZhuController.winner === player ? "获胜" : "结束"
+        return AppCtrl.douDiZhuController.currentPlayer === player ? "出牌中" : "等待"
+    }
+
+    function ddzCardCount(player) {
+        if (player === AppCtrl.douDiZhuController.localPlayer)
+            return AppCtrl.douDiZhuController.playerHand.length
+        if (player === AppCtrl.douDiZhuController.leftOpponentPlayer)
+            return AppCtrl.douDiZhuController.leftOpponentCount
+        if (player === AppCtrl.douDiZhuController.rightOpponentPlayer)
+            return AppCtrl.douDiZhuController.rightOpponentCount
+        return 0
+    }
+
     function isSelected(cardId) {
         return selectedIds.indexOf(cardId) >= 0
     }
@@ -47,36 +83,45 @@ Page {
         anchors.bottomMargin: 12
         spacing: 12
 
-        RowLayout {
+        Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 46
-            spacing: 10
+            Layout.preferredHeight: 68
 
             ColumnLayout {
-                Layout.fillWidth: true
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: 82
                 spacing: 2
 
                 Text {
-                    Layout.fillWidth: true
+                    width: parent.width
                     text: "斗地主"
                     color: AppTheme.textPrimary
-                    font.pixelSize: 24
+                    font.pixelSize: 22
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
                 }
 
                 Text {
-                    Layout.fillWidth: true
+                    width: parent.width
                     text: AppCtrl.douDiZhuController.turnText
                     color: AppTheme.textSecondary
-                    font.pixelSize: 13
+                    font.pixelSize: 11
                     elide: Text.ElideRight
                 }
             }
 
+            TopLandlordPanel {
+                width: Math.min(188, Math.max(164, parent.width - 198))
+                height: 56
+                anchors.centerIn: parent
+            }
+
             ActionButton {
-                Layout.preferredWidth: 90
-                Layout.preferredHeight: 42
+                width: 78
+                height: 42
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
                 text: "返回"
                 secondary: true
                 onClicked: root.StackView.view.pop()
@@ -85,124 +130,133 @@ Page {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: 88
+            Layout.preferredHeight: 108
             spacing: 10
 
-            OpponentSeat {
+            PlayerStatusSeat {
                 Layout.fillWidth: true
-                nameText: "下家"
-                roleText: AppCtrl.douDiZhuController.landlord === AppCtrl.douDiZhuController.leftOpponentPlayer
-                    ? "地主" : "农民"
-                count: AppCtrl.douDiZhuController.leftOpponentCount
-                active: AppCtrl.douDiZhuController.currentPlayer === AppCtrl.douDiZhuController.leftOpponentPlayer
+                Layout.fillHeight: true
+                playerName: root.ddzPlayerName(AppCtrl.douDiZhuController.localPlayer)
+                roleText: "你"
+                infoText: root.ddzRoleText(AppCtrl.douDiZhuController.localPlayer)
+                countText: root.ddzCardCount(AppCtrl.douDiZhuController.localPlayer) + " 张"
+                playStatusText: root.ddzStatusText(AppCtrl.douDiZhuController.localPlayer)
+                active: !AppCtrl.douDiZhuController.gameOver
+                        && AppCtrl.douDiZhuController.currentPlayer === AppCtrl.douDiZhuController.localPlayer
+                winner: AppCtrl.douDiZhuController.gameOver
+                        && AppCtrl.douDiZhuController.winner === AppCtrl.douDiZhuController.localPlayer
+                tone: 0
             }
 
-            OpponentSeat {
+            PlayerStatusSeat {
                 Layout.fillWidth: true
-                nameText: "上家"
-                roleText: AppCtrl.douDiZhuController.landlord === AppCtrl.douDiZhuController.rightOpponentPlayer
-                    ? "地主" : "农民"
-                count: AppCtrl.douDiZhuController.rightOpponentCount
-                active: AppCtrl.douDiZhuController.currentPlayer === AppCtrl.douDiZhuController.rightOpponentPlayer
+                Layout.fillHeight: true
+                playerName: root.ddzPlayerName(AppCtrl.douDiZhuController.leftOpponentPlayer)
+                roleText: "下家"
+                infoText: root.ddzRoleText(AppCtrl.douDiZhuController.leftOpponentPlayer)
+                countText: root.ddzCardCount(AppCtrl.douDiZhuController.leftOpponentPlayer) + " 张"
+                playStatusText: root.ddzStatusText(AppCtrl.douDiZhuController.leftOpponentPlayer)
+                active: !AppCtrl.douDiZhuController.gameOver
+                        && AppCtrl.douDiZhuController.currentPlayer === AppCtrl.douDiZhuController.leftOpponentPlayer
+                winner: AppCtrl.douDiZhuController.gameOver
+                        && AppCtrl.douDiZhuController.winner === AppCtrl.douDiZhuController.leftOpponentPlayer
+                tone: 2
+            }
+
+            PlayerStatusSeat {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                playerName: root.ddzPlayerName(AppCtrl.douDiZhuController.rightOpponentPlayer)
+                roleText: "上家"
+                infoText: root.ddzRoleText(AppCtrl.douDiZhuController.rightOpponentPlayer)
+                countText: root.ddzCardCount(AppCtrl.douDiZhuController.rightOpponentPlayer) + " 张"
+                playStatusText: root.ddzStatusText(AppCtrl.douDiZhuController.rightOpponentPlayer)
+                active: !AppCtrl.douDiZhuController.gameOver
+                        && AppCtrl.douDiZhuController.currentPlayer === AppCtrl.douDiZhuController.rightOpponentPlayer
+                winner: AppCtrl.douDiZhuController.gameOver
+                        && AppCtrl.douDiZhuController.winner === AppCtrl.douDiZhuController.rightOpponentPlayer
+                tone: 3
             }
         }
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 92
-            radius: 18
-            color: "#FBFAF6"
-            border.width: 1
-            border.color: AppTheme.cardBorder
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 12
-                spacing: 12
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: "底牌"
-                        color: AppTheme.textMuted
-                        font.pixelSize: 12
-                    }
-
-                    Row {
-                        spacing: 6
-                        Repeater {
-                            model: AppCtrl.douDiZhuController.landlordCards
-                            delegate: CardFace {
-                                small: true
-                                cardData: modelData
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.preferredWidth: 96
-                    Layout.fillHeight: true
-                    radius: 14
-                    color: AppCtrl.douDiZhuController.landlord === AppCtrl.douDiZhuController.localPlayer
-                        ? "#173A31" : "#EEF1EB"
-
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 4
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: AppCtrl.douDiZhuController.landlord === AppCtrl.douDiZhuController.localPlayer
-                                ? "地主" : "农民"
-                            color: AppCtrl.douDiZhuController.landlord === AppCtrl.douDiZhuController.localPlayer
-                                ? "#F8F8F5" : AppTheme.textPrimary
-                            font.pixelSize: 16
-                            font.weight: Font.DemiBold
-                        }
-
-                        Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: "你的身份"
-                            color: AppCtrl.douDiZhuController.landlord === AppCtrl.douDiZhuController.localPlayer
-                                ? "#DCE4DF" : AppTheme.textMuted
-                            font.pixelSize: 11
-                        }
-                    }
-                }
-            }
-        }
-
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 82
-            radius: 18
+            Layout.preferredHeight: 130
+            radius: 20
             color: "#FFFFFF"
             border.width: 1
             border.color: AppTheme.cardBorder
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 14
+                anchors.margins: 12
                 spacing: 6
 
                 Text {
                     Layout.fillWidth: true
                     text: AppCtrl.douDiZhuController.lastPlayText
                     color: AppTheme.textPrimary
-                    font.pixelSize: 14
+                    font.pixelSize: 13
                     font.weight: Font.Medium
+                    horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+
+                    Text {
+                        anchors.centerIn: parent
+                        visible: AppCtrl.douDiZhuController.lastPlayedCards.length === 0
+                        text: "等待出牌"
+                        color: AppTheme.textMuted
+                        font.pixelSize: 13
+                    }
+
+                    Flickable {
+                        id: lastPlayFlick
+                        anchors.fill: parent
+                        clip: true
+                        contentWidth: Math.max(width, lastPlayStack.width)
+                        contentHeight: height
+                        interactive: lastPlayStack.width > width
+                        boundsBehavior: Flickable.StopAtBounds
+
+                        Item {
+                            id: lastPlayStack
+                            property int cardCount: AppCtrl.douDiZhuController.lastPlayedCards.length
+                            property real cardWidth: 36
+                            property real cardHeight: 52
+                            property real exposedWidth: cardCount > 8 ? 25 : cardWidth + 5
+
+                            width: cardCount > 0 ? (cardCount - 1) * exposedWidth + cardWidth : 0
+                            height: parent.height
+                            x: Math.max((lastPlayFlick.width - width) / 2, 0)
+
+                            Repeater {
+                                model: AppCtrl.douDiZhuController.lastPlayedCards
+                                delegate: CardFace {
+                                    small: true
+                                    width: lastPlayStack.cardWidth
+                                    height: lastPlayStack.cardHeight
+                                    x: index * lastPlayStack.exposedWidth
+                                    y: (lastPlayStack.height - height) / 2
+                                    z: index
+                                    cardData: modelData
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Text {
                     Layout.fillWidth: true
                     text: AppCtrl.douDiZhuController.statusText
                     color: AppCtrl.douDiZhuController.gameOver ? "#B33A32" : AppTheme.textSecondary
-                    font.pixelSize: 13
+                    font.pixelSize: 12
+                    horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
                 }
             }
@@ -251,9 +305,9 @@ Page {
                     Item {
                         id: handStack
                         property int cardCount: AppCtrl.douDiZhuController.playerHand.length
-                        property real cardWidth: 64
+                        property real cardWidth: 66
                         property real cardHeight: 88
-                        property real exposedWidth: 34
+                        property real exposedWidth: 40
 
                         width: cardCount > 0 ? (cardCount - 1) * exposedWidth + cardWidth : handFlick.width
                         height: parent.height
@@ -264,8 +318,8 @@ Page {
                                 width: handStack.cardWidth
                                 height: handStack.cardHeight
                                 x: index * handStack.exposedWidth
-                                y: (handStack.height - height) / 2 + (selected ? -12 : 0)
-                                z: selected ? 1000 + index : index
+                                y: (handStack.height - height) / 2 + (selected ? -10 : 0)
+                                z: index
                                 cardData: modelData
                                 selected: root.isSelected(modelData.id)
                                 enabled: !AppCtrl.douDiZhuController.gameOver
@@ -319,34 +373,119 @@ Page {
         }
     }
 
-    component OpponentSeat: Rectangle {
-        property string nameText: ""
-        property string roleText: ""
-        property int count: 0
-        property bool active: false
+    component TopLandlordPanel: Rectangle {
+        id: panel
 
-        radius: 18
-        color: active ? "#173A31" : "#FFFFFF"
-        border.width: active ? 0 : 1
+        readonly property bool localIsLandlord: AppCtrl.douDiZhuController.landlord === AppCtrl.douDiZhuController.localPlayer
+
+        radius: 16
+        color: "#FBFAF6"
+        border.width: 1
         border.color: AppTheme.cardBorder
 
-        Column {
-            anchors.centerIn: parent
-            spacing: 5
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 7
+            spacing: 6
 
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: nameText
-                color: active ? "#F8F8F5" : AppTheme.textPrimary
-                font.pixelSize: 15
-                font.weight: Font.DemiBold
+                Layout.preferredWidth: 24
+                text: "底牌"
+                color: AppTheme.textMuted
+                font.pixelSize: 11
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
             }
 
+            Row {
+                Layout.preferredWidth: 86
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 4
+
+                Repeater {
+                    model: AppCtrl.douDiZhuController.landlordCards
+                    delegate: CardFace {
+                        small: true
+                        width: 26
+                        height: 38
+                        cardData: modelData
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: 11
+                color: panel.localIsLandlord ? "#173A31" : "#EEF1EB"
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 1
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: panel.localIsLandlord ? "地主" : "农民"
+                        color: panel.localIsLandlord ? "#F8F8F5" : AppTheme.textPrimary
+                        font.pixelSize: 13
+                        font.weight: Font.DemiBold
+                    }
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "身份"
+                        color: panel.localIsLandlord ? "#DCE4DF" : AppTheme.textMuted
+                        font.pixelSize: 9
+                    }
+                }
+            }
+        }
+    }
+
+    component PlayerStatusSeat: ColumnLayout {
+        id: seat
+
+        property string playerName: ""
+        property string roleText: ""
+        property string infoText: ""
+        property string countText: ""
+        property string playStatusText: ""
+        property bool active: false
+        property bool winner: false
+        property int tone: 0
+
+        spacing: 6
+
+        PlayerAvatar {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 76
+            playerName: seat.playerName
+            roleText: seat.roleText
+            statusText: seat.infoText
+            countText: seat.countText
+            active: seat.active
+            winner: seat.winner
+            tone: seat.tone
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 24
+            radius: 12
+            color: seat.winner ? "#F3E4B8" : (seat.active ? "#173A31" : "#EEF1EB")
+            border.width: seat.active ? 0 : 1
+            border.color: seat.winner ? "#D7B65D" : AppTheme.cardBorder
+
             Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: roleText + " · " + count + " 张"
-                color: active ? "#DCE4DF" : AppTheme.textSecondary
+                anchors.centerIn: parent
+                width: parent.width - 12
+                text: seat.playStatusText
+                color: seat.active ? "#F8F8F5" : AppTheme.textSecondary
                 font.pixelSize: 12
+                font.weight: seat.active ? Font.DemiBold : Font.Medium
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                maximumLineCount: 1
             }
         }
     }
@@ -361,7 +500,7 @@ Page {
         height: small ? 56 : 82
         radius: small ? 8 : 10
         y: selected ? -12 : 0
-        color: "#FFFCF5"
+        color: selected ? "#E8D8B8" : "#FFFCF5"
         border.width: 1
         border.color: selected ? "#173A31" : "#D8D0C1"
 
@@ -369,18 +508,32 @@ Page {
             NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
         }
 
-        Text {
+        Behavior on color {
+            ColorAnimation { duration: 120 }
+        }
+
+        Column {
             anchors.left: parent.left
             anchors.top: parent.top
-            anchors.leftMargin: small ? 6 : 7
-            anchors.topMargin: small ? 6 : 7
-            width: parent.width - 12
-            text: cardData.displayText || ""
-            color: cardData.red ? "#C43E36" : "#1F302A"
-            font.pixelSize: small ? 12 : 15
-            font.weight: Font.DemiBold
-            wrapMode: Text.Wrap
-            maximumLineCount: 2
+            anchors.leftMargin: small ? 5 : 6
+            anchors.topMargin: small ? 5 : 6
+            spacing: -1
+
+            Text {
+                text: cardData.rankText || ""
+                color: cardData.red ? "#C43E36" : "#1F302A"
+                font.pixelSize: small ? 12 : 14
+                font.weight: Font.DemiBold
+                wrapMode: Text.NoWrap
+            }
+
+            Text {
+                text: cardData.suitText || ""
+                color: cardData.red ? "#C43E36" : "#1F302A"
+                font.pixelSize: small ? 12 : 13
+                font.weight: Font.Medium
+                wrapMode: Text.NoWrap
+            }
         }
 
         Text {
