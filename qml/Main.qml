@@ -31,6 +31,10 @@ ApplicationWindow {
                         AppCtrl.gameController.surrender();
                     }
                 }
+            } else if (stackView.currentItem
+                    && stackView.currentItem.objectName === "flightChessPage"
+                    && stackView.currentItem.leaveCurrentGame) {
+                stackView.currentItem.leaveCurrentGame()
             } else {
                 stackView.pop()
             }
@@ -63,13 +67,21 @@ ApplicationWindow {
         stackView.push(Qt.resolvedUrl("pages/DouDiZhuPage.qml"))
     }
 
+    function showFlightChessPage() {
+        if (stackView.currentItem && stackView.currentItem.objectName === "flightChessPage")
+            return
+        stackView.push(Qt.resolvedUrl("pages/FlightChessPage.qml"))
+    }
+
     Connections {
         target: AppCtrl
         function onNavigationRequested(page) {
             if (page === 1) {
                 if (window.stackView.depth > 1
                         && window.stackView.currentItem
-                        && window.stackView.currentItem.objectName === "gamePage") {
+                        && (window.stackView.currentItem.objectName === "gamePage"
+                            || window.stackView.currentItem.objectName === "flightChessPage"
+                            || window.stackView.currentItem.objectName === "doudizhuPage")) {
                     window.stackView.pop()
                 } else if (window.stackView.depth === 1) {
                     window.currentTab = 1
@@ -80,6 +92,8 @@ ApplicationWindow {
                 showOnlinePage()
             } else if (page === 4) {
                 showDouDiZhuPage()
+            } else if (page === 5) {
+                showFlightChessPage()
             }
         }
     }

@@ -8,6 +8,7 @@ Rectangle {
     property string titleText: ""
     property string subtitleText: ""
     property string tagText: ""
+    property string gameType: root.dark ? "doudizhu" : "gomoku"
     property bool dark: false
     signal clicked()
 
@@ -100,7 +101,7 @@ Rectangle {
         anchors.topMargin: 24
         width: 88
         height: 88
-        visible: !root.dark
+        visible: root.gameType === "gomoku"
 
         Rectangle {
             anchors.fill: parent
@@ -154,12 +155,65 @@ Rectangle {
         anchors.topMargin: 24
         width: 92
         height: 72
-        visible: root.dark
+        visible: root.gameType === "doudizhu"
         rotation: -10
 
         Rectangle { x: 0; y: 6; width: 32; height: 52; radius: 10; color: "#E74B45" }
         Rectangle { x: 20; y: 14; width: 32; height: 52; radius: 10; color: "#F1D34B" }
         Rectangle { x: 44; y: 2; width: 32; height: 52; radius: 10; color: "#4B86E8" }
+    }
+
+    Item {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.rightMargin: 22
+        anchors.topMargin: 18
+        width: 96
+        height: 84
+        visible: root.gameType === "flightchess"
+
+        Rectangle { x: 4; y: 10; width: 30; height: 30; radius: 9; color: "#E7584F" }
+        Rectangle { x: 58; y: 10; width: 30; height: 30; radius: 9; color: "#5AA7E8" }
+        Rectangle { x: 4; y: 44; width: 30; height: 30; radius: 9; color: "#F2C94C" }
+        Rectangle { x: 58; y: 44; width: 30; height: 30; radius: 9; color: "#54B96E" }
+
+        Canvas {
+            anchors.fill: parent
+
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+
+                ctx.strokeStyle = "#F8F6EF";
+                ctx.lineWidth = 2;
+
+                ctx.beginPath();
+                ctx.moveTo(18, 25);
+                ctx.lineTo(48, 38);
+                ctx.lineTo(76, 25);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(18, 59);
+                ctx.lineTo(48, 38);
+                ctx.lineTo(76, 59);
+                ctx.stroke();
+
+                ctx.fillStyle = "#F8F6EF";
+                ctx.beginPath();
+                ctx.moveTo(48, 18);
+                ctx.lineTo(57, 44);
+                ctx.lineTo(48, 39);
+                ctx.lineTo(39, 44);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = "#173A31";
+                ctx.beginPath();
+                ctx.arc(48, 38, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
     }
 
     Behavior on scale {

@@ -7,6 +7,7 @@
 #include "src/lobby/roommanager.h"
 #include "src/game/gamecontroller.h"
 #include "src/game/doudizhucontroller.h"
+#include "src/game/flightchesscontroller.h"
 #include "src/network/networkmanager.h"
 
 class AppController : public QObject
@@ -15,6 +16,7 @@ class AppController : public QObject
     Q_PROPERTY(RoomManager *roomManager READ roomManager CONSTANT)
     Q_PROPERTY(GameController *gameController READ gameController CONSTANT)
     Q_PROPERTY(DouDiZhuController *douDiZhuController READ douDiZhuController CONSTANT)
+    Q_PROPERTY(FlightChessController *flightChessController READ flightChessController CONSTANT)
     Q_PROPERTY(NetworkManager *networkManager READ networkManager CONSTANT)
     Q_PROPERTY(bool isHostMode READ isHostMode NOTIFY modeChanged)
     Q_PROPERTY(bool isClientMode READ isClientMode NOTIFY modeChanged)
@@ -33,6 +35,7 @@ public:
     RoomManager *roomManager() const { return m_roomManager; }
     GameController *gameController() const { return m_gameController; }
     DouDiZhuController *douDiZhuController() const { return m_douDiZhuController; }
+    FlightChessController *flightChessController() const { return m_flightChessController; }
     NetworkManager *networkManager() const { return m_networkManager; }
     bool isHostMode() const { return m_isHostMode; }
     bool isClientMode() const { return m_isClientMode; }
@@ -48,6 +51,7 @@ public:
     Q_INVOKABLE void startLocalMode();
     Q_INVOKABLE void startGomokuLocalGame();
     Q_INVOKABLE void startDouDiZhuLocalMode();
+    Q_INVOKABLE void startFlightChessLocalMode();
     Q_INVOKABLE void startRoomAsHost();
     Q_INVOKABLE void startDouDiZhuRoomAsHost();
     Q_INVOKABLE void joinRoom(const QString &ip, int port, const QString &playerName,
@@ -74,12 +78,14 @@ signals:
     void modeChanged();
     void settingsChanged();
     void roomReady();  // Host: server started. Client: connected & received room_state
-    void navigationRequested(int page); // 0=home, 1=room, 2=game, 3=online page, 4=doudizhu
+    void navigationRequested(int page); // 0=home, 1=room, 2=gomoku, 3=online page, 4=doudizhu, 5=flight chess
 
 private slots:
     void onJoinRequested(const QString &name, QTcpSocket *socket);
     void onRemoteReadyChanged(int playerId, bool ready);
     void onRemoteMoveReceived(int playerId, int row, int col);
+    void onRemoteFlightRoll(int playerId);
+    void onRemoteFlightMove(int playerId, int planeIndex);
     void onRemoteSurrender(int playerId);
     void onRemoteSeatChanged(int playerId, const QString &seatType);
     void onRemoteStartGame(const QString &gameId);
@@ -94,6 +100,7 @@ private:
     void saveSettings() const;
     QJsonArray currentRoomState() const;
     bool isDouDiZhuRoom() const;
+    bool isFlightChessRoom() const;
     void configureRoomGame(const QString &gameId);
     void normalizeRoomSeatsForCurrentGame();
     bool isGameInProgress() const;
@@ -103,6 +110,7 @@ private:
     RoomManager *m_roomManager = nullptr;
     GameController *m_gameController = nullptr;
     DouDiZhuController *m_douDiZhuController = nullptr;
+    FlightChessController *m_flightChessController = nullptr;
     NetworkManager *m_networkManager = nullptr;
 
     bool m_isHostMode = false;

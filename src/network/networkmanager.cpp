@@ -22,6 +22,24 @@
 
 namespace {
 
+QString normalizedGameId(const QString &gameId)
+{
+    if (gameId == QStringLiteral("doudizhu"))
+        return QStringLiteral("doudizhu");
+    if (gameId == QStringLiteral("flightchess"))
+        return QStringLiteral("flightchess");
+    return QStringLiteral("gomoku");
+}
+
+QString defaultGameName(const QString &gameId)
+{
+    if (gameId == QStringLiteral("doudizhu"))
+        return QStringLiteral("斗地主");
+    if (gameId == QStringLiteral("flightchess"))
+        return QStringLiteral("飞行棋");
+    return QStringLiteral("五子棋");
+}
+
 bool isUsableIpv4(const QHostAddress &address)
 {
     if (address.protocol() != QAbstractSocket::IPv4Protocol)
@@ -209,6 +227,21 @@ void NetworkManager::sendPlacePiece(int row, int col)
     sendJson(m_socket, msg);
 }
 
+void NetworkManager::sendFlightRoll()
+{
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("flight_roll");
+    sendJson(m_socket, msg);
+}
+
+void NetworkManager::sendFlightMove(int planeIndex)
+{
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("flight_move");
+    msg[QStringLiteral("planeIndex")] = planeIndex;
+    sendJson(m_socket, msg);
+}
+
 void NetworkManager::sendSurrender()
 {
     QJsonObject msg;
@@ -354,9 +387,7 @@ void NetworkManager::sendSwitchRoomGame(const QString &gameId)
 {
     QJsonObject msg;
     msg[QStringLiteral("type")] = QStringLiteral("switch_room_game");
-    msg[QStringLiteral("gameId")] = gameId == QStringLiteral("doudizhu")
-        ? QStringLiteral("doudizhu")
-        : QStringLiteral("gomoku");
+    msg[QStringLiteral("gameId")] = normalizedGameId(gameId);
     sendJson(m_socket, msg);
 }
 
@@ -374,12 +405,14 @@ void NetworkManager::setDiscoveryGameInProgress(bool inProgress)
         broadcastHostedRoomAnnouncement();
 }
 
-void NetworkManager::setDiscoveryRoomInfo(const QString &gameId, const QString &gameName, int maxPlayers)
+void NetworkManager::setDiscoveryRoomInfo(const QString &gameId, const QString &gameName,
+                                          int roomCapacity, int maxPlayers)
 {
-    m_discoveryGameId = gameId == QStringLiteral("doudizhu")
-        ? QStringLiteral("doudizhu")
-        : QStringLiteral("gomoku");
-    m_discoveryGameName = gameName.trimmed().isEmpty() ? QStringLiteral("五子棋") : gameName.trimmed();
+    m_discoveryGameId = normalizedGameId(gameId);
+    m_discoveryGameName = gameName.trimmed().isEmpty()
+        ? defaultGameName(m_discoveryGameId)
+        : gameName.trimmed();
+    m_discoveryRoomCapacity = qMax(2, roomCapacity);
     m_discoveryMaxPlayers = qMax(2, maxPlayers);
     if (m_isHost)
         broadcastHostedRoomAnnouncement();
@@ -393,6 +426,7 @@ void NetworkManager::broadcastRoomState(const QJsonArray &players)
     msg[QStringLiteral("type")] = QStringLiteral("room_state");
     msg[QStringLiteral("gameId")] = m_discoveryGameId;
     msg[QStringLiteral("gameName")] = m_discoveryGameName;
+    msg[QStringLiteral("roomCapacity")] = m_discoveryRoomCapacity;
     msg[QStringLiteral("maxPlayers")] = m_discoveryMaxPlayers;
     msg[QStringLiteral("players")] = players;
     broadcastJson(msg);
@@ -414,6 +448,24 @@ void NetworkManager::broadcastMove(int player, int row, int col)
     msg[QStringLiteral("player")] = player;
     msg[QStringLiteral("row")] = row;
     msg[QStringLiteral("col")] = col;
+    broadcastJson(msg);
+}
+
+void NetworkManager::broadcastFlightRoll(int player, int diceValue)
+{
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("flight_roll_result");
+    msg[QStringLiteral("player")] = player;
+    msg[QStringLiteral("diceValue")] = diceValue;
+    broadcastJson(msg);
+}
+
+void NetworkManager::broadcastFlightMove(int player, int planeIndex)
+{
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("flight_move_result");
+    msg[QStringLiteral("player")] = player;
+    msg[QStringLiteral("planeIndex")] = planeIndex;
     broadcastJson(msg);
 }
 
@@ -758,6 +810,15 @@ void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
         int col = msg.value(QStringLiteral("col")).toInt();
         emit remoteMoveReceived(playerId, row, col);
     }
+    else if (type == QStringLiteral("flight_roll")) {
+        const int playerId = sender->property("playerId").toInt();
+        emit remoteFlightRoll(playerId);
+    }
+    else if (type == QStringLiteral("flight_move")) {
+        const int playerId = sender->property("playerId").toInt();
+        const int planeIndex = msg.value(QStringLiteral("planeIndex")).toInt(-1);
+        emit remoteFlightMove(playerId, planeIndex);
+    }
     else if (type == QStringLiteral("surrender")) {
         int playerId = sender->property("playerId").toInt();
         emit remoteSurrender(playerId);
@@ -776,6 +837,16 @@ void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
     else if (type == QStringLiteral("game_over")) {
         int winner = msg.value(QStringLiteral("winner")).toInt();
         emit gameOverReceived(winner);
+    }
+    else if (type == QStringLiteral("flight_roll_result")) {
+        const int player = msg.value(QStringLiteral("player")).toInt();
+        const int diceValue = msg.value(QStringLiteral("diceValue")).toInt();
+        emit flightRollReceived(player, diceValue);
+    }
+    else if (type == QStringLiteral("flight_move_result")) {
+        const int player = msg.value(QStringLiteral("player")).toInt();
+        const int planeIndex = msg.value(QStringLiteral("planeIndex")).toInt(-1);
+        emit flightMoveReceived(player, planeIndex);
     }
     else if (type == QStringLiteral("room_state")) {
         emit roomStateReceived(msg);
@@ -827,9 +898,7 @@ void NetworkManager::connectClientSocket(const QString &ip, quint16 port,
     m_connectedIp = ip;
     m_connectedPort = port;
     m_socket->setProperty("playerName", playerName);
-    m_socket->setProperty("gameId", gameId == QStringLiteral("doudizhu")
-                                      ? QStringLiteral("doudizhu")
-                                      : QStringLiteral("gomoku"));
+    m_socket->setProperty("gameId", normalizedGameId(gameId));
     m_socket->setProperty("connectAction", action);
     m_socket->setProperty("roomId", roomId);
     m_socket->setProperty("roomName", roomName.trimmed());
@@ -950,11 +1019,12 @@ void NetworkManager::sendRoomAnnouncement(const QHostAddress &address, quint16 p
     msg[QStringLiteral("hostIp")] = localIpForPeer(address);
     msg[QStringLiteral("port")] = static_cast<int>(m_serverPort);
     msg[QStringLiteral("playerCount")] = 1 + m_clients.size();
+    msg[QStringLiteral("roomCapacity")] = m_discoveryRoomCapacity;
     msg[QStringLiteral("maxPlayers")] = m_discoveryMaxPlayers;
     msg[QStringLiteral("gameId")] = m_discoveryGameId;
     msg[QStringLiteral("gameName")] = m_discoveryGameName;
     msg[QStringLiteral("inGame")] = m_discoveryGameInProgress;
-    msg[QStringLiteral("isFull")] = (1 + m_clients.size()) >= m_discoveryMaxPlayers;
+    msg[QStringLiteral("isFull")] = (1 + m_clients.size()) >= m_discoveryRoomCapacity;
 
     const QByteArray payload = QJsonDocument(msg).toJson(QJsonDocument::Compact);
     m_discoverySocket->writeDatagram(payload, address, port);
@@ -975,11 +1045,12 @@ void NetworkManager::broadcastRoomAnnouncement()
         : m_discoveryHostName;
     msg[QStringLiteral("port")] = static_cast<int>(m_serverPort);
     msg[QStringLiteral("playerCount")] = 1 + m_clients.size();
+    msg[QStringLiteral("roomCapacity")] = m_discoveryRoomCapacity;
     msg[QStringLiteral("maxPlayers")] = m_discoveryMaxPlayers;
     msg[QStringLiteral("gameId")] = m_discoveryGameId;
     msg[QStringLiteral("gameName")] = m_discoveryGameName;
     msg[QStringLiteral("inGame")] = m_discoveryGameInProgress;
-    msg[QStringLiteral("isFull")] = (1 + m_clients.size()) >= m_discoveryMaxPlayers;
+    msg[QStringLiteral("isFull")] = (1 + m_clients.size()) >= m_discoveryRoomCapacity;
 
     const QByteArray payload = QJsonDocument(msg).toJson(QJsonDocument::Compact);
     bool sent = false;
@@ -1030,12 +1101,12 @@ void NetworkManager::upsertDiscoveredRoom(const QJsonObject &msg, const QHostAdd
     room.hostIp = roomIp;
     room.port = port;
     room.playerCount = msg.value(QStringLiteral("playerCount")).toInt();
+    room.roomCapacity = qMax(2, msg.value(QStringLiteral("roomCapacity")).toInt(room.playerCount));
     room.maxPlayers = qMax(2, msg.value(QStringLiteral("maxPlayers")).toInt(2));
-    room.gameId = msg.value(QStringLiteral("gameId")).toString(QStringLiteral("gomoku"));
-    room.gameName = msg.value(QStringLiteral("gameName")).toString(
-        room.gameId == QStringLiteral("doudizhu") ? QStringLiteral("斗地主") : QStringLiteral("五子棋"));
+    room.gameId = normalizedGameId(msg.value(QStringLiteral("gameId")).toString(QStringLiteral("gomoku")));
+    room.gameName = msg.value(QStringLiteral("gameName")).toString(defaultGameName(room.gameId));
     room.inGame = msg.value(QStringLiteral("inGame")).toBool();
-    room.isFull = msg.value(QStringLiteral("isFull")).toBool(room.playerCount >= room.maxPlayers);
+    room.isFull = msg.value(QStringLiteral("isFull")).toBool(room.playerCount >= room.roomCapacity);
     room.lastSeenMs = QDateTime::currentMSecsSinceEpoch();
 
     if (room.hostIp == localIp() && room.port == m_serverPort)
@@ -1072,6 +1143,7 @@ QVariantMap NetworkManager::discoveredRoomToVariant(const DiscoveredRoom &room) 
     map[QStringLiteral("hostIp")] = room.hostIp;
     map[QStringLiteral("port")] = room.port;
     map[QStringLiteral("playerCount")] = room.playerCount;
+    map[QStringLiteral("roomCapacity")] = room.roomCapacity;
     map[QStringLiteral("maxPlayers")] = room.maxPlayers;
     map[QStringLiteral("gameId")] = room.gameId;
     map[QStringLiteral("gameName")] = room.gameName;
@@ -1090,8 +1162,11 @@ void NetworkManager::applyOnlineRooms(const QJsonArray &rooms)
         map[QStringLiteral("roomId")] = room.value(QStringLiteral("roomId")).toString();
         map[QStringLiteral("roomName")] = room.value(QStringLiteral("roomName")).toString();
         map[QStringLiteral("hostName")] = room.value(QStringLiteral("hostName")).toString();
-        map[QStringLiteral("gameId")] = room.value(QStringLiteral("gameId")).toString(QStringLiteral("gomoku"));
-        map[QStringLiteral("gameName")] = room.value(QStringLiteral("gameName")).toString(QStringLiteral("五子棋"));
+        const QString gameId = normalizedGameId(
+            room.value(QStringLiteral("gameId")).toString(QStringLiteral("gomoku")));
+        map[QStringLiteral("gameId")] = gameId;
+        map[QStringLiteral("gameName")] = room.value(QStringLiteral("gameName")).toString(
+            defaultGameName(gameId));
         map[QStringLiteral("playerCount")] = room.value(QStringLiteral("playerCount")).toInt();
         map[QStringLiteral("roomCapacity")] = room.value(QStringLiteral("roomCapacity")).toInt(
             room.value(QStringLiteral("maxPlayers")).toInt(2));

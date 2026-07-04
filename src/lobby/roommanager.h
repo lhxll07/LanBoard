@@ -36,7 +36,7 @@ public:
     QString gameId() const { return m_gameId; }
     QString gameName() const;
     int maxPlayers() const;
-    int roomCapacity() const { return 3; }
+    int roomCapacity() const { return 8; }
     int activePlayerCount() const;
     void setLocalPlayerId(int playerId);
     bool setPlayerReadyById(int playerId, bool ready);
