@@ -36,6 +36,7 @@ Page {
                 tagText: "当前游戏"
                 opacity: 0
                 transform: Translate { id: gameCardOffset; y: 20 }
+                onClicked: AppCtrl.openOnlinePage()
             }
 
             SettingCard {
