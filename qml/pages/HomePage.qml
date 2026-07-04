@@ -39,6 +39,19 @@ Page {
                 onClicked: AppCtrl.openOnlinePage()
             }
 
+            GameCard {
+                id: douDiZhuCard
+                width: parent.width
+                height: 182
+                dark: true
+                titleText: "斗地主"
+                subtitleText: "本地三人局，玩家默认地主。支持单张、对子、顺子、连对、三带、飞机、炸弹和王炸。"
+                tagText: "本地小游戏"
+                opacity: 0
+                transform: Translate { id: douDiZhuCardOffset; y: 20 }
+                onClicked: AppCtrl.openDouDiZhuPage()
+            }
+
             SettingCard {
                 id: configCard
                 width: parent.width
@@ -59,6 +72,11 @@ Page {
         ParallelAnimation {
             NumberAnimation { target: gameCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: gameCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 80 }
+        ParallelAnimation {
+            NumberAnimation { target: douDiZhuCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: douDiZhuCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
         PauseAnimation { duration: 80 }
         ParallelAnimation {
