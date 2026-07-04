@@ -6,7 +6,7 @@ import LanBoard
 Page {
     id: root
     objectName: "onlinePage"
-    property int lobbyMode: 1
+    property int lobbyMode: 0
 
     property bool inRoom: AppCtrl.networkManager.isHost
                        || AppCtrl.networkManager.isConnected
@@ -116,7 +116,7 @@ Page {
             spacing: 18
 
             PageHeader {
-                titleText: root.inRoom ? "房间" : "在线游戏"
+                titleText: root.inRoom ? "房间" : "联机游戏"
                 subtitleText: root.inRoom
                     ? (root.isOnlineServerConnection()
                         ? "当前已进入 ECS 在线演示房间。"
@@ -492,33 +492,8 @@ Page {
                         dark: true
                         opacity: 0
                         transform: Translate { id: ddzHostCardOffset; y: 20 }
-                        onClicked: AppCtrl.startDouDiZhuRoomAsHost()
-                    }
-
-                    GameCard {
-                        id: localCard
-                        width: parent.width
-                        height: 182
-                        titleText: "本地五子棋"
-                        subtitleText: "不走网络，直接在当前设备上开始双人对局。"
-                        tagText: "本地"
-                        opacity: 0
-                        transform: Translate { id: localCardOffset; y: 20 }
                         visible: root.lobbyMode === 0
-                        onClicked: AppCtrl.startLocalMode()
-                    }
-
-                    GameCard {
-                        id: ddzLocalCard
-                        width: parent.width
-                        height: 182
-                        titleText: "本地斗地主"
-                        subtitleText: "玩家默认地主，另外两家由简单 AI 自动出牌。"
-                        tagText: "本地"
-                        dark: true
-                        opacity: 0
-                        transform: Translate { id: ddzLocalCardOffset; y: 20 }
-                        onClicked: AppCtrl.startDouDiZhuLocalMode()
+                        onClicked: AppCtrl.startDouDiZhuRoomAsHost()
                     }
 
                     SettingCard {
@@ -1010,16 +985,6 @@ Page {
         ParallelAnimation {
             NumberAnimation { target: ddzHostCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: ddzHostCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 70 }
-        ParallelAnimation {
-            NumberAnimation { target: localCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: localCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 70 }
-        ParallelAnimation {
-            NumberAnimation { target: ddzLocalCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: ddzLocalCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
         PauseAnimation { duration: 70 }
         ParallelAnimation {

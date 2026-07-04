@@ -156,6 +156,15 @@ void AppController::startLocalMode()
     emit roomReady();
 }
 
+void AppController::startGomokuLocalGame()
+{
+    startLocalMode();
+    m_roomManager->setPlayerReadyById(0, true);
+    if (m_roomManager->playerList().size() < 2)
+        m_roomManager->addTestPlayer(QStringLiteral("本地对手"));
+    m_roomManager->startGame();
+}
+
 void AppController::startDouDiZhuLocalMode()
 {
     m_networkManager->disconnectAll();
