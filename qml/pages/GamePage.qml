@@ -7,6 +7,24 @@ Page {
     id: root
     objectName: "gamePage"
 
+    function gomokuPlayerName(piece) {
+        var players = AppCtrl.roomManager.playerList
+        for (var i = 0; i < players.length; ++i) {
+            var player = players[i]
+            if (piece === 1 && player.isHost)
+                return player.name
+            if (piece === 2 && !player.isHost)
+                return player.name
+        }
+        return piece === 1 ? "黑方" : "白方"
+    }
+
+    function gomokuStatus(piece) {
+        if (AppCtrl.gameController.gameOver)
+            return AppCtrl.gameController.winner === piece ? "获胜" : "结束"
+        return AppCtrl.gameController.currentPlayer === piece ? "落子中" : "等待"
+    }
+
     function surrenderAndLeave() {
         if (AppCtrl.gameController.gameOver)
             return;
@@ -42,18 +60,50 @@ Page {
         // -- 顶部信息区 --
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 56
+            Layout.preferredHeight: 124
 
-            Column {
-                anchors.left: parent.left
-                anchors.bottom: parent.bottom
-                spacing: 6
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 10
 
                 Text {
+                    Layout.fillWidth: true
                     text: "五子棋"
                     color: AppTheme.textPrimary
                     font.pixelSize: 20
                     font.weight: Font.DemiBold
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 76
+                    spacing: 10
+
+                    PlayerAvatar {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        playerName: root.gomokuPlayerName(1)
+                        roleText: "黑方"
+                        statusText: root.gomokuStatus(1)
+                        active: !AppCtrl.gameController.gameOver
+                                && AppCtrl.gameController.currentPlayer === 1
+                        winner: AppCtrl.gameController.gameOver
+                                && AppCtrl.gameController.winner === 1
+                        tone: 0
+                    }
+
+                    PlayerAvatar {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        playerName: root.gomokuPlayerName(2)
+                        roleText: "白方"
+                        statusText: root.gomokuStatus(2)
+                        active: !AppCtrl.gameController.gameOver
+                                && AppCtrl.gameController.currentPlayer === 2
+                        winner: AppCtrl.gameController.gameOver
+                                && AppCtrl.gameController.winner === 2
+                        tone: 2
+                    }
                 }
             }
         }

@@ -505,6 +505,42 @@ Page {
                         visible: root.lobbyMode === 0
                     }
 
+                    GameCard {
+                        id: onlineGomokuCard
+                        width: parent.width
+                        height: 182
+                        titleText: "在线五子棋"
+                        subtitleText: "连接 ECS 演示服务器，进入在线五子棋房间。"
+                        tagText: "在线联机"
+                        opacity: 0
+                        visible: root.lobbyMode === 1
+                        transform: Translate { id: onlineGomokuCardOffset; y: 20 }
+                        onClicked: root.joinOnlineRoom()
+                    }
+
+                    GameCard {
+                        id: onlineDouDiZhuCard
+                        width: parent.width
+                        height: 182
+                        titleText: "在线斗地主"
+                        subtitleText: "在线斗地主入口已预留，当前服务端协议待接入；局域网斗地主已可联机。"
+                        tagText: "在线联机"
+                        dark: true
+                        opacity: 0
+                        visible: root.lobbyMode === 1
+                        transform: Translate { id: onlineDouDiZhuCardOffset; y: 20 }
+                        onClicked: root.joinErrorText = "在线斗地主服务端待接入；请先使用局域网斗地主。"
+                    }
+
+                    Text {
+                        width: parent.width
+                        visible: root.lobbyMode === 1 && root.joinErrorText.length > 0
+                        text: root.joinErrorText
+                        color: "#B14E44"
+                        font.pixelSize: AppTheme.fontSizeCaption
+                        wrapMode: Text.WordWrap
+                    }
+
                     Rectangle {
                         id: serverCard
                         width: parent.width
@@ -985,6 +1021,16 @@ Page {
         ParallelAnimation {
             NumberAnimation { target: ddzHostCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: ddzHostCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
+        ParallelAnimation {
+            NumberAnimation { target: onlineGomokuCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: onlineGomokuCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
+        ParallelAnimation {
+            NumberAnimation { target: onlineDouDiZhuCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: onlineDouDiZhuCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
         PauseAnimation { duration: 70 }
         ParallelAnimation {

@@ -24,6 +24,7 @@ class DouDiZhuController : public QObject
     Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
     Q_PROPERTY(QString turnText READ turnText NOTIFY stateChanged)
     Q_PROPERTY(QString lastPlayText READ lastPlayText NOTIFY stateChanged)
+    Q_PROPERTY(QVariantList lastPlayedCards READ lastPlayedCards NOTIFY stateChanged)
     Q_PROPERTY(QString resultText READ resultText NOTIFY stateChanged)
 
 public:
@@ -44,6 +45,7 @@ public:
     QString statusText() const { return m_statusText; }
     QString turnText() const;
     QString lastPlayText() const;
+    QVariantList lastPlayedCards() const;
     QString resultText() const;
 
     Q_INVOKABLE void startNewGame();
@@ -134,6 +136,8 @@ private:
     int m_winner = -1;
     bool m_gameOver = false;
     bool m_autoAi = true;
+    bool m_aiTurnPending = false;
+    int m_aiTurnToken = 0;
     QString m_statusText;
     HandAnalysis m_lastPlay;
 };

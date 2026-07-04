@@ -6,6 +6,7 @@
 #include <QStringList>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QTimer>
 
 #include <algorithm>
 #include <random>
@@ -68,6 +69,14 @@ QString DouDiZhuController::lastPlayText() const
         .arg(playerName(m_lastPlayer), handTypeName(m_lastPlay.type), cardsText(m_lastPlay.cards));
 }
 
+QVariantList DouDiZhuController::lastPlayedCards() const
+{
+    if (!m_lastPlay.isValid())
+        return {};
+
+    return cardsToVariantList(m_lastPlay.cards);
+}
+
 QString DouDiZhuController::resultText() const
 {
     if (!m_gameOver)
@@ -81,6 +90,8 @@ QString DouDiZhuController::resultText() const
 
 void DouDiZhuController::startNewGame()
 {
+    ++m_aiTurnToken;
+    m_aiTurnPending = false;
     m_autoAi = true;
     m_localPlayer = 0;
 
@@ -123,6 +134,8 @@ void DouDiZhuController::startNewGame()
 void DouDiZhuController::startNetworkGame(int localPlayer)
 {
     startNewGame();
+    ++m_aiTurnToken;
+    m_aiTurnPending = false;
     m_autoAi = false;
     setLocalPlayer(localPlayer);
     m_statusText = QStringLiteral("联机斗地主开始，房主为地主");
@@ -271,6 +284,9 @@ QJsonObject DouDiZhuController::stateForPlayer(int player) const
 
 void DouDiZhuController::applyNetworkState(const QJsonObject &state)
 {
+    ++m_aiTurnToken;
+    m_aiTurnPending = false;
+
     auto cardFromJson = [](const QJsonObject &obj) {
         return Card{
             obj.value(QStringLiteral("id")).toInt(-1),
@@ -559,21 +575,34 @@ bool DouDiZhuController::canBeat(const HandAnalysis &candidate, const HandAnalys
 
 void DouDiZhuController::processAiTurns()
 {
-    while (!m_gameOver && m_currentPlayer != 0) {
+    if (!m_autoAi || m_gameOver || m_currentPlayer == m_localPlayer || m_aiTurnPending)
+        return;
+
+    m_aiTurnPending = true;
+    const int token = ++m_aiTurnToken;
+
+    QTimer::singleShot(3000, this, [this, token]() {
+        if (token != m_aiTurnToken)
+            return;
+
+        m_aiTurnPending = false;
+        if (!m_autoAi || m_gameOver || m_currentPlayer == m_localPlayer)
+            return;
+
         const QVector<Card> cards = chooseAiPlay(m_currentPlayer);
         if (cards.isEmpty()) {
             passInternal(m_currentPlayer);
-            continue;
+        } else {
+            const HandAnalysis analysis = analyzeHand(cards);
+            if (analysis.isValid() && canBeat(analysis, m_lastPlay))
+                playInternal(m_currentPlayer, analysis);
+            else
+                passInternal(m_currentPlayer);
         }
 
-        const HandAnalysis analysis = analyzeHand(cards);
-        if (!analysis.isValid() || !canBeat(analysis, m_lastPlay)) {
-            passInternal(m_currentPlayer);
-            continue;
-        }
-
-        playInternal(m_currentPlayer, analysis);
-    }
+        emit stateChanged();
+        processAiTurns();
+    });
 }
 
 QVector<DouDiZhuController::Card> DouDiZhuController::chooseAiPlay(int player) const
