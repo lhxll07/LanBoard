@@ -238,6 +238,28 @@ bool DouDiZhuController::passForPlayer(int player)
     return true;
 }
 
+bool DouDiZhuController::playAiTurnForPlayer(int player)
+{
+    if (m_gameOver || player < 0 || player > 2 || m_currentPlayer != player)
+        return false;
+
+    const QVector<Card> cards = chooseAiPlay(player);
+    if (cards.isEmpty()) {
+        passInternal(player);
+        emit stateChanged();
+        return true;
+    }
+
+    const HandAnalysis analysis = analyzeHand(cards);
+    if (analysis.isValid() && canBeat(analysis, m_lastPlay))
+        playInternal(player, analysis);
+    else
+        passInternal(player);
+
+    emit stateChanged();
+    return true;
+}
+
 QJsonObject DouDiZhuController::stateForPlayer(int player) const
 {
     auto cardToJson = [](const Card &card) {

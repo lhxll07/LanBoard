@@ -50,7 +50,8 @@ public:
     Q_INVOKABLE void startDouDiZhuLocalMode();
     Q_INVOKABLE void startRoomAsHost();
     Q_INVOKABLE void startDouDiZhuRoomAsHost();
-    Q_INVOKABLE void joinRoom(const QString &ip, int port, const QString &playerName);
+    Q_INVOKABLE void joinRoom(const QString &ip, int port, const QString &playerName,
+                              const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE void leaveRoom();
     Q_INVOKABLE void toggleLocalReady();
     Q_INVOKABLE void openOnlinePage();
@@ -58,7 +59,7 @@ public:
     Q_INVOKABLE bool playDouDiZhuCards(const QVariantList &cardIds);
     Q_INVOKABLE bool passDouDiZhuTurn();
     Q_INVOKABLE void restartDouDiZhuGame();
-    Q_INVOKABLE void joinOnlineServer();
+    Q_INVOKABLE void joinOnlineServer(const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
     Q_INVOKABLE bool updateOnlineServerEndpoint(const QString &host, int port);
@@ -87,6 +88,8 @@ private:
     QJsonArray currentRoomState() const;
     bool isDouDiZhuRoom() const;
     void configureRoomGame(const QString &gameId);
+    void cancelNetworkDouDiZhuRobotTurn();
+    void scheduleNetworkDouDiZhuRobotTurn();
 
     RoomManager *m_roomManager = nullptr;
     GameController *m_gameController = nullptr;
@@ -104,4 +107,6 @@ private:
     QString m_onlineServerName = QStringLiteral("ECS 演示服务器");
     QString m_onlineServerHost = QStringLiteral("47.105.54.227");
     quint16 m_onlineServerPort = 44567;
+    bool m_douDiZhuRobotTurnPending = false;
+    int m_douDiZhuRobotTurnToken = 0;
 };

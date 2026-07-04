@@ -2,6 +2,14 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QSettings>
+#include <QTimer>
+
+namespace {
+
+constexpr int kDouDiZhuRobotPlayer = 2;
+constexpr int kRobotTurnDelayMs = 3000;
+
+} // namespace
 
 AppController::AppController(QObject *parent)
     : QObject(parent)
@@ -19,9 +27,11 @@ AppController::AppController(QObject *parent)
         if (isDouDiZhuRoom()) {
             if (m_networkManager->isHost()) {
                 m_networkManager->setDiscoveryGameInProgress(true);
+                cancelNetworkDouDiZhuRobotTurn();
                 m_douDiZhuController->startNetworkGame(0);
                 m_networkManager->broadcastGameStarted(QStringLiteral("doudizhu"));
                 broadcastDouDiZhuStates();
+                scheduleNetworkDouDiZhuRobotTurn();
                 emit navigationRequested(4);
                 return;
             }
@@ -67,7 +77,9 @@ AppController::AppController(QObject *parent)
             broadcastCurrentRoomState();
         } else if (!m_networkManager->isConnected()) {
             m_networkManager->setDiscoveryGameInProgress(false);
-            m_roomManager->clearReadyStates();
+            m_roomManager->reset();
+            m_roomManager->setGameId(QStringLiteral("gomoku"));
+            m_roomManager->setLocalPlayerId(-1);
         }
 
         emit navigationRequested(1);
@@ -141,6 +153,7 @@ AppController::AppController(QObject *parent)
 
 void AppController::startLocalMode()
 {
+    cancelNetworkDouDiZhuRobotTurn();
     configureRoomGame(QStringLiteral("gomoku"));
     m_isHostMode = false;
     m_isClientMode = false;
@@ -158,17 +171,30 @@ void AppController::startLocalMode()
 
 void AppController::startGomokuLocalGame()
 {
-    startLocalMode();
-    m_roomManager->setPlayerReadyById(0, true);
-    if (m_roomManager->playerList().size() < 2)
-        m_roomManager->addTestPlayer(QStringLiteral("本地对手"));
-    m_roomManager->startGame();
+    cancelNetworkDouDiZhuRobotTurn();
+    configureRoomGame(QStringLiteral("gomoku"));
+    m_isHostMode = false;
+    m_isClientMode = false;
+    m_networkPlayerId = 0;
+    m_activeGuestPlayerId = -1;
+    emit modeChanged();
+
+    m_networkManager->disconnectAll();
+    m_networkManager->setDiscoveryGameInProgress(false);
+    m_roomManager->reset();
+    m_roomManager->setLocalPlayerId(-1);
+    m_gameController->startNewGame();
+    emit navigationRequested(2);
 }
 
 void AppController::startDouDiZhuLocalMode()
 {
+    cancelNetworkDouDiZhuRobotTurn();
     m_networkManager->disconnectAll();
     m_networkManager->setDiscoveryGameInProgress(false);
+    m_roomManager->reset();
+    m_roomManager->setGameId(QStringLiteral("gomoku"));
+    m_roomManager->setLocalPlayerId(-1);
     m_douDiZhuController->startNewGame();
 
     m_isHostMode = false;
@@ -181,6 +207,7 @@ void AppController::startDouDiZhuLocalMode()
 
 void AppController::startRoomAsHost()
 {
+    cancelNetworkDouDiZhuRobotTurn();
     configureRoomGame(QStringLiteral("gomoku"));
     m_networkManager->disconnectAll();
     m_networkManager->setDiscoveryGameInProgress(false);
@@ -212,6 +239,7 @@ void AppController::startRoomAsHost()
 
 void AppController::startDouDiZhuRoomAsHost()
 {
+    cancelNetworkDouDiZhuRobotTurn();
     configureRoomGame(QStringLiteral("doudizhu"));
     m_networkManager->disconnectAll();
     m_networkManager->setDiscoveryGameInProgress(false);
@@ -242,14 +270,20 @@ void AppController::startDouDiZhuRoomAsHost()
     emit roomReady();
 }
 
-void AppController::joinRoom(const QString &ip, int port, const QString &playerName)
+void AppController::joinRoom(const QString &ip, int port, const QString &playerName, const QString &gameId)
 {
+    cancelNetworkDouDiZhuRobotTurn();
     if (port < 1 || port > 65535)
         return;
 
     const QString trimmedIp = ip.trimmed();
     if (trimmedIp.isEmpty())
         return;
+
+    const QString normalizedGameId = gameId == QStringLiteral("doudizhu")
+        ? QStringLiteral("doudizhu")
+        : QStringLiteral("gomoku");
+    configureRoomGame(normalizedGameId);
 
     m_networkManager->disconnectAll();
     m_networkManager->setDiscoveryGameInProgress(false);
@@ -271,11 +305,12 @@ void AppController::joinRoom(const QString &ip, int port, const QString &playerN
     saveSettings();
     emit settingsChanged();
 
-    m_networkManager->connectToServer(trimmedIp, m_recentJoinPort, resolvedName);
+    m_networkManager->connectToServer(trimmedIp, m_recentJoinPort, resolvedName, normalizedGameId);
 }
 
 void AppController::leaveRoom()
 {
+    cancelNetworkDouDiZhuRobotTurn();
     m_networkManager->disconnectAll();
     m_networkManager->setDiscoveryGameInProgress(false);
     m_gameController->reset();
@@ -306,6 +341,8 @@ bool AppController::playDouDiZhuCards(const QVariantList &cardIds)
     if (m_networkManager->isHost()) {
         const bool ok = m_douDiZhuController->playCardsForPlayer(0, cardIds);
         broadcastDouDiZhuStates();
+        if (ok)
+            scheduleNetworkDouDiZhuRobotTurn();
         return ok;
     }
 
@@ -324,6 +361,8 @@ bool AppController::passDouDiZhuTurn()
     if (m_networkManager->isHost()) {
         const bool ok = m_douDiZhuController->passForPlayer(0);
         broadcastDouDiZhuStates();
+        if (ok)
+            scheduleNetworkDouDiZhuRobotTurn();
         return ok;
     }
 
@@ -340,9 +379,11 @@ bool AppController::passDouDiZhuTurn()
 void AppController::restartDouDiZhuGame()
 {
     if (m_networkManager->isHost()) {
+        cancelNetworkDouDiZhuRobotTurn();
         m_douDiZhuController->startNetworkGame(0);
         m_networkManager->setDiscoveryGameInProgress(true);
         broadcastDouDiZhuStates();
+        scheduleNetworkDouDiZhuRobotTurn();
         return;
     }
 
@@ -352,9 +393,9 @@ void AppController::restartDouDiZhuGame()
     m_douDiZhuController->startNewGame();
 }
 
-void AppController::joinOnlineServer()
+void AppController::joinOnlineServer(const QString &gameId)
 {
-    joinRoom(m_onlineServerHost, m_onlineServerPort, m_nickname);
+    joinRoom(m_onlineServerHost, m_onlineServerPort, m_nickname, gameId);
 }
 
 void AppController::toggleLocalReady()
@@ -506,8 +547,10 @@ void AppController::onRemoteDouDiZhuPlay(int playerId, const QJsonArray &cardIds
     for (const auto &id : cardIds)
         ids.append(id.toInt());
 
-    m_douDiZhuController->playCardsForPlayer(playerId, ids);
+    const bool ok = m_douDiZhuController->playCardsForPlayer(playerId, ids);
     broadcastDouDiZhuStates();
+    if (ok)
+        scheduleNetworkDouDiZhuRobotTurn();
 }
 
 void AppController::onRemoteDouDiZhuPass(int playerId)
@@ -515,8 +558,10 @@ void AppController::onRemoteDouDiZhuPass(int playerId)
     if (!m_networkManager->isHost() || !isDouDiZhuRoom())
         return;
 
-    m_douDiZhuController->passForPlayer(playerId);
+    const bool ok = m_douDiZhuController->passForPlayer(playerId);
     broadcastDouDiZhuStates();
+    if (ok)
+        scheduleNetworkDouDiZhuRobotTurn();
 }
 
 void AppController::onClientDisconnected(int playerId)
@@ -555,6 +600,7 @@ void AppController::broadcastDouDiZhuStates()
     }
 
     if (m_douDiZhuController->isGameOver()) {
+        cancelNetworkDouDiZhuRobotTurn();
         m_networkManager->setDiscoveryGameInProgress(false);
         if (m_roomManager->clearReadyStates())
             broadcastCurrentRoomState();
@@ -632,4 +678,39 @@ void AppController::configureRoomGame(const QString &gameId)
     m_networkManager->setDiscoveryRoomInfo(m_roomManager->gameId(),
                                            m_roomManager->gameName(),
                                            m_roomManager->maxPlayers());
+}
+
+void AppController::cancelNetworkDouDiZhuRobotTurn()
+{
+    ++m_douDiZhuRobotTurnToken;
+    m_douDiZhuRobotTurnPending = false;
+}
+
+void AppController::scheduleNetworkDouDiZhuRobotTurn()
+{
+    if (!m_networkManager->isHost()
+        || !isDouDiZhuRoom()
+        || m_douDiZhuController->isGameOver()
+        || m_douDiZhuController->currentPlayer() != kDouDiZhuRobotPlayer
+        || m_douDiZhuRobotTurnPending) {
+        return;
+    }
+
+    m_douDiZhuRobotTurnPending = true;
+    const int token = ++m_douDiZhuRobotTurnToken;
+
+    QTimer::singleShot(kRobotTurnDelayMs, this, [this, token]() {
+        if (token != m_douDiZhuRobotTurnToken
+            || !m_networkManager->isHost()
+            || !isDouDiZhuRoom()) {
+            return;
+        }
+
+        m_douDiZhuRobotTurnPending = false;
+        if (!m_douDiZhuController->playAiTurnForPlayer(kDouDiZhuRobotPlayer))
+            return;
+
+        broadcastDouDiZhuStates();
+        scheduleNetworkDouDiZhuRobotTurn();
+    });
 }

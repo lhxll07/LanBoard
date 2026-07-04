@@ -8,11 +8,9 @@ Page {
     objectName: "onlinePage"
     property int lobbyMode: 0
 
-    property bool inRoom: AppCtrl.networkManager.isHost
-                       || AppCtrl.networkManager.isConnected
-                       || AppCtrl.roomManager.playerList.length > 0
     property bool networkRoom: AppCtrl.networkManager.isHost
                             || AppCtrl.networkManager.isConnected
+    property bool inRoom: networkRoom
     property string joinErrorText: ""
 
     function syncDiscoveryState() {
@@ -43,12 +41,12 @@ Page {
 
     function joinDiscoveredRoom(room) {
         joinErrorText = ""
-        AppCtrl.joinRoom(room.hostIp, room.port, AppCtrl.nickname)
+        AppCtrl.joinRoom(room.hostIp, room.port, AppCtrl.nickname, room.gameId || "gomoku")
     }
 
-    function joinOnlineRoom() {
+    function joinOnlineRoom(gameId) {
         joinErrorText = ""
-        AppCtrl.joinOnlineServer()
+        AppCtrl.joinOnlineServer(gameId || "gomoku")
     }
 
     function isOnlineServerConnection() {
@@ -487,8 +485,8 @@ Page {
                         width: parent.width
                         height: 182
                         titleText: "创建斗地主房间"
-                        subtitleText: "房主为地主，等待两位玩家加入，三人准备后开始。"
-                        tagText: "3 人联机"
+                        subtitleText: "房主为地主，等待一位玩家加入，另一家由机器人托管。"
+                        tagText: "2 人联机"
                         dark: true
                         opacity: 0
                         transform: Translate { id: ddzHostCardOffset; y: 20 }
@@ -515,7 +513,7 @@ Page {
                         opacity: 0
                         visible: root.lobbyMode === 1
                         transform: Translate { id: onlineGomokuCardOffset; y: 20 }
-                        onClicked: root.joinOnlineRoom()
+                        onClicked: root.joinOnlineRoom("gomoku")
                     }
 
                     GameCard {
@@ -523,13 +521,13 @@ Page {
                         width: parent.width
                         height: 182
                         titleText: "在线斗地主"
-                        subtitleText: "在线斗地主入口已预留，当前服务端协议待接入；局域网斗地主已可联机。"
+                        subtitleText: "连接 ECS 演示服务器，进入两人在线斗地主房间，第三家由机器人托管。"
                         tagText: "在线联机"
                         dark: true
                         opacity: 0
                         visible: root.lobbyMode === 1
                         transform: Translate { id: onlineDouDiZhuCardOffset; y: 20 }
-                        onClicked: root.joinErrorText = "在线斗地主服务端待接入；请先使用局域网斗地主。"
+                        onClicked: root.joinOnlineRoom("doudizhu")
                     }
 
                     Text {

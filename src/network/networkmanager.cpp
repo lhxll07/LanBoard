@@ -104,7 +104,8 @@ void NetworkManager::startServer(quint16 port)
 }
 
 void NetworkManager::connectToServer(const QString &ip, quint16 port,
-                                     const QString &playerName)
+                                     const QString &playerName,
+                                     const QString &gameId)
 {
     if (m_socket) {
         m_socket->disconnect(this);
@@ -125,6 +126,9 @@ void NetworkManager::connectToServer(const QString &ip, quint16 port,
 
     // Send join message when connected (handled in onConnected)
     m_socket->setProperty("playerName", playerName);
+    m_socket->setProperty("gameId", gameId == QStringLiteral("doudizhu")
+                                      ? QStringLiteral("doudizhu")
+                                      : QStringLiteral("gomoku"));
 }
 
 void NetworkManager::disconnectAll()
@@ -450,6 +454,7 @@ void NetworkManager::onConnected()
     QJsonObject msg;
     msg[QStringLiteral("type")] = QStringLiteral("join");
     msg[QStringLiteral("name")] = name;
+    msg[QStringLiteral("gameId")] = m_socket->property("gameId").toString();
     sendJson(m_socket, msg);
 
     emit connectionChanged();
