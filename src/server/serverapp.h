@@ -12,6 +12,7 @@
 
 #include "../game/gamecontroller.h"
 #include "../game/doudizhucontroller.h"
+#include "../game/flightchesscontroller.h"
 
 class ServerApp : public QObject
 {
@@ -41,6 +42,7 @@ private:
         bool gameActive = false;
         std::unique_ptr<GameController> gameController;
         std::unique_ptr<DouDiZhuController> douDiZhuController;
+        std::unique_ptr<FlightChessController> flightChessController;
     };
 
     void onNewConnection();
@@ -58,6 +60,8 @@ private:
     void handleChangeSeat(QTcpSocket *socket, const QString &seatType);
     void handleSwitchRoomGame(QTcpSocket *socket, const QString &gameId);
     void handlePlacePiece(QTcpSocket *socket, int row, int col);
+    void handleFlightRoll(QTcpSocket *socket);
+    void handleFlightMove(QTcpSocket *socket, int planeIndex);
     void handleSurrender(QTcpSocket *socket);
     void handleDouDiZhuPlay(QTcpSocket *socket, const QJsonArray &cardIds);
     void handleDouDiZhuPass(QTcpSocket *socket);
@@ -91,6 +95,7 @@ private:
     void normalizeSeats(RoomState *room, bool fillMissingActiveSeats = true);
     int maxPlayers(const QString &gameId) const;
     bool isDouDiZhuRoom(const QString &gameId) const;
+    bool isFlightChessRoom(const QString &gameId) const;
 
     QTcpServer m_server;
     QList<PlayerSession> m_players;

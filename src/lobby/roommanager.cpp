@@ -64,9 +64,11 @@ void RoomManager::reset()
 
 void RoomManager::setGameId(const QString &gameId)
 {
-    const QString normalized = gameId == QStringLiteral("doudizhu")
-        ? QStringLiteral("doudizhu")
-        : QStringLiteral("gomoku");
+    QString normalized = QStringLiteral("gomoku");
+    if (gameId == QStringLiteral("doudizhu"))
+        normalized = QStringLiteral("doudizhu");
+    else if (gameId == QStringLiteral("flightchess"))
+        normalized = QStringLiteral("flightchess");
     if (m_gameId == normalized)
         return;
 
@@ -118,9 +120,11 @@ int RoomManager::localPlayerIndex() const
 
 QString RoomManager::gameName() const
 {
-    return m_gameId == QStringLiteral("doudizhu")
-        ? QStringLiteral("斗地主")
-        : QStringLiteral("五子棋");
+    if (m_gameId == QStringLiteral("doudizhu"))
+        return QStringLiteral("斗地主");
+    if (m_gameId == QStringLiteral("flightchess"))
+        return QStringLiteral("飞行棋");
+    return QStringLiteral("五子棋");
 }
 
 int RoomManager::maxPlayers() const

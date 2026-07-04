@@ -37,6 +37,7 @@ if (LANBOARD_BUILD_APP)
         src/network/networkmanager.cpp
         src/game/gamecontroller.cpp
         src/game/doudizhucontroller.cpp
+        src/game/flightchesscontroller.cpp
     )
 
     qt_add_qml_module(appLanBoard
@@ -57,6 +58,7 @@ if (LANBOARD_BUILD_APP)
             qml/pages/SettingsPage.qml
             qml/pages/GamePage.qml
             qml/pages/DouDiZhuPage.qml
+            qml/pages/FlightChessPage.qml
         SOURCES
             src/app/appcontroller.h
             src/common/types.h
@@ -64,6 +66,7 @@ if (LANBOARD_BUILD_APP)
             src/network/networkmanager.h
             src/game/gamecontroller.h
             src/game/doudizhucontroller.h
+            src/game/flightchesscontroller.h
     )
 
     target_link_libraries(appLanBoard
@@ -94,6 +97,8 @@ if (LANBOARD_BUILD_SERVER)
         src/game/gamecontroller.h
         src/game/doudizhucontroller.cpp
         src/game/doudizhucontroller.h
+        src/game/flightchesscontroller.cpp
+        src/game/flightchesscontroller.h
     )
 
     target_link_libraries(lanboardServer

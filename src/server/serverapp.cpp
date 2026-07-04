@@ -11,6 +11,7 @@ namespace {
 constexpr quint16 kDefaultPort = 44567;
 constexpr int kGomokuHumanPlayers = 2;
 constexpr int kDouDiZhuHumanPlayers = 3;
+constexpr int kFlightChessHumanPlayers = 2;
 
 QString normalizedName(const QString &name)
 {
@@ -20,16 +21,20 @@ QString normalizedName(const QString &name)
 
 QString normalizedGameId(const QString &gameId)
 {
-    return gameId == QStringLiteral("doudizhu")
-        ? QStringLiteral("doudizhu")
-        : QStringLiteral("gomoku");
+    if (gameId == QStringLiteral("doudizhu"))
+        return QStringLiteral("doudizhu");
+    if (gameId == QStringLiteral("flightchess"))
+        return QStringLiteral("flightchess");
+    return QStringLiteral("gomoku");
 }
 
 QString gameName(const QString &gameId)
 {
-    return gameId == QStringLiteral("doudizhu")
-        ? QStringLiteral("斗地主")
-        : QStringLiteral("五子棋");
+    if (gameId == QStringLiteral("doudizhu"))
+        return QStringLiteral("斗地主");
+    if (gameId == QStringLiteral("flightchess"))
+        return QStringLiteral("飞行棋");
+    return QStringLiteral("五子棋");
 }
 
 QString normalizedRoomName(const QString &roomName, const QString &hostName, const QString &gameId)
@@ -164,6 +169,19 @@ void ServerApp::onDisconnected(QTcpSocket *socket)
                 room->gameActive = false;
                 resetGame(room);
                 clearReadyStates(room);
+            } else if (isFlightChessRoom(room->gameId)
+                       && room->gameActive
+                       && session->seatType == QStringLiteral("active")
+                       && disconnectedPiece != 0) {
+                room->flightChessController->setGameOver(otherPiece(disconnectedPiece));
+
+                QJsonObject msg;
+                msg[QStringLiteral("type")] = QStringLiteral("game_over");
+                msg[QStringLiteral("winner")] = room->flightChessController->winner();
+                broadcastJsonToRoom(roomId, msg);
+
+                room->gameActive = false;
+                clearReadyStates(room);
             } else if (room->gameActive
                        && session->seatType == QStringLiteral("active")
                        && disconnectedPiece != 0) {
@@ -219,6 +237,10 @@ void ServerApp::processMessage(QTcpSocket *socket, const QJsonObject &msg)
         handlePlacePiece(socket,
                          msg.value(QStringLiteral("row")).toInt(-1),
                          msg.value(QStringLiteral("col")).toInt(-1));
+    } else if (type == QStringLiteral("flight_roll")) {
+        handleFlightRoll(socket);
+    } else if (type == QStringLiteral("flight_move")) {
+        handleFlightMove(socket, msg.value(QStringLiteral("planeIndex")).toInt(-1));
     } else if (type == QStringLiteral("surrender")) {
         handleSurrender(socket);
     } else if (type == QStringLiteral("ddz_play")) {
@@ -275,6 +297,7 @@ void ServerApp::handleCreateRoom(QTcpSocket *socket, const QString &name, const 
     room->roomName = normalizedRoomName(roomName, normalizedName(name), room->gameId);
     room->gameController = std::make_unique<GameController>();
     room->douDiZhuController = std::make_unique<DouDiZhuController>();
+    room->flightChessController = std::make_unique<FlightChessController>();
     room->gameActive = false;
     m_rooms.append(room);
 
@@ -361,7 +384,9 @@ void ServerApp::handleReady(QTcpSocket *socket, bool ready)
     if (room->gameActive) {
         const bool finished = isDouDiZhuRoom(room->gameId)
             ? room->douDiZhuController->isGameOver()
-            : room->gameController->isGameOver();
+            : (isFlightChessRoom(room->gameId)
+                   ? room->flightChessController->isGameOver()
+                   : room->gameController->isGameOver());
         if (finished) {
             room->gameActive = false;
             resetGame(room);
@@ -517,7 +542,7 @@ void ServerApp::handlePlacePiece(QTcpSocket *socket, int row, int col)
         return;
     }
 
-    if (isDouDiZhuRoom(room->gameId)) {
+    if (isDouDiZhuRoom(room->gameId) || isFlightChessRoom(room->gameId)) {
         sendError(socket, QStringLiteral("wrong_game"));
         return;
     }
@@ -556,6 +581,106 @@ void ServerApp::handlePlacePiece(QTcpSocket *socket, int row, int col)
     }
 }
 
+void ServerApp::handleFlightRoll(QTcpSocket *socket)
+{
+    PlayerSession *session = sessionForSocket(socket);
+    if (!session) {
+        sendError(socket, QStringLiteral("not_joined"));
+        return;
+    }
+
+    RoomState *room = roomForPlayer(session);
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
+        return;
+    }
+
+    if (!isFlightChessRoom(room->gameId)) {
+        sendError(socket, QStringLiteral("wrong_game"));
+        return;
+    }
+
+    if (!room->gameActive) {
+        sendError(socket, QStringLiteral("game_not_started"));
+        return;
+    }
+
+    if (session->seatType != QStringLiteral("active")) {
+        sendError(socket, QStringLiteral("spectator_cannot_move"));
+        return;
+    }
+
+    if (room->flightChessController->currentPlayer() != session->piece
+        || room->flightChessController->hasRolled()) {
+        sendError(socket, QStringLiteral("not_your_turn"));
+        return;
+    }
+
+    const int diceValue = room->flightChessController->rollDice();
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("flight_roll_result");
+    msg[QStringLiteral("player")] = session->piece;
+    msg[QStringLiteral("diceValue")] = diceValue;
+    broadcastJsonToRoom(room->roomId, msg);
+}
+
+void ServerApp::handleFlightMove(QTcpSocket *socket, int planeIndex)
+{
+    PlayerSession *session = sessionForSocket(socket);
+    if (!session) {
+        sendError(socket, QStringLiteral("not_joined"));
+        return;
+    }
+
+    RoomState *room = roomForPlayer(session);
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
+        return;
+    }
+
+    if (!isFlightChessRoom(room->gameId)) {
+        sendError(socket, QStringLiteral("wrong_game"));
+        return;
+    }
+
+    if (!room->gameActive) {
+        sendError(socket, QStringLiteral("game_not_started"));
+        return;
+    }
+
+    if (session->seatType != QStringLiteral("active")) {
+        sendError(socket, QStringLiteral("spectator_cannot_move"));
+        return;
+    }
+
+    if (room->flightChessController->currentPlayer() != session->piece) {
+        sendError(socket, QStringLiteral("not_your_turn"));
+        return;
+    }
+
+    if (!room->flightChessController->movePlane(planeIndex)) {
+        sendError(socket, QStringLiteral("invalid_move"));
+        return;
+    }
+
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("flight_move_result");
+    msg[QStringLiteral("player")] = session->piece;
+    msg[QStringLiteral("planeIndex")] = planeIndex;
+    broadcastJsonToRoom(room->roomId, msg);
+
+    if (room->flightChessController->isGameOver()) {
+        QJsonObject gameOverMsg;
+        gameOverMsg[QStringLiteral("type")] = QStringLiteral("game_over");
+        gameOverMsg[QStringLiteral("winner")] = room->flightChessController->winner();
+        broadcastJsonToRoom(room->roomId, gameOverMsg);
+
+        room->gameActive = false;
+        clearReadyStates(room);
+        broadcastRoomState(room);
+    }
+}
+
 void ServerApp::handleSurrender(QTcpSocket *socket)
 {
     PlayerSession *session = sessionForSocket(socket);
@@ -580,14 +705,18 @@ void ServerApp::handleSurrender(QTcpSocket *socket)
         return;
     }
 
-    if (!room->gameController->surrender(session->piece)) {
-        sendError(socket, QStringLiteral("invalid_surrender"));
-        return;
-    }
-
     QJsonObject msg;
     msg[QStringLiteral("type")] = QStringLiteral("game_over");
-    msg[QStringLiteral("winner")] = room->gameController->winner();
+    if (isFlightChessRoom(room->gameId)) {
+        room->flightChessController->setGameOver(otherPiece(session->piece));
+        msg[QStringLiteral("winner")] = room->flightChessController->winner();
+    } else {
+        if (!room->gameController->surrender(session->piece)) {
+            sendError(socket, QStringLiteral("invalid_surrender"));
+            return;
+        }
+        msg[QStringLiteral("winner")] = room->gameController->winner();
+    }
     broadcastJsonToRoom(room->roomId, msg);
 
     room->gameActive = false;
@@ -768,6 +897,8 @@ void ServerApp::resetGame(RoomState *room)
 
     if (isDouDiZhuRoom(room->gameId)) {
         room->douDiZhuController->startNetworkGame(0);
+    } else if (isFlightChessRoom(room->gameId)) {
+        room->flightChessController->startNewGame();
     } else {
         room->gameController->reset();
     }
@@ -942,7 +1073,7 @@ int ServerApp::otherPiece(int piece) const
 
 int ServerApp::roomCapacity() const
 {
-    return 3;
+    return 8;
 }
 
 int ServerApp::activeGuestLimit(const QString &gameId) const
@@ -1007,10 +1138,19 @@ void ServerApp::normalizeSeats(RoomState *room, bool fillMissingActiveSeats)
 
 int ServerApp::maxPlayers(const QString &gameId) const
 {
-    return isDouDiZhuRoom(gameId) ? kDouDiZhuHumanPlayers : kGomokuHumanPlayers;
+    if (isDouDiZhuRoom(gameId))
+        return kDouDiZhuHumanPlayers;
+    if (isFlightChessRoom(gameId))
+        return kFlightChessHumanPlayers;
+    return kGomokuHumanPlayers;
 }
 
 bool ServerApp::isDouDiZhuRoom(const QString &gameId) const
 {
     return gameId == QStringLiteral("doudizhu");
+}
+
+bool ServerApp::isFlightChessRoom(const QString &gameId) const
+{
+    return gameId == QStringLiteral("flightchess");
 }

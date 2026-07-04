@@ -31,6 +31,7 @@ Page {
                 id: gameCard
                 width: parent.width
                 height: 182
+                gameType: "gomoku"
                 titleText: "五子棋"
                 subtitleText: "本地双人轮流落子，先在横、竖或斜线连成五枚的一方获胜。"
                 tagText: "本地游戏"
@@ -43,6 +44,7 @@ Page {
                 id: douDiZhuCard
                 width: parent.width
                 height: 182
+                gameType: "doudizhu"
                 dark: true
                 titleText: "斗地主"
                 subtitleText: "本地三人局，玩家默认地主。支持单张、对子、顺子、连对、三带、飞机、炸弹和王炸。"
@@ -50,6 +52,20 @@ Page {
                 opacity: 0
                 transform: Translate { id: douDiZhuCardOffset; y: 20 }
                 onClicked: AppCtrl.openDouDiZhuPage()
+            }
+
+            GameCard {
+                id: flightChessCard
+                width: parent.width
+                height: 182
+                gameType: "flightchess"
+                dark: true
+                titleText: "飞行棋"
+                subtitleText: "同一设备双人轮流掷骰、起飞、跳格和撞回对手飞机，率先让四架飞机全部到达终点的一方获胜。"
+                tagText: "本地游戏"
+                opacity: 0
+                transform: Translate { id: flightChessCardOffset; y: 20 }
+                onClicked: AppCtrl.startFlightChessLocalMode()
             }
 
             SettingCard {
@@ -77,6 +93,11 @@ Page {
         ParallelAnimation {
             NumberAnimation { target: douDiZhuCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: douDiZhuCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 80 }
+        ParallelAnimation {
+            NumberAnimation { target: flightChessCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: flightChessCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
         PauseAnimation { duration: 80 }
         ParallelAnimation {

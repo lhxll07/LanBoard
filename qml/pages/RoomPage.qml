@@ -14,6 +14,23 @@ Page {
                             || AppCtrl.networkManager.isConnected
     property bool inRoom: networkRoom
     property string joinErrorText: ""
+    readonly property var availableGames: [
+        {
+            gameId: "gomoku",
+            title: "五子棋",
+            subtitle: "双人对弈，适合快速开始。"
+        },
+        {
+            gameId: "doudizhu",
+            title: "斗地主",
+            subtitle: "三人房，全部准备后由房主开局。"
+        },
+        {
+            gameId: "flightchess",
+            title: "飞行棋",
+            subtitle: "双人飞行棋，支持围观和切换旁观位。"
+        }
+    ]
 
     function syncDiscoveryState() {
         if (!visible || inRoom) {
@@ -63,7 +80,11 @@ Page {
     }
 
     function nextGameId(gameId) {
-        return gameId === "doudizhu" ? "gomoku" : "doudizhu"
+        for (var i = 0; i < availableGames.length; ++i) {
+            if (availableGames[i].gameId !== gameId)
+                return availableGames[i].gameId
+        }
+        return "gomoku"
     }
 
     function canSwitchCurrentRoomGame() {
@@ -77,13 +98,19 @@ Page {
     }
 
     function onlineGameName(gameId) {
-        return gameId === "doudizhu" ? "斗地主" : "五子棋"
+        for (var i = 0; i < availableGames.length; ++i) {
+            if (availableGames[i].gameId === gameId)
+                return availableGames[i].title
+        }
+        return "五子棋"
     }
 
     function onlineGameSubtitle(gameId) {
-        return gameId === "doudizhu"
-            ? "三人联机斗地主，房主为地主，满 3 人后全部准备才能开始。"
-            : "双人五子棋，规则直观，适合快速进入在线演示。"
+        for (var i = 0; i < availableGames.length; ++i) {
+            if (availableGames[i].gameId === gameId)
+                return availableGames[i].subtitle
+        }
+        return "双人五子棋，规则直观，适合快速进入在线演示。"
     }
 
     function roomAvailabilityText(room) {
@@ -119,6 +146,10 @@ Page {
         if (!root.canSwitchCurrentRoomGame())
             return
         roomGamePickerOpen = !roomGamePickerOpen
+    }
+
+    function roomGamePickerHeight() {
+        return availableGames.length * 58 + Math.max(0, availableGames.length - 1) * 8 + 16
     }
 
     function localPlayer() {
@@ -697,7 +728,7 @@ Page {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "房间内可选：五子棋 / 斗地主"
+                                    text: "房间内可选：五子棋 / 斗地主 / 飞行棋"
                                     color: AppTheme.textMuted
                                     font.pixelSize: AppTheme.fontSizeCaption
                                 }
@@ -835,10 +866,7 @@ Page {
                                         spacing: 6
 
                                         Repeater {
-                                            model: [
-                                                { gameId: "gomoku", title: "五子棋" },
-                                                { gameId: "doudizhu", title: "斗地主" }
-                                            ]
+                                            model: root.availableGames
 
                                             delegate: Rectangle {
                                                 Layout.fillWidth: true
@@ -1192,11 +1220,11 @@ Page {
                                 Layout.fillWidth: true
                                 z: 2
                                 color: "transparent"
-                                clip: true
                                 height: root.roomGamePickerOpen && root.canSwitchCurrentRoomGame()
-                                    ? roomGameOptionColumn.implicitHeight + 16
+                                    ? root.roomGamePickerHeight()
                                     : 0
                                 opacity: root.roomGamePickerOpen && root.canSwitchCurrentRoomGame() ? 1 : 0
+                                visible: height > 0
 
                                 Behavior on height {
                                     NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
@@ -1223,18 +1251,7 @@ Page {
                                     spacing: 8
 
                                     Repeater {
-                                        model: [
-                                            {
-                                                gameId: "gomoku",
-                                                title: "五子棋",
-                                                subtitle: "双人对弈，适合快速开始。"
-                                            },
-                                            {
-                                                gameId: "doudizhu",
-                                                title: "斗地主",
-                                                subtitle: "三人房，全部准备后由房主开局。"
-                                            }
-                                        ]
+                                        model: root.availableGames
 
                                         delegate: Rectangle {
                                             width: parent.width
@@ -1283,9 +1300,10 @@ Page {
                                                 }
                                             }
 
-                                            TapHandler {
+                                            MouseArea {
+                                                anchors.fill: parent
                                                 enabled: root.canSwitchCurrentRoomGame()
-                                                onTapped: root.selectCurrentRoomGame(modelData.gameId)
+                                                onClicked: root.selectCurrentRoomGame(modelData.gameId)
                                             }
                                         }
                                     }
