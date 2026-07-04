@@ -36,6 +36,7 @@ if (LANBOARD_BUILD_APP)
         src/lobby/roommanager.cpp
         src/network/networkmanager.cpp
         src/game/gamecontroller.cpp
+        src/game/doudizhucontroller.cpp
     )
 
     qt_add_qml_module(appLanBoard
@@ -48,18 +49,21 @@ if (LANBOARD_BUILD_APP)
             qml/components/BottomTextNav.qml
             qml/components/GameCard.qml
             qml/components/PageHeader.qml
+            qml/components/PlayerAvatar.qml
             qml/components/PlayerCard.qml
             qml/components/SettingCard.qml
             qml/pages/HomePage.qml
             qml/pages/RoomPage.qml
             qml/pages/SettingsPage.qml
             qml/pages/GamePage.qml
+            qml/pages/DouDiZhuPage.qml
         SOURCES
             src/app/appcontroller.h
             src/common/types.h
             src/lobby/roommanager.h
             src/network/networkmanager.h
             src/game/gamecontroller.h
+            src/game/doudizhucontroller.h
     )
 
     target_link_libraries(appLanBoard
@@ -69,11 +73,15 @@ if (LANBOARD_BUILD_APP)
     )
 
     if (ANDROID)
-        set_property(TARGET appLanBoard APPEND PROPERTY QT_ANDROID_PERMISSIONS
+        foreach(permission_name IN ITEMS
             android.permission.ACCESS_WIFI_STATE
             android.permission.CHANGE_WIFI_STATE
             android.permission.CHANGE_WIFI_MULTICAST_STATE
         )
+            set_property(TARGET appLanBoard APPEND PROPERTY QT_ANDROID_PERMISSIONS
+                "${permission_name}"
+            )
+        endforeach()
     endif()
 endif()
 
@@ -84,6 +92,8 @@ if (LANBOARD_BUILD_SERVER)
         src/server/serverapp.h
         src/game/gamecontroller.cpp
         src/game/gamecontroller.h
+        src/game/doudizhucontroller.cpp
+        src/game/doudizhucontroller.h
     )
 
     target_link_libraries(lanboardServer

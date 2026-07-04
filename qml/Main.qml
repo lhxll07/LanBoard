@@ -57,6 +57,12 @@ ApplicationWindow {
         stackView.push(Qt.resolvedUrl("pages/RoomPage.qml"))
     }
 
+    function showDouDiZhuPage() {
+        if (stackView.currentItem && stackView.currentItem.objectName === "doudizhuPage")
+            return
+        stackView.push(Qt.resolvedUrl("pages/DouDiZhuPage.qml"))
+    }
+
     Connections {
         target: AppCtrl
         function onNavigationRequested(page) {
@@ -72,6 +78,8 @@ ApplicationWindow {
                 showGamePage()
             } else if (page === 3) {
                 showOnlinePage()
+            } else if (page === 4) {
+                showDouDiZhuPage()
             }
         }
     }

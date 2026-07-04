@@ -8,6 +8,10 @@ Rectangle {
     property string roleText: ""
     property string statusText: ""
     property bool ready: false
+    property string actionText: ""
+    property bool actionEnabled: false
+
+    signal actionTriggered()
 
     radius: AppTheme.radiusCard
 
@@ -48,20 +52,26 @@ Rectangle {
     Column {
         anchors.left: avatar.right
         anchors.leftMargin: AppTheme.spacingMd
+        anchors.right: actionButton.visible ? actionButton.left : parent.right
+        anchors.rightMargin: actionButton.visible ? AppTheme.spacingMd : AppTheme.spacingLg
         anchors.verticalCenter: parent.verticalCenter
         spacing: 4
 
         Text {
+            width: parent.width
             text: root.playerName
             color: AppTheme.textPrimary
             font.pixelSize: 16
             font.weight: Font.DemiBold
+            elide: Text.ElideRight
         }
 
         Text {
+            width: parent.width
             text: root.roleText
             color: AppTheme.textSecondary
             font.pixelSize: 13
+            elide: Text.ElideRight
         }
     }
 
@@ -89,9 +99,23 @@ Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: AppTheme.spacingLg
         anchors.verticalCenter: parent.verticalCenter
-        visible: !root.ready
+        visible: !root.ready && !actionButton.visible
         text: root.statusText
         color: AppTheme.textMuted
         font.pixelSize: 12
+    }
+
+    ActionButton {
+        id: actionButton
+        visible: root.actionText.length > 0
+        anchors.right: parent.right
+        anchors.rightMargin: AppTheme.spacingLg
+        anchors.verticalCenter: parent.verticalCenter
+        width: 84
+        height: 34
+        text: root.actionText
+        secondary: true
+        enabled: root.actionEnabled
+        onClicked: root.actionTriggered()
     }
 }
