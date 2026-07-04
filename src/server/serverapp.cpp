@@ -4,14 +4,13 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
-#include <QLoggingCategory>
+#include <QRandomGenerator>
 
 namespace {
 
 constexpr quint16 kDefaultPort = 44567;
-constexpr int kRoomHumanPlayers = 2;
-constexpr int kDouDiZhuRobotPlayer = 2;
-constexpr int kRobotTurnDelayMs = 3000;
+constexpr int kGomokuHumanPlayers = 2;
+constexpr int kDouDiZhuHumanPlayers = 3;
 
 QString normalizedName(const QString &name)
 {
@@ -33,27 +32,20 @@ QString gameName(const QString &gameId)
         : QStringLiteral("五子棋");
 }
 
-} // namespace
+QString normalizedRoomName(const QString &roomName, const QString &hostName, const QString &gameId)
+{
+    const QString trimmed = roomName.trimmed();
+    if (!trimmed.isEmpty())
+        return trimmed;
+    return QStringLiteral("%1的%2房间").arg(hostName, gameName(gameId));
+}
+
+}
 
 ServerApp::ServerApp(QObject *parent)
     : QObject(parent)
 {
     connect(&m_server, &QTcpServer::newConnection, this, &ServerApp::onNewConnection);
-
-    connect(&m_gameController, &GameController::gameOverChanged, this, [this]() {
-        if (isDouDiZhuRoom())
-            return;
-        if (!m_gameController.isGameOver())
-            return;
-
-        QJsonObject msg;
-        msg[QStringLiteral("type")] = QStringLiteral("game_over");
-        msg[QStringLiteral("winner")] = m_gameController.winner();
-        broadcastJson(msg);
-
-        clearReadyStates();
-        broadcastRoomState();
-    });
 }
 
 bool ServerApp::start(quint16 port)
@@ -127,29 +119,70 @@ void ServerApp::onDisconnected(QTcpSocket *socket)
         return;
     }
 
-    const int disconnectedPiece = session->piece;
+    const QString roomId = session->roomId;
+    RoomState *room = roomForPlayer(session);
     const QString playerName = session->name;
+    const bool wasHost = session->isHost;
+    const int disconnectedPiece = session->piece;
 
-    for (int i = 0; i < m_players.size(); ++i) {
-        if (m_players[i].socket == socket) {
-            m_players.removeAt(i);
-            break;
+    if (wasHost && room) {
+        QList<QTcpSocket *> remainingSockets;
+        for (const auto &player : std::as_const(m_players)) {
+            if (player.roomId != roomId || player.socket == socket || !player.socket)
+                continue;
+            remainingSockets.append(player.socket);
+        }
+
+        for (QTcpSocket *otherSocket : remainingSockets) {
+            sendError(otherSocket, QStringLiteral("room_closed"));
+            otherSocket->disconnectFromHost();
+        }
+
+        for (int i = m_players.size() - 1; i >= 0; --i) {
+            if (m_players.at(i).roomId == roomId)
+                m_players.removeAt(i);
+        }
+
+        for (int i = 0; i < m_rooms.size(); ++i) {
+            if (m_rooms.at(i)->roomId == roomId) {
+                delete m_rooms.at(i);
+                m_rooms.removeAt(i);
+                break;
+            }
+        }
+    } else {
+        for (int i = 0; i < m_players.size(); ++i) {
+            if (m_players[i].socket == socket) {
+                m_players.removeAt(i);
+                break;
+            }
+        }
+
+        room = roomById(roomId);
+        if (room) {
+            if (isDouDiZhuRoom(room->gameId)) {
+                room->gameActive = false;
+                resetGame(room);
+                clearReadyStates(room);
+            } else if (room->gameActive
+                       && session->seatType == QStringLiteral("active")
+                       && disconnectedPiece != 0) {
+                room->gameController->setGameOver(otherPiece(disconnectedPiece));
+
+                QJsonObject msg;
+                msg[QStringLiteral("type")] = QStringLiteral("game_over");
+                msg[QStringLiteral("winner")] = room->gameController->winner();
+                broadcastJsonToRoom(roomId, msg);
+
+                room->gameActive = false;
+                clearReadyStates(room);
+            }
+
+            normalizeSeats(room);
+            broadcastRoomState(room);
+            removeRoomIfEmpty(roomId);
         }
     }
-
-    if (!isDouDiZhuRoom() && !m_gameController.isGameOver() && disconnectedPiece != 0 && !m_players.isEmpty())
-        m_gameController.setGameOver(otherPiece(disconnectedPiece));
-
-    clearReadyStates();
-    if (m_players.isEmpty()) {
-        resetGame();
-        m_gameId = QStringLiteral("gomoku");
-        m_nextPlayerId = 1;
-    } else if (isDouDiZhuRoom()) {
-        resetGame();
-    }
-
-    broadcastRoomState();
 
     qInfo().noquote() << QStringLiteral("Disconnected: %1").arg(playerName);
     socket->deleteLater();
@@ -163,10 +196,25 @@ void ServerApp::processMessage(QTcpSocket *socket, const QJsonObject &msg)
         handleJoin(socket,
                    msg.value(QStringLiteral("name")).toString(),
                    msg.value(QStringLiteral("gameId")).toString());
+    } else if (type == QStringLiteral("list_rooms")) {
+        handleListRooms(socket);
+    } else if (type == QStringLiteral("create_room")) {
+        handleCreateRoom(socket,
+                         msg.value(QStringLiteral("name")).toString(),
+                         msg.value(QStringLiteral("roomName")).toString(),
+                         msg.value(QStringLiteral("gameId")).toString());
+    } else if (type == QStringLiteral("join_room")) {
+        handleJoinRoom(socket,
+                       msg.value(QStringLiteral("name")).toString(),
+                       msg.value(QStringLiteral("roomId")).toString());
     } else if (type == QStringLiteral("ready")) {
         handleReady(socket, msg.value(QStringLiteral("ready")).toBool());
     } else if (type == QStringLiteral("start_game")) {
         handleStartGame(socket);
+    } else if (type == QStringLiteral("change_seat")) {
+        handleChangeSeat(socket, msg.value(QStringLiteral("seatType")).toString());
+    } else if (type == QStringLiteral("switch_room_game")) {
+        handleSwitchRoomGame(socket, msg.value(QStringLiteral("gameId")).toString());
     } else if (type == QStringLiteral("place_piece")) {
         handlePlacePiece(socket,
                          msg.value(QStringLiteral("row")).toInt(-1),
@@ -184,6 +232,35 @@ void ServerApp::processMessage(QTcpSocket *socket, const QJsonObject &msg)
 
 void ServerApp::handleJoin(QTcpSocket *socket, const QString &name, const QString &gameId)
 {
+    // Legacy fallback: first player creates a room, later players join the first room with same game.
+    const QString normalized = normalizedGameId(gameId);
+    RoomState *targetRoom = nullptr;
+    for (RoomState *room : std::as_const(m_rooms)) {
+        if (room->gameId == normalized) {
+            targetRoom = room;
+            break;
+        }
+    }
+
+    if (!targetRoom) {
+        handleCreateRoom(socket, name, QString(), normalized);
+        return;
+    }
+
+    handleJoinRoom(socket, name, targetRoom->roomId);
+}
+
+void ServerApp::handleListRooms(QTcpSocket *socket)
+{
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("rooms_list");
+    msg[QStringLiteral("rooms")] = roomListPayload();
+    sendJson(socket, msg);
+}
+
+void ServerApp::handleCreateRoom(QTcpSocket *socket, const QString &name, const QString &roomName,
+                                 const QString &gameId)
+{
     if (!socket)
         return;
 
@@ -192,43 +269,74 @@ void ServerApp::handleJoin(QTcpSocket *socket, const QString &name, const QStrin
         return;
     }
 
-    const QString requestedGameId = normalizedGameId(gameId);
-    if (m_players.isEmpty()) {
-        m_gameId = requestedGameId;
-        resetGame();
-    } else if (requestedGameId != m_gameId) {
-        sendError(socket, QStringLiteral("room_game_mismatch"));
-        socket->disconnectFromHost();
+    RoomState *room = new RoomState();
+    room->roomId = createRoomId();
+    room->gameId = normalizedGameId(gameId);
+    room->roomName = normalizedRoomName(roomName, normalizedName(name), room->gameId);
+    room->gameController = std::make_unique<GameController>();
+    room->douDiZhuController = std::make_unique<DouDiZhuController>();
+    room->gameActive = false;
+    m_rooms.append(room);
+
+    PlayerSession session;
+    session.playerId = 0;
+    session.piece = isDouDiZhuRoom(room->gameId) ? 0 : 1;
+    session.name = normalizedName(name);
+    session.roomId = room->roomId;
+    session.isHost = true;
+    session.seatType = QStringLiteral("active");
+    session.socket = socket;
+    m_players.append(session);
+
+    resetGame(room);
+    broadcastRoomState(room);
+}
+
+void ServerApp::handleJoinRoom(QTcpSocket *socket, const QString &name, const QString &roomId)
+{
+    if (!socket)
+        return;
+
+    if (sessionForSocket(socket)) {
+        sendError(socket, QStringLiteral("already_joined"));
         return;
     }
 
-    if (m_players.size() >= maxPlayers()) {
-        sendError(socket, QStringLiteral("room_full"));
-        socket->disconnectFromHost();
+    RoomState *room = roomById(roomId.trimmed());
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
         return;
     }
 
-    const int piece = isDouDiZhuRoom() ? 0 : (m_players.isEmpty() ? 1 : 2);
-    const int playerId = isDouDiZhuRoom() ? nextDouDiZhuPlayerId() : m_nextPlayerId++;
-    if (playerId < 0) {
+    if (room->gameActive) {
+        sendError(socket, QStringLiteral("room_in_game"));
+        return;
+    }
+
+    const auto players = playersInRoom(room->roomId);
+    if (players.size() >= roomCapacity()) {
         sendError(socket, QStringLiteral("room_full"));
-        socket->disconnectFromHost();
         return;
     }
 
     PlayerSession session;
-    session.playerId = playerId;
-    session.piece = piece;
+    session.playerId = nextPlayerIdForRoom(room->roomId, room->gameId);
+    if (session.playerId < 0) {
+        sendError(socket, QStringLiteral("room_full"));
+        return;
+    }
+    session.piece = isDouDiZhuRoom(room->gameId) ? 0 : 2;
     session.name = normalizedName(name);
+    session.roomId = room->roomId;
+    session.isHost = false;
+    session.seatType = activePlayersInRoom(room->roomId).size() < maxPlayers(room->gameId)
+        ? QStringLiteral("active")
+        : QStringLiteral("spectator");
     session.socket = socket;
     m_players.append(session);
 
-    qInfo().noquote() << QStringLiteral("Joined: %1 (playerId=%2, piece=%3)")
-                             .arg(session.name)
-                             .arg(playerId)
-                             .arg(piece);
-
-    broadcastRoomState();
+    normalizeSeats(room);
+    broadcastRoomState(room);
 }
 
 void ServerApp::handleReady(QTcpSocket *socket, bool ready)
@@ -239,14 +347,30 @@ void ServerApp::handleReady(QTcpSocket *socket, bool ready)
         return;
     }
 
-    if ((isDouDiZhuRoom() && m_douDiZhuController.isGameOver())
-        || (!isDouDiZhuRoom() && m_gameController.isGameOver())) {
-        resetGame();
-        clearReadyStates();
+    RoomState *room = roomForPlayer(session);
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
+        return;
+    }
+
+    if (session->seatType != QStringLiteral("active")) {
+        sendError(socket, QStringLiteral("spectator_cannot_ready"));
+        return;
+    }
+
+    if (room->gameActive) {
+        const bool finished = isDouDiZhuRoom(room->gameId)
+            ? room->douDiZhuController->isGameOver()
+            : room->gameController->isGameOver();
+        if (finished) {
+            room->gameActive = false;
+            resetGame(room);
+            clearReadyStates(room);
+        }
     }
 
     session->isReady = ready;
-    broadcastRoomState();
+    broadcastRoomState(room);
 }
 
 void ServerApp::handleStartGame(QTcpSocket *socket)
@@ -257,39 +381,126 @@ void ServerApp::handleStartGame(QTcpSocket *socket)
         return;
     }
 
-    if ((!isDouDiZhuRoom() && session->piece != 1)
-        || (isDouDiZhuRoom() && session->playerId != 0)) {
+    RoomState *room = roomForPlayer(session);
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
+        return;
+    }
+
+    if (!session->isHost) {
         sendError(socket, QStringLiteral("only_player_one_can_start"));
         return;
     }
 
-    if (m_players.size() != maxPlayers()) {
-        sendError(socket, QStringLiteral("need_two_players"));
+    const auto players = activePlayersInRoom(room->roomId);
+    if (players.size() != maxPlayers(room->gameId)) {
+        sendError(socket, isDouDiZhuRoom(room->gameId)
+            ? QStringLiteral("need_three_players")
+            : QStringLiteral("need_two_players"));
         return;
     }
 
-    for (const auto &player : m_players) {
-        const bool hostPlayer = isDouDiZhuRoom()
-            ? player.playerId == 0
-            : player.piece == 1;
-        if (!hostPlayer && !player.isReady) {
+    for (const PlayerSession *player : players) {
+        if (!player->isReady) {
             sendError(socket, QStringLiteral("players_not_ready"));
             return;
         }
     }
 
-    resetGame();
+    resetGame(room);
+    room->gameActive = true;
 
     QJsonObject msg;
     msg[QStringLiteral("type")] = QStringLiteral("game_start");
-    msg[QStringLiteral("gameId")] = m_gameId;
-    msg[QStringLiteral("firstPlayer")] = isDouDiZhuRoom() ? 0 : 1;
-    broadcastJson(msg);
+    msg[QStringLiteral("gameId")] = room->gameId;
+    msg[QStringLiteral("firstPlayer")] = isDouDiZhuRoom(room->gameId) ? 0 : 1;
+    broadcastJsonToRoom(room->roomId, msg);
 
-    if (isDouDiZhuRoom()) {
-        broadcastDouDiZhuStates();
-        scheduleDouDiZhuRobotTurn();
+    if (isDouDiZhuRoom(room->gameId))
+        broadcastDouDiZhuStates(room);
+}
+
+void ServerApp::handleChangeSeat(QTcpSocket *socket, const QString &seatType)
+{
+    PlayerSession *session = sessionForSocket(socket);
+    if (!session) {
+        sendError(socket, QStringLiteral("not_joined"));
+        return;
     }
+
+    RoomState *room = roomForPlayer(session);
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
+        return;
+    }
+
+    if (session->isHost) {
+        sendError(socket, QStringLiteral("host_locked_active"));
+        return;
+    }
+
+    if (room->gameActive) {
+        sendError(socket, QStringLiteral("game_in_progress"));
+        return;
+    }
+
+    const QString normalizedSeatType = seatType == QStringLiteral("spectator")
+        ? QStringLiteral("spectator")
+        : QStringLiteral("active");
+    if (normalizedSeatType == QStringLiteral("active")
+        && session->seatType != QStringLiteral("active")
+        && activePlayersInRoom(room->roomId).size() >= maxPlayers(room->gameId)) {
+        sendError(socket, QStringLiteral("active_seat_full"));
+        return;
+    }
+
+    if (session->seatType == normalizedSeatType) {
+        broadcastRoomState(room);
+        return;
+    }
+
+    session->seatType = normalizedSeatType;
+    session->isReady = false;
+    normalizeSeats(room, false);
+    broadcastRoomState(room);
+}
+
+void ServerApp::handleSwitchRoomGame(QTcpSocket *socket, const QString &gameId)
+{
+    PlayerSession *session = sessionForSocket(socket);
+    if (!session) {
+        sendError(socket, QStringLiteral("not_joined"));
+        return;
+    }
+
+    RoomState *room = roomForPlayer(session);
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
+        return;
+    }
+
+    if (!session->isHost) {
+        sendError(socket, QStringLiteral("only_host_can_switch_game"));
+        return;
+    }
+
+    if (room->gameActive) {
+        sendError(socket, QStringLiteral("game_in_progress"));
+        return;
+    }
+
+    const QString normalized = normalizedGameId(gameId);
+    if (room->gameId == normalized) {
+        broadcastRoomState(room);
+        return;
+    }
+
+    room->gameId = normalized;
+    room->gameActive = false;
+    resetGame(room);
+    clearReadyStates(room);
+    normalizeSeats(room);
+    broadcastRoomState(room);
 }
 
 void ServerApp::handlePlacePiece(QTcpSocket *socket, int row, int col)
@@ -300,17 +511,28 @@ void ServerApp::handlePlacePiece(QTcpSocket *socket, int row, int col)
         return;
     }
 
-    if (isDouDiZhuRoom()) {
+    RoomState *room = roomForPlayer(session);
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
+        return;
+    }
+
+    if (isDouDiZhuRoom(room->gameId)) {
         sendError(socket, QStringLiteral("wrong_game"));
         return;
     }
 
-    if (m_players.size() != 2) {
+    if (session->seatType != QStringLiteral("active")) {
+        sendError(socket, QStringLiteral("spectator_cannot_move"));
+        return;
+    }
+
+    if (activePlayersInRoom(room->roomId).size() != 2) {
         sendError(socket, QStringLiteral("need_two_players"));
         return;
     }
 
-    if (!m_gameController.placePiece(row, col, session->piece)) {
+    if (!room->gameController->placePiece(row, col, session->piece)) {
         sendError(socket, QStringLiteral("invalid_move"));
         return;
     }
@@ -320,7 +542,18 @@ void ServerApp::handlePlacePiece(QTcpSocket *socket, int row, int col)
     msg[QStringLiteral("player")] = session->piece;
     msg[QStringLiteral("row")] = row;
     msg[QStringLiteral("col")] = col;
-    broadcastJson(msg);
+    broadcastJsonToRoom(room->roomId, msg);
+
+    if (room->gameController->isGameOver()) {
+        QJsonObject gameOverMsg;
+        gameOverMsg[QStringLiteral("type")] = QStringLiteral("game_over");
+        gameOverMsg[QStringLiteral("winner")] = room->gameController->winner();
+        broadcastJsonToRoom(room->roomId, gameOverMsg);
+
+        room->gameActive = false;
+        clearReadyStates(room);
+        broadcastRoomState(room);
+    }
 }
 
 void ServerApp::handleSurrender(QTcpSocket *socket)
@@ -331,13 +564,35 @@ void ServerApp::handleSurrender(QTcpSocket *socket)
         return;
     }
 
-    if (isDouDiZhuRoom()) {
+    RoomState *room = roomForPlayer(session);
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
+        return;
+    }
+
+    if (isDouDiZhuRoom(room->gameId)) {
         sendError(socket, QStringLiteral("wrong_game"));
         return;
     }
 
-    if (!m_gameController.surrender(session->piece))
+    if (session->seatType != QStringLiteral("active")) {
+        sendError(socket, QStringLiteral("spectator_cannot_surrender"));
+        return;
+    }
+
+    if (!room->gameController->surrender(session->piece)) {
         sendError(socket, QStringLiteral("invalid_surrender"));
+        return;
+    }
+
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("game_over");
+    msg[QStringLiteral("winner")] = room->gameController->winner();
+    broadcastJsonToRoom(room->roomId, msg);
+
+    room->gameActive = false;
+    clearReadyStates(room);
+    broadcastRoomState(room);
 }
 
 void ServerApp::handleDouDiZhuPlay(QTcpSocket *socket, const QJsonArray &cardIds)
@@ -348,8 +603,19 @@ void ServerApp::handleDouDiZhuPlay(QTcpSocket *socket, const QJsonArray &cardIds
         return;
     }
 
-    if (!isDouDiZhuRoom()) {
+    RoomState *room = roomForPlayer(session);
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
+        return;
+    }
+
+    if (!isDouDiZhuRoom(room->gameId)) {
         sendError(socket, QStringLiteral("wrong_game"));
+        return;
+    }
+
+    if (session->seatType != QStringLiteral("active")) {
+        sendError(socket, QStringLiteral("spectator_cannot_play"));
         return;
     }
 
@@ -357,14 +623,13 @@ void ServerApp::handleDouDiZhuPlay(QTcpSocket *socket, const QJsonArray &cardIds
     for (const auto &id : cardIds)
         ids.append(id.toInt());
 
-    if (!m_douDiZhuController.playCardsForPlayer(session->playerId, ids)) {
+    if (!room->douDiZhuController->playCardsForPlayer(session->playerId, ids)) {
         sendError(socket, QStringLiteral("invalid_ddz_play"));
-        broadcastDouDiZhuStates();
+        broadcastDouDiZhuStates(room);
         return;
     }
 
-    broadcastDouDiZhuStates();
-    scheduleDouDiZhuRobotTurn();
+    broadcastDouDiZhuStates(room);
 }
 
 void ServerApp::handleDouDiZhuPass(QTcpSocket *socket)
@@ -375,19 +640,29 @@ void ServerApp::handleDouDiZhuPass(QTcpSocket *socket)
         return;
     }
 
-    if (!isDouDiZhuRoom()) {
+    RoomState *room = roomForPlayer(session);
+    if (!room) {
+        sendError(socket, QStringLiteral("room_not_found"));
+        return;
+    }
+
+    if (!isDouDiZhuRoom(room->gameId)) {
         sendError(socket, QStringLiteral("wrong_game"));
         return;
     }
 
-    if (!m_douDiZhuController.passForPlayer(session->playerId)) {
-        sendError(socket, QStringLiteral("invalid_ddz_pass"));
-        broadcastDouDiZhuStates();
+    if (session->seatType != QStringLiteral("active")) {
+        sendError(socket, QStringLiteral("spectator_cannot_pass"));
         return;
     }
 
-    broadcastDouDiZhuStates();
-    scheduleDouDiZhuRobotTurn();
+    if (!room->douDiZhuController->passForPlayer(session->playerId)) {
+        sendError(socket, QStringLiteral("invalid_ddz_pass"));
+        broadcastDouDiZhuStates(room);
+        return;
+    }
+
+    broadcastDouDiZhuStates(room);
 }
 
 void ServerApp::sendJson(QTcpSocket *socket, const QJsonObject &obj)
@@ -409,107 +684,130 @@ void ServerApp::sendError(QTcpSocket *socket, const QString &message)
     sendJson(socket, msg);
 }
 
-void ServerApp::broadcastJson(const QJsonObject &obj, QTcpSocket *exclude)
+void ServerApp::broadcastJsonToRoom(const QString &roomId, const QJsonObject &obj, QTcpSocket *exclude)
 {
-    for (const auto &player : m_players) {
-        if (player.socket && player.socket != exclude)
-            sendJson(player.socket, obj);
+    for (const auto &player : std::as_const(m_players)) {
+        if (player.roomId != roomId || !player.socket || player.socket == exclude)
+            continue;
+        sendJson(player.socket, obj);
     }
 }
 
-void ServerApp::broadcastRoomState()
+void ServerApp::broadcastRoomState(RoomState *room)
 {
-    QJsonArray players;
-    for (const auto &player : m_players) {
+    if (!room)
+        return;
+
+    const auto players = playersInRoom(room->roomId);
+    QJsonArray playerArray;
+    for (const PlayerSession *player : players) {
         QJsonObject entry;
-        entry[QStringLiteral("playerId")] = player.playerId;
-        entry[QStringLiteral("name")] = player.name;
-        entry[QStringLiteral("isHost")] = isDouDiZhuRoom()
-            ? player.playerId == 0
-            : player.piece == 1;
-        entry[QStringLiteral("isReady")] = player.isReady;
-        entry[QStringLiteral("piece")] = player.piece;
-        players.append(entry);
+        entry[QStringLiteral("playerId")] = player->playerId;
+        entry[QStringLiteral("name")] = player->name;
+        entry[QStringLiteral("isHost")] = player->isHost;
+        entry[QStringLiteral("isReady")] = player->isReady;
+        entry[QStringLiteral("seatType")] = player->seatType;
+        entry[QStringLiteral("piece")] = player->piece;
+        playerArray.append(entry);
     }
 
-    for (const auto &player : m_players) {
-        if (!player.socket)
+    for (const PlayerSession *player : players) {
+        if (!player->socket)
             continue;
 
         QJsonObject msg;
         msg[QStringLiteral("type")] = QStringLiteral("room_state");
-        msg[QStringLiteral("gameId")] = m_gameId;
-        msg[QStringLiteral("gameName")] = gameName(m_gameId);
-        msg[QStringLiteral("maxPlayers")] = maxPlayers();
-        msg[QStringLiteral("players")] = players;
-        msg[QStringLiteral("yourPlayerId")] = player.playerId;
-        msg[QStringLiteral("yourPiece")] = player.piece;
+        msg[QStringLiteral("roomId")] = room->roomId;
+        msg[QStringLiteral("roomName")] = room->roomName;
+        msg[QStringLiteral("gameId")] = room->gameId;
+        msg[QStringLiteral("gameName")] = gameName(room->gameId);
+        msg[QStringLiteral("maxPlayers")] = maxPlayers(room->gameId);
+        msg[QStringLiteral("roomCapacity")] = roomCapacity();
+        msg[QStringLiteral("players")] = playerArray;
+        msg[QStringLiteral("yourPlayerId")] = player->playerId;
+        msg[QStringLiteral("yourPiece")] = player->piece;
         msg[QStringLiteral("mode")] = QStringLiteral("dedicated_server");
-        sendJson(player.socket, msg);
+        sendJson(player->socket, msg);
     }
 }
 
-void ServerApp::broadcastDouDiZhuStates()
+void ServerApp::broadcastDouDiZhuStates(RoomState *room)
 {
-    if (!isDouDiZhuRoom())
+    if (!room || !isDouDiZhuRoom(room->gameId))
         return;
 
-    for (const auto &player : m_players) {
-        if (!player.socket)
+    for (const PlayerSession *player : activePlayersInRoom(room->roomId)) {
+        if (!player->socket)
             continue;
 
-        QJsonObject msg = m_douDiZhuController.stateForPlayer(player.playerId);
+        QJsonObject msg = room->douDiZhuController->stateForPlayer(player->playerId);
         msg[QStringLiteral("type")] = QStringLiteral("ddz_state");
-        sendJson(player.socket, msg);
+        sendJson(player->socket, msg);
     }
 
-    if (m_douDiZhuController.isGameOver()) {
-        clearReadyStates();
-        broadcastRoomState();
-    }
-}
-
-void ServerApp::clearReadyStates()
-{
-    for (auto &player : m_players)
-        player.isReady = false;
-}
-
-void ServerApp::resetGame()
-{
-    ++m_douDiZhuRobotTurnToken;
-    m_douDiZhuRobotTurnPending = false;
-
-    if (isDouDiZhuRoom()) {
-        m_douDiZhuController.startNetworkGame(0);
-    } else {
-        m_gameController.reset();
+    if (room->douDiZhuController->isGameOver()) {
+        room->gameActive = false;
+        clearReadyStates(room);
+        broadcastRoomState(room);
     }
 }
 
-void ServerApp::scheduleDouDiZhuRobotTurn()
+void ServerApp::clearReadyStates(RoomState *room)
 {
-    if (!isDouDiZhuRoom()
-        || m_douDiZhuController.isGameOver()
-        || m_douDiZhuController.currentPlayer() != kDouDiZhuRobotPlayer
-        || m_douDiZhuRobotTurnPending) {
+    if (!room)
         return;
+
+    for (PlayerSession *player : playersInRoom(room->roomId))
+        player->isReady = false;
+}
+
+void ServerApp::resetGame(RoomState *room)
+{
+    if (!room)
+        return;
+
+    if (isDouDiZhuRoom(room->gameId)) {
+        room->douDiZhuController->startNetworkGame(0);
+    } else {
+        room->gameController->reset();
+    }
+}
+
+void ServerApp::removeRoomIfEmpty(const QString &roomId)
+{
+    for (const auto &player : std::as_const(m_players)) {
+        if (player.roomId == roomId)
+            return;
     }
 
-    m_douDiZhuRobotTurnPending = true;
-    const int token = ++m_douDiZhuRobotTurnToken;
-
-    QTimer::singleShot(kRobotTurnDelayMs, this, [this, token]() {
-        if (token != m_douDiZhuRobotTurnToken || !isDouDiZhuRoom())
+    for (int i = 0; i < m_rooms.size(); ++i) {
+        if (m_rooms.at(i)->roomId == roomId) {
+            delete m_rooms.at(i);
+            m_rooms.removeAt(i);
             return;
+        }
+    }
+}
 
-        m_douDiZhuRobotTurnPending = false;
-        if (!m_douDiZhuController.playAiTurnForPlayer(kDouDiZhuRobotPlayer))
-            return;
-
-        broadcastDouDiZhuStates();
-        scheduleDouDiZhuRobotTurn();
-    });
+QJsonArray ServerApp::roomListPayload() const
+{
+    QJsonArray rooms;
+    for (const RoomState *room : std::as_const(m_rooms)) {
+        const int playerCount = playersInRoom(room->roomId).size();
+        QJsonObject entry;
+        entry[QStringLiteral("roomId")] = room->roomId;
+        entry[QStringLiteral("roomName")] = room->roomName;
+        entry[QStringLiteral("hostName")] = hostNameForRoom(room->roomId);
+        entry[QStringLiteral("gameId")] = room->gameId;
+        entry[QStringLiteral("gameName")] = gameName(room->gameId);
+        entry[QStringLiteral("playerCount")] = playerCount;
+        entry[QStringLiteral("roomCapacity")] = roomCapacity();
+        entry[QStringLiteral("maxPlayers")] = maxPlayers(room->gameId);
+        entry[QStringLiteral("inGame")] = room->gameActive;
+        entry[QStringLiteral("isFull")] = playerCount >= roomCapacity();
+        rooms.append(entry);
+    }
+    return rooms;
 }
 
 ServerApp::PlayerSession *ServerApp::sessionForSocket(QTcpSocket *socket)
@@ -530,22 +828,94 @@ const ServerApp::PlayerSession *ServerApp::sessionForSocket(QTcpSocket *socket) 
     return nullptr;
 }
 
-int ServerApp::otherPiece(int piece) const
+ServerApp::RoomState *ServerApp::roomForPlayer(const PlayerSession *session)
 {
-    return piece == 1 ? 2 : 1;
+    if (!session)
+        return nullptr;
+    return roomById(session->roomId);
 }
 
-int ServerApp::maxPlayers() const
+const ServerApp::RoomState *ServerApp::roomForPlayer(const PlayerSession *session) const
 {
-    return kRoomHumanPlayers;
+    if (!session)
+        return nullptr;
+    return roomById(session->roomId);
 }
 
-int ServerApp::nextDouDiZhuPlayerId() const
+ServerApp::RoomState *ServerApp::roomById(const QString &roomId)
 {
-    for (int candidate = 0; candidate < maxPlayers(); ++candidate) {
+    for (RoomState *room : std::as_const(m_rooms)) {
+        if (room->roomId == roomId)
+            return room;
+    }
+    return nullptr;
+}
+
+const ServerApp::RoomState *ServerApp::roomById(const QString &roomId) const
+{
+    for (const RoomState *room : std::as_const(m_rooms)) {
+        if (room->roomId == roomId)
+            return room;
+    }
+    return nullptr;
+}
+
+QList<ServerApp::PlayerSession *> ServerApp::playersInRoom(const QString &roomId)
+{
+    QList<PlayerSession *> roomPlayers;
+    for (auto &player : m_players) {
+        if (player.roomId == roomId)
+            roomPlayers.append(&player);
+    }
+    return roomPlayers;
+}
+
+QList<const ServerApp::PlayerSession *> ServerApp::playersInRoom(const QString &roomId) const
+{
+    QList<const PlayerSession *> roomPlayers;
+    for (const auto &player : m_players) {
+        if (player.roomId == roomId)
+            roomPlayers.append(&player);
+    }
+    return roomPlayers;
+}
+
+QList<ServerApp::PlayerSession *> ServerApp::activePlayersInRoom(const QString &roomId)
+{
+    QList<PlayerSession *> roomPlayers;
+    for (auto &player : m_players) {
+        if (player.roomId == roomId && player.seatType == QStringLiteral("active"))
+            roomPlayers.append(&player);
+    }
+    return roomPlayers;
+}
+
+QList<const ServerApp::PlayerSession *> ServerApp::activePlayersInRoom(const QString &roomId) const
+{
+    QList<const PlayerSession *> roomPlayers;
+    for (const auto &player : m_players) {
+        if (player.roomId == roomId && player.seatType == QStringLiteral("active"))
+            roomPlayers.append(&player);
+    }
+    return roomPlayers;
+}
+
+QString ServerApp::hostNameForRoom(const QString &roomId) const
+{
+    for (const auto &player : m_players) {
+        if (player.roomId == roomId && player.isHost)
+            return player.name;
+    }
+    return QStringLiteral("host");
+}
+
+int ServerApp::nextPlayerIdForRoom(const QString &roomId, const QString &gameId) const
+{
+    Q_UNUSED(gameId);
+    for (int candidate = 0; candidate < roomCapacity(); ++candidate) {
         bool used = false;
         for (const auto &player : m_players) {
-            if (player.playerId == candidate) {
+            if (player.roomId == roomId && player.playerId == candidate) {
                 used = true;
                 break;
             }
@@ -556,7 +926,91 @@ int ServerApp::nextDouDiZhuPlayerId() const
     return -1;
 }
 
-bool ServerApp::isDouDiZhuRoom() const
+QString ServerApp::createRoomId() const
 {
-    return m_gameId == QStringLiteral("doudizhu");
+    while (true) {
+        const QString roomId = QString::number(QRandomGenerator::global()->bounded(100000, 999999));
+        if (!roomById(roomId))
+            return roomId;
+    }
+}
+
+int ServerApp::otherPiece(int piece) const
+{
+    return piece == 1 ? 2 : 1;
+}
+
+int ServerApp::roomCapacity() const
+{
+    return 3;
+}
+
+int ServerApp::activeGuestLimit(const QString &gameId) const
+{
+    return qMax(0, maxPlayers(gameId) - 1);
+}
+
+void ServerApp::normalizeSeats(RoomState *room, bool fillMissingActiveSeats)
+{
+    if (!room)
+        return;
+
+    auto players = playersInRoom(room->roomId);
+    int activeGuests = 0;
+    for (PlayerSession *player : players) {
+        if (player->isHost) {
+            player->seatType = QStringLiteral("active");
+            player->piece = isDouDiZhuRoom(room->gameId) ? 0 : 1;
+            continue;
+        }
+        if (player->seatType == QStringLiteral("active"))
+            ++activeGuests;
+    }
+
+    for (int i = players.size() - 1; i >= 0 && activeGuests > activeGuestLimit(room->gameId); --i) {
+        PlayerSession *player = players.at(i);
+        if (player->isHost || player->seatType != QStringLiteral("active"))
+            continue;
+        player->seatType = QStringLiteral("spectator");
+        player->isReady = false;
+        --activeGuests;
+    }
+
+    if (fillMissingActiveSeats) {
+        for (PlayerSession *player : players) {
+            if (activeGuests >= activeGuestLimit(room->gameId))
+                break;
+            if (player->isHost || player->seatType != QStringLiteral("spectator"))
+                continue;
+            player->seatType = QStringLiteral("active");
+            ++activeGuests;
+        }
+    }
+
+    bool whiteAssigned = false;
+    for (PlayerSession *player : players) {
+        if (player->isHost) {
+            player->piece = isDouDiZhuRoom(room->gameId) ? 0 : 1;
+            continue;
+        }
+
+        if (isDouDiZhuRoom(room->gameId)) {
+            player->piece = 0;
+        } else if (player->seatType == QStringLiteral("active") && !whiteAssigned) {
+            player->piece = 2;
+            whiteAssigned = true;
+        } else {
+            player->piece = 0;
+        }
+    }
+}
+
+int ServerApp::maxPlayers(const QString &gameId) const
+{
+    return isDouDiZhuRoom(gameId) ? kDouDiZhuHumanPlayers : kGomokuHumanPlayers;
+}
+
+bool ServerApp::isDouDiZhuRoom(const QString &gameId) const
+{
+    return gameId == QStringLiteral("doudizhu");
 }

@@ -7,13 +7,24 @@ Page {
     id: root
     objectName: "gamePage"
 
+    function localRoomPlayer() {
+        var players = AppCtrl.roomManager.playerList
+        var idx = AppCtrl.roomManager.localPlayerIndex
+        return idx >= 0 && idx < players.length ? players[idx] : null
+    }
+
+    function localIsSpectator() {
+        var player = localRoomPlayer()
+        return !!player && (player.seatType || "active") === "spectator"
+    }
+
     function gomokuPlayerName(piece) {
         var players = AppCtrl.roomManager.playerList
         for (var i = 0; i < players.length; ++i) {
             var player = players[i]
             if (piece === 1 && player.isHost)
                 return player.name
-            if (piece === 2 && !player.isHost)
+            if (piece === 2 && !player.isHost && (player.seatType || "active") === "active")
                 return player.name
         }
         return piece === 1 ? "黑方" : "白方"
@@ -119,6 +130,9 @@ Page {
                     if (!inNet)
                         return AppCtrl.gameController.currentPlayer === 1
                             ? "黑方落子" : "白方落子";
+                    if (root.localIsSpectator())
+                        return AppCtrl.gameController.currentPlayer === 1
+                            ? "黑方落子中" : "白方落子中";
                     if (AppCtrl.roomManager.isHost)
                         return AppCtrl.gameController.currentPlayer === 1
                             ? "轮到你了" : "等待对方落子";
@@ -207,6 +221,8 @@ Page {
                         var inNet = AppCtrl.networkManager.isHost
                                  || AppCtrl.networkManager.isConnected;
                         if (inNet) {
+                            if (root.localIsSpectator())
+                                return;
                             var myTurn = AppCtrl.roomManager.isHost
                                 ? AppCtrl.gameController.currentPlayer === 1
                                 : AppCtrl.gameController.currentPlayer === 2;
@@ -242,10 +258,16 @@ Page {
         // -- 底部按钮 --
         ActionButton {
             Layout.fillWidth: true
-            text: "认输并返回房间"
+            text: root.localIsSpectator() ? "返回房间" : "认输并返回房间"
             secondary: true
-            enabled: !AppCtrl.gameController.gameOver
-            onClicked: root.surrenderAndLeave()
+            enabled: root.localIsSpectator() || !AppCtrl.gameController.gameOver
+            onClicked: {
+                if (root.localIsSpectator()) {
+                    root.StackView.view.pop()
+                    return
+                }
+                root.surrenderAndLeave()
+            }
         }
     }
 }
