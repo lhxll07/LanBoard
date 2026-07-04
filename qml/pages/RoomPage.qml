@@ -222,7 +222,7 @@ Page {
 
                                                 Text {
                                                     Layout.fillWidth: true
-                                                    text: modelData.hostIp + " : " + modelData.port
+                                                    text: modelData.gameName + " · " + modelData.hostIp + " : " + modelData.port
                                                     color: AppTheme.textMuted
                                                     font.pixelSize: AppTheme.fontSizeCaption
                                                     elide: Text.ElideRight
@@ -390,25 +390,52 @@ Page {
                         id: hostCard
                         width: parent.width
                         height: 182
-                        titleText: "创建房间"
-                        subtitleText: "使用设置中的默认端口开房，等待另一位玩家加入。"
-                        tagText: "主机"
+                        titleText: "创建五子棋房间"
+                        subtitleText: "使用设置中的默认端口开房，等待另一位玩家加入五子棋对局。"
+                        tagText: "五子棋"
                         opacity: 0
                         transform: Translate { id: hostCardOffset; y: 20 }
                         onClicked: AppCtrl.startRoomAsHost()
                     }
 
                     GameCard {
+                        id: flightHostCard
+                        width: parent.width
+                        height: 182
+                        titleText: "飞行棋联机"
+                        subtitleText: "创建局域网飞行棋房间，等待另一位玩家加入后开始同步掷骰和移动。"
+                        tagText: "创建房间"
+                        gameType: "flight"
+                        opacity: 0
+                        transform: Translate { id: flightHostCardOffset; y: 20 }
+                        onClicked: AppCtrl.startFlightChessRoomAsHost()
+                    }
+
+                    GameCard {
                         id: localCard
                         width: parent.width
                         height: 182
-                        titleText: "本地双人"
-                        subtitleText: "不走网络，直接在当前设备上开始双人对局。"
-                        tagText: "本地"
+                        titleText: "五子棋本地双人"
+                        subtitleText: "不走网络，直接在当前设备上开始五子棋双人对局。"
+                        tagText: "五子棋"
                         dark: true
                         opacity: 0
                         transform: Translate { id: localCardOffset; y: 20 }
                         onClicked: AppCtrl.startLocalMode()
+                    }
+
+                    GameCard {
+                        id: flightLocalCard
+                        width: parent.width
+                        height: 182
+                        titleText: "飞行棋本地双人"
+                        subtitleText: "同一设备上轮流掷骰，先让四架飞机到达终点的一方获胜。"
+                        tagText: "飞行棋"
+                        gameType: "flight"
+                        dark: true
+                        opacity: 0
+                        transform: Translate { id: flightLocalCardOffset; y: 20 }
+                        onClicked: AppCtrl.startFlightChessLocalRoom()
                     }
 
                     SettingCard {
@@ -522,7 +549,7 @@ Page {
                         width: parent.width
                         height: 84
                         titleText: "当前桌游"
-                        valueText: "五子棋"
+                        valueText: AppCtrl.currentGameName
                         actionText: ""
                     }
 
@@ -563,8 +590,8 @@ Page {
 
                         ActionButton {
                             width: (parent.width - parent.spacing) / 2
-                            text: AppTheme.zhStartGame()
-                            enabled: AppCtrl.roomManager.canStart
+                            text: AppCtrl.roomManager.isHost ? AppTheme.zhStartGame() : "等待主机开始"
+                            enabled: AppCtrl.roomManager.isHost && AppCtrl.roomManager.canStart
                             onClicked: AppCtrl.roomManager.startGame()
                         }
                     }
@@ -608,8 +635,18 @@ Page {
         }
         PauseAnimation { duration: 70 }
         ParallelAnimation {
+            NumberAnimation { target: flightHostCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: flightHostCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
+        ParallelAnimation {
             NumberAnimation { target: localCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: localCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 70 }
+        ParallelAnimation {
+            NumberAnimation { target: flightLocalCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: flightLocalCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
     }
 }

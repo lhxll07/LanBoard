@@ -39,6 +39,20 @@ Page {
                 onClicked: AppCtrl.openOnlinePage()
             }
 
+            GameCard {
+                id: flightCard
+                width: parent.width
+                height: 182
+                titleText: "本地飞行棋"
+                subtitleText: "同一设备上轮流掷骰起飞、前进和撞回对手飞机，先让四架飞机到达终点的一方获胜。"
+                tagText: "本地游戏"
+                gameType: "flight"
+                dark: true
+                opacity: 0
+                transform: Translate { id: flightCardOffset; y: 20 }
+                onClicked: AppCtrl.startFlightChessLocalMode()
+            }
+
             SettingCard {
                 id: configCard
                 width: parent.width
@@ -59,6 +73,11 @@ Page {
         ParallelAnimation {
             NumberAnimation { target: gameCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: gameCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 80 }
+        ParallelAnimation {
+            NumberAnimation { target: flightCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: flightCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
         PauseAnimation { duration: 80 }
         ParallelAnimation {

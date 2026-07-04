@@ -31,6 +31,9 @@ ApplicationWindow {
                         AppCtrl.gameController.surrender();
                     }
                 }
+            } else if (stackView.currentItem
+                       && stackView.currentItem.objectName === "flightChessPage") {
+                stackView.pop()
             } else {
                 stackView.pop()
             }
@@ -72,6 +75,8 @@ ApplicationWindow {
                 showGamePage()
             } else if (page === 3) {
                 showOnlinePage()
+            } else if (page === 4) {
+                stackView.push(Qt.resolvedUrl("pages/FlightChessPage.qml"))
             }
         }
     }

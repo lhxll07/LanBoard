@@ -24,6 +24,7 @@ endif()
 find_package(Qt6 REQUIRED COMPONENTS ${LANBOARD_QT_COMPONENTS})
 
 qt_standard_project_setup(REQUIRES 6.7)
+qt_policy(SET QTP0004 NEW)
 
 if (LANBOARD_BUILD_APP)
     set_source_files_properties(qml/components/AppTheme.qml
@@ -36,6 +37,7 @@ if (LANBOARD_BUILD_APP)
         src/lobby/roommanager.cpp
         src/network/networkmanager.cpp
         src/game/gamecontroller.cpp
+        src/game/flightchesscontroller.cpp
     )
 
     qt_add_qml_module(appLanBoard
@@ -54,12 +56,17 @@ if (LANBOARD_BUILD_APP)
             qml/pages/RoomPage.qml
             qml/pages/SettingsPage.qml
             qml/pages/GamePage.qml
+            qml/pages/FlightChessPage.qml
+        RESOURCES
+            qml/components/qmldir
+            qml/pages/qmldir
         SOURCES
             src/app/appcontroller.h
             src/common/types.h
             src/lobby/roommanager.h
             src/network/networkmanager.h
             src/game/gamecontroller.h
+            src/game/flightchesscontroller.h
     )
 
     target_link_libraries(appLanBoard

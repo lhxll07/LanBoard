@@ -11,6 +11,7 @@
 #include <QList>
 #include <QByteArray>
 #include <QVariantList>
+#include <QString>
 
 #ifdef Q_OS_ANDROID
 #include <QJniObject>
@@ -38,6 +39,8 @@ public:
 
     Q_INVOKABLE void sendReady(bool ready);
     Q_INVOKABLE void sendPlacePiece(int row, int col);
+    Q_INVOKABLE void sendFlightRoll();
+    Q_INVOKABLE void sendFlightMove(int planeIndex);
     Q_INVOKABLE void sendSurrender();
     Q_INVOKABLE void sendStartGame();
     Q_INVOKABLE void startRoomDiscovery();
@@ -56,6 +59,7 @@ public:
 
     void setDiscoveryHostName(const QString &hostName);
     void setDiscoveryGameInProgress(bool inProgress);
+    void setDiscoveryGame(const QString &game, const QString &gameName);
 
 signals:
     void connectionChanged();
@@ -68,6 +72,10 @@ signals:
     void joinRequested(QString name, QTcpSocket *socket);
     void remoteReadyChanged(int playerId, bool ready);
     void remoteMoveReceived(int playerId, int row, int col);
+    void remoteFlightRoll(int playerId);
+    void remoteFlightMove(int playerId, int planeIndex);
+    void flightRollReceived(int player, int diceValue);
+    void flightMoveReceived(int player, int planeIndex);
     void remoteSurrender(int playerId);
     void remoteStartGame();
     void gameOverReceived(int winner);
@@ -76,9 +84,11 @@ signals:
 
 public slots:
     // Called by AppController to broadcast state changes
-    void broadcastRoomState(const QJsonArray &players);
+    void broadcastRoomState(const QJsonArray &players, const QString &game = QStringLiteral("gomoku"));
     void broadcastGameStarted();
     void broadcastMove(int player, int row, int col);
+    void broadcastFlightRoll(int player, int diceValue);
+    void broadcastFlightMove(int player, int planeIndex);
     void broadcastGameOver(int winner);
 
 private slots:
@@ -100,6 +110,8 @@ private:
         quint16 port = 0;
         int playerCount = 0;
         int maxPlayers = 2;
+        QString game;
+        QString gameName;
         bool inGame = false;
         bool isFull = false;
         qint64 lastSeenMs = 0;
@@ -135,6 +147,8 @@ private:
     QString m_connectedIp;
     quint16 m_connectedPort = 0;
     QString m_discoveryHostName;
+    QString m_discoveryGame = QStringLiteral("gomoku");
+    QString m_discoveryGameName = QStringLiteral("五子棋");
     QList<DiscoveredRoom> m_discoveredRoomEntries;
     QVariantList m_discoveredRooms;
 #ifdef Q_OS_ANDROID

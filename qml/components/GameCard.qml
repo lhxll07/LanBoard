@@ -8,6 +8,7 @@ Rectangle {
     property string titleText: ""
     property string subtitleText: ""
     property string tagText: ""
+    property string gameType: "gomoku"
     property bool dark: false
     signal clicked()
 
@@ -100,7 +101,7 @@ Rectangle {
         anchors.topMargin: 24
         width: 88
         height: 88
-        visible: !root.dark
+        visible: root.gameType === "gomoku"
 
         Rectangle {
             anchors.fill: parent
@@ -154,12 +155,50 @@ Rectangle {
         anchors.topMargin: 24
         width: 92
         height: 72
-        visible: root.dark
+        visible: root.gameType !== "gomoku"
         rotation: -10
 
-        Rectangle { x: 0; y: 6; width: 32; height: 52; radius: 10; color: "#E74B45" }
-        Rectangle { x: 20; y: 14; width: 32; height: 52; radius: 10; color: "#F1D34B" }
-        Rectangle { x: 44; y: 2; width: 32; height: 52; radius: 10; color: "#4B86E8" }
+        Rectangle { x: 2; y: 8; width: 30; height: 30; radius: 8; color: "#E7584F" }
+        Rectangle { x: 56; y: 8; width: 30; height: 30; radius: 8; color: "#5AA7E8" }
+        Rectangle { x: 2; y: 40; width: 30; height: 30; radius: 8; color: "#F2C94C" }
+        Rectangle { x: 56; y: 40; width: 30; height: 30; radius: 8; color: "#54B96E" }
+
+        Canvas {
+            anchors.fill: parent
+
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+
+                ctx.strokeStyle = "#F8F6EF";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(16, 23);
+                ctx.lineTo(46, 35);
+                ctx.lineTo(72, 23);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(16, 55);
+                ctx.lineTo(46, 35);
+                ctx.lineTo(72, 55);
+                ctx.stroke();
+
+                ctx.fillStyle = "#F8F6EF";
+                ctx.beginPath();
+                ctx.moveTo(46, 18);
+                ctx.lineTo(55, 43);
+                ctx.lineTo(46, 38);
+                ctx.lineTo(37, 43);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = "#173A31";
+                ctx.beginPath();
+                ctx.arc(46, 35, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
     }
 
     Behavior on scale {

@@ -212,6 +212,21 @@ void NetworkManager::sendPlacePiece(int row, int col)
     sendJson(m_socket, msg);
 }
 
+void NetworkManager::sendFlightRoll()
+{
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("flight_roll");
+    sendJson(m_socket, msg);
+}
+
+void NetworkManager::sendFlightMove(int planeIndex)
+{
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("flight_move");
+    msg[QStringLiteral("planeIndex")] = planeIndex;
+    sendJson(m_socket, msg);
+}
+
 void NetworkManager::sendSurrender()
 {
     QJsonObject msg;
@@ -281,13 +296,20 @@ void NetworkManager::setDiscoveryGameInProgress(bool inProgress)
     m_discoveryGameInProgress = inProgress;
 }
 
+void NetworkManager::setDiscoveryGame(const QString &game, const QString &gameName)
+{
+    m_discoveryGame = game.isEmpty() ? QStringLiteral("gomoku") : game;
+    m_discoveryGameName = gameName.isEmpty() ? QStringLiteral("五子棋") : gameName;
+}
+
 // ── Broadcast from host ──
 
-void NetworkManager::broadcastRoomState(const QJsonArray &players)
+void NetworkManager::broadcastRoomState(const QJsonArray &players, const QString &game)
 {
     QJsonObject msg;
     msg[QStringLiteral("type")] = QStringLiteral("room_state");
     msg[QStringLiteral("players")] = players;
+    msg[QStringLiteral("game")] = game;
     broadcastJson(msg);
 }
 
@@ -305,6 +327,24 @@ void NetworkManager::broadcastMove(int player, int row, int col)
     msg[QStringLiteral("player")] = player;
     msg[QStringLiteral("row")] = row;
     msg[QStringLiteral("col")] = col;
+    broadcastJson(msg);
+}
+
+void NetworkManager::broadcastFlightRoll(int player, int diceValue)
+{
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("flight_roll_result");
+    msg[QStringLiteral("player")] = player;
+    msg[QStringLiteral("diceValue")] = diceValue;
+    broadcastJson(msg);
+}
+
+void NetworkManager::broadcastFlightMove(int player, int planeIndex)
+{
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = QStringLiteral("flight_move_result");
+    msg[QStringLiteral("player")] = player;
+    msg[QStringLiteral("planeIndex")] = planeIndex;
     broadcastJson(msg);
 }
 
@@ -541,6 +581,15 @@ void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
         int col = msg.value(QStringLiteral("col")).toInt();
         emit remoteMoveReceived(playerId, row, col);
     }
+    else if (type == QStringLiteral("flight_roll")) {
+        int playerId = sender->property("playerId").toInt();
+        emit remoteFlightRoll(playerId);
+    }
+    else if (type == QStringLiteral("flight_move")) {
+        int playerId = sender->property("playerId").toInt();
+        int planeIndex = msg.value(QStringLiteral("planeIndex")).toInt(-1);
+        emit remoteFlightMove(playerId, planeIndex);
+    }
     else if (type == QStringLiteral("surrender")) {
         int playerId = sender->property("playerId").toInt();
         emit remoteSurrender(playerId);
@@ -555,6 +604,16 @@ void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
         int winner = msg.value(QStringLiteral("winner")).toInt();
         emit gameOverReceived(winner);
     }
+    else if (type == QStringLiteral("flight_roll_result")) {
+        int player = msg.value(QStringLiteral("player")).toInt();
+        int diceValue = msg.value(QStringLiteral("diceValue")).toInt();
+        emit flightRollReceived(player, diceValue);
+    }
+    else if (type == QStringLiteral("flight_move_result")) {
+        int player = msg.value(QStringLiteral("player")).toInt();
+        int planeIndex = msg.value(QStringLiteral("planeIndex")).toInt(-1);
+        emit flightMoveReceived(player, planeIndex);
+    }
     else if (type == QStringLiteral("room_state")) {
         emit roomStateReceived(msg);
     }
@@ -562,7 +621,7 @@ void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
         emit remoteStartGame();
     }
     else if (type == QStringLiteral("start_game")) {
-        // Dedicated server accepts this. LAN host currently ignores it.
+        emit remoteStartGame();
     }
 }
 
@@ -680,6 +739,8 @@ void NetworkManager::sendRoomAnnouncement(const QHostAddress &address, quint16 p
     msg[QStringLiteral("port")] = static_cast<int>(m_serverPort);
     msg[QStringLiteral("playerCount")] = 1 + m_clients.size();
     msg[QStringLiteral("maxPlayers")] = 2;
+    msg[QStringLiteral("game")] = m_discoveryGame;
+    msg[QStringLiteral("gameName")] = m_discoveryGameName;
     msg[QStringLiteral("inGame")] = m_discoveryGameInProgress;
     msg[QStringLiteral("isFull")] = (1 + m_clients.size()) >= 2;
 
@@ -705,6 +766,8 @@ void NetworkManager::upsertDiscoveredRoom(const QJsonObject &msg, const QHostAdd
     room.port = port;
     room.playerCount = msg.value(QStringLiteral("playerCount")).toInt();
     room.maxPlayers = qMax(2, msg.value(QStringLiteral("maxPlayers")).toInt(2));
+    room.game = msg.value(QStringLiteral("game")).toString(QStringLiteral("gomoku"));
+    room.gameName = msg.value(QStringLiteral("gameName")).toString(QStringLiteral("五子棋"));
     room.inGame = msg.value(QStringLiteral("inGame")).toBool();
     room.isFull = msg.value(QStringLiteral("isFull")).toBool(room.playerCount >= room.maxPlayers);
     room.lastSeenMs = QDateTime::currentMSecsSinceEpoch();
@@ -739,6 +802,8 @@ QVariantMap NetworkManager::discoveredRoomToVariant(const DiscoveredRoom &room) 
     map[QStringLiteral("port")] = room.port;
     map[QStringLiteral("playerCount")] = room.playerCount;
     map[QStringLiteral("maxPlayers")] = room.maxPlayers;
+    map[QStringLiteral("game")] = room.game;
+    map[QStringLiteral("gameName")] = room.gameName;
     map[QStringLiteral("inGame")] = room.inGame;
     map[QStringLiteral("isFull")] = room.isFull;
     return map;
