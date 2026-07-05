@@ -7,30 +7,30 @@ Page {
     id: root
     objectName: "onlinePage"
     property int lobbyMode: 0
-    property string onlineGameId: "gomoku"
+    property string onlineGameId: AppCtrl.lobbyGameId
     property bool roomGamePickerOpen: false
 
     property bool networkRoom: AppCtrl.networkManager.isHost
                             || AppCtrl.networkManager.isConnected
     property bool inRoom: networkRoom
     property string joinErrorText: ""
-    readonly property var availableGames: [
-        {
-            gameId: "gomoku",
-            title: "五子棋",
-            subtitle: "双人对弈，适合快速开始。"
-        },
-        {
-            gameId: "doudizhu",
-            title: "斗地主",
-            subtitle: "三人房，全部准备后由房主开局。"
-        },
-        {
-            gameId: "flightchess",
-            title: "飞行棋",
-            subtitle: "双人飞行棋，支持围观和切换旁观位。"
+    readonly property var availableGames: AppCtrl.availableGames
+
+    function currentLobbyGame() {
+        for (var i = 0; i < availableGames.length; ++i) {
+            if (availableGames[i].gameId === onlineGameId)
+                return availableGames[i]
         }
-    ]
+        return availableGames.length > 0 ? availableGames[0] : { gameId: "gomoku", title: "五子棋", subtitle: "" }
+    }
+
+    function isSurvivorLobby() {
+        return root.onlineGameId === "survivor"
+    }
+
+    function isSurvivorRoom() {
+        return AppCtrl.roomManager.gameId === "survivor"
+    }
 
     function syncDiscoveryState() {
         if (!visible || inRoom) {
@@ -61,7 +61,7 @@ Page {
         }
 
         joinErrorText = ""
-        AppCtrl.joinRoom(ip, port, AppCtrl.nickname)
+        AppCtrl.joinRoom(ip, port, AppCtrl.nickname, root.onlineGameId)
     }
 
     function joinDiscoveredRoom(room) {
@@ -79,14 +79,6 @@ Page {
         AppCtrl.joinOnlineRoom(roomId)
     }
 
-    function nextGameId(gameId) {
-        for (var i = 0; i < availableGames.length; ++i) {
-            if (availableGames[i].gameId !== gameId)
-                return availableGames[i].gameId
-        }
-        return "gomoku"
-    }
-
     function canSwitchCurrentRoomGame() {
         return AppCtrl.roomManager.isHost
     }
@@ -95,22 +87,6 @@ Page {
         return AppCtrl.networkManager.isConnected
             && AppCtrl.networkManager.connectedIp === AppCtrl.onlineServerHost
             && AppCtrl.networkManager.connectedPort === AppCtrl.onlineServerPort
-    }
-
-    function onlineGameName(gameId) {
-        for (var i = 0; i < availableGames.length; ++i) {
-            if (availableGames[i].gameId === gameId)
-                return availableGames[i].title
-        }
-        return "五子棋"
-    }
-
-    function onlineGameSubtitle(gameId) {
-        for (var i = 0; i < availableGames.length; ++i) {
-            if (availableGames[i].gameId === gameId)
-                return availableGames[i].subtitle
-        }
-        return "双人五子棋，规则直观，适合快速进入在线演示。"
     }
 
     function roomAvailabilityText(room) {
@@ -127,11 +103,6 @@ Page {
 
     function roomJoinEnabled(room) {
         return !room.inGame && !room.isFull
-    }
-
-    function switchCurrentRoomGame() {
-        var nextId = root.nextGameId(AppCtrl.roomManager.gameId)
-        AppCtrl.switchRoomGame(nextId)
     }
 
     function selectCurrentRoomGame(gameId) {
@@ -222,6 +193,17 @@ Page {
     Component.onCompleted: syncDiscoveryState()
     onVisibleChanged: syncDiscoveryState()
     onLobbyModeChanged: syncDiscoveryState()
+    onAvailableGamesChanged: {
+        if (root.onlineGameId.length === 0)
+            root.onlineGameId = AppCtrl.lobbyGameId
+    }
+    Connections {
+        target: AppCtrl
+        function onLobbyGameChanged() {
+            if (!root.inRoom)
+                root.onlineGameId = AppCtrl.lobbyGameId
+        }
+    }
     onInRoomChanged: {
         if (!inRoom)
             roomGamePickerOpen = false
@@ -270,9 +252,11 @@ Page {
                     ? (root.isOnlineServerConnection()
                         ? "当前已进入 ECS 在线演示房间。"
                         : "房间状态只在加入或创建房间后显示。")
-                    : (root.lobbyMode === 0
-                        ? "自动发现局域网房间，也可以手动输入地址加入。"
-                        : "连接 ECS 演示服务器，直接进入在线联机大厅。")
+                    : (root.isSurvivorLobby()
+                        ? "Survivor MVP 先复用房间页作为入口，本地原型可直接体验。"
+                        : (root.lobbyMode === 0
+                            ? "自动发现局域网房间，也可以手动输入地址加入。"
+                            : "连接 ECS 演示服务器，直接进入在线联机大厅。"))
                 trailingText: root.inRoom
                     ? (AppCtrl.roomManager.playerList.length + " / " + AppCtrl.roomManager.roomCapacity)
                     : ""
@@ -687,7 +671,7 @@ Page {
                                     }
 
                                     Text {
-                                        text: "默认端口 " + AppCtrl.defaultPort
+                                        text: root.currentLobbyGame().title + " · 默认端口 " + AppCtrl.defaultPort
                                         color: AppTheme.textMuted
                                         font.pixelSize: AppTheme.fontSizeCaption
                                     }
@@ -712,7 +696,9 @@ Page {
 
                             Text {
                                 Layout.fillWidth: true
-                                text: "先开房，再在房间里选择桌游并开始对局。"
+                                text: root.isSurvivorLobby()
+                                    ? "Survivor MVP 支持先用本地原型试玩，也支持先创建房间完成房间流转。"
+                                    : "先开房，再在房间里选择桌游并开始对局。"
                                 color: AppTheme.textSecondary
                                 font.pixelSize: AppTheme.fontSizeBody
                                 wrapMode: Text.WordWrap
@@ -728,16 +714,68 @@ Page {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "房间内可选：五子棋 / 斗地主 / 飞行棋"
+                                    text: "当前预选：" + root.currentLobbyGame().title
                                     color: AppTheme.textMuted
                                     font.pixelSize: AppTheme.fontSizeCaption
                                 }
                             }
 
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 44
+                                radius: 16
+                                color: AppTheme.cardBackgroundSoft
+                                border.width: 1
+                                border.color: AppTheme.cardBorder
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 6
+                                    spacing: 6
+
+                                    Repeater {
+                                        model: root.availableGames
+
+                                        delegate: Rectangle {
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 32
+                                            radius: 12
+                                            color: root.onlineGameId === modelData.gameId
+                                                ? AppTheme.accentSoft
+                                                : "transparent"
+                                            border.width: root.onlineGameId === modelData.gameId ? 1 : 0
+                                            border.color: AppTheme.accent
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: modelData.title
+                                                color: root.onlineGameId === modelData.gameId
+                                                    ? AppTheme.accent
+                                                    : AppTheme.textMuted
+                                                font.pixelSize: AppTheme.fontSizeCaption
+                                                font.weight: Font.DemiBold
+                                            }
+
+                                            TapHandler {
+                                                onTapped: root.onlineGameId = modelData.gameId
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            ActionButton {
+                                Layout.fillWidth: true
+                                visible: root.isSurvivorLobby()
+                                text: "本地试玩 MVP"
+                                secondary: true
+                                onClicked: AppCtrl.startLocalGame("survivor")
+                            }
+
                             ActionButton {
                                 Layout.fillWidth: true
                                 text: "创建房间"
-                                onClicked: AppCtrl.startRoomAsHost()
+                                onClicked: AppCtrl.startRoomAsHost(root.onlineGameId)
                             }
                         }
                     }
@@ -1394,10 +1432,19 @@ Page {
 
                         ActionButton {
                             width: (parent.width - parent.spacing) / 2
-                            text: AppTheme.zhStartGame()
-                            enabled: AppCtrl.roomManager.canStart
+                            text: root.isSurvivorRoom() ? "MVP 开发中" : AppTheme.zhStartGame()
+                            enabled: AppCtrl.roomManager.canStart && !root.isSurvivorRoom()
                             onClicked: AppCtrl.roomManager.startGame()
                         }
+                    }
+
+                    Text {
+                        width: parent.width
+                        visible: root.isSurvivorRoom()
+                        text: "Survivor 当前已打通房间入口与本地原型页，实时联机同步下一步接入。"
+                        color: AppTheme.textMuted
+                        font.pixelSize: AppTheme.fontSizeCaption
+                        wrapMode: Text.WordWrap
                     }
 
                     ActionButton {

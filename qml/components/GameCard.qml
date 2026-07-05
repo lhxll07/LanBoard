@@ -151,6 +151,60 @@ Rectangle {
     Item {
         anchors.right: parent.right
         anchors.top: parent.top
+        anchors.rightMargin: 20
+        anchors.topMargin: 18
+        width: 104
+        height: 84
+        visible: root.gameType === "survivor"
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 24
+            color: "#D99D64"
+            opacity: 0.18
+        }
+
+        Canvas {
+            anchors.fill: parent
+
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+
+                ctx.fillStyle = "#F6E6C7";
+                ctx.beginPath();
+                ctx.arc(52, 42, 12, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = "#F6E6C7";
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(52, 22);
+                ctx.lineTo(52, 66);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(30, 42);
+                ctx.lineTo(74, 42);
+                ctx.stroke();
+
+                ctx.strokeStyle = "#E86A54";
+                ctx.lineWidth = 3;
+                for (let i = 0; i < 5; ++i) {
+                    const angle = i * Math.PI * 0.4;
+                    const ex = 52 + Math.cos(angle) * 34;
+                    const ey = 42 + Math.sin(angle) * 26;
+                    ctx.beginPath();
+                    ctx.arc(ex, ey, 7, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+
+    Item {
+        anchors.right: parent.right
+        anchors.top: parent.top
         anchors.rightMargin: 24
         anchors.topMargin: 24
         width: 92

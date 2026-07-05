@@ -1,7 +1,22 @@
 #include "roommanager.h"
 
-#include <QJsonArray>
-#include <QJsonObject>
+#include "src/common/types.h"
+
+namespace {
+
+QString normalizedSeatTypeValue(const QString &seatType)
+{
+    return seatType == QStringLiteral("spectator")
+        ? QStringLiteral("spectator")
+        : QStringLiteral("active");
+}
+
+bool isActiveSeat(const QString &seatType)
+{
+    return seatType == QStringLiteral("active");
+}
+
+}
 
 RoomManager::RoomManager(QObject *parent)
     : QObject(parent)
@@ -15,15 +30,11 @@ void RoomManager::addPlayer(const QString &name, bool host, bool ready, int play
         playerId = m_players.isEmpty() ? 0 : m_nextGeneratedPlayerId++;
     }
 
-    const QString normalizedSeatType = seatType == QStringLiteral("spectator")
-        ? QStringLiteral("spectator")
-        : QStringLiteral("active");
-
     const int existingIndex = indexOfPlayerId(playerId);
     if (existingIndex >= 0) {
-        m_players[existingIndex] = {playerId, name, host, ready, normalizedSeatType};
+        m_players[existingIndex] = {playerId, name, host, ready, normalizedSeatTypeValue(seatType)};
     } else {
-        m_players.append({playerId, name, host, ready, normalizedSeatType});
+        m_players.append({playerId, name, host, ready, normalizedSeatTypeValue(seatType)});
     }
 
     emitStateChanged();
@@ -43,7 +54,7 @@ void RoomManager::addTestPlayer(const QString &name)
 void RoomManager::toggleReady()
 {
     const int index = localPlayerIndex();
-    if (index < 0 || m_players[index].seatType != QStringLiteral("active"))
+    if (index < 0 || !isActiveSeat(m_players[index].seatType))
         return;
     m_players[index].isReady = !m_players[index].isReady;
     emitStateChanged();
@@ -64,11 +75,7 @@ void RoomManager::reset()
 
 void RoomManager::setGameId(const QString &gameId)
 {
-    QString normalized = QStringLiteral("gomoku");
-    if (gameId == QStringLiteral("doudizhu"))
-        normalized = QStringLiteral("doudizhu");
-    else if (gameId == QStringLiteral("flightchess"))
-        normalized = QStringLiteral("flightchess");
+    const QString normalized = LanBoard::normalizeGameId(gameId);
     if (m_gameId == normalized)
         return;
 
@@ -105,7 +112,7 @@ bool RoomManager::canStart() const
     if (!isHost())
         return false;
     for (const auto &p : m_players) {
-        if (p.seatType != QStringLiteral("active"))
+        if (!isActiveSeat(p.seatType))
             continue;
         if (!p.isReady)
             return false;
@@ -120,23 +127,19 @@ int RoomManager::localPlayerIndex() const
 
 QString RoomManager::gameName() const
 {
-    if (m_gameId == QStringLiteral("doudizhu"))
-        return QStringLiteral("斗地主");
-    if (m_gameId == QStringLiteral("flightchess"))
-        return QStringLiteral("飞行棋");
-    return QStringLiteral("五子棋");
+    return LanBoard::gameName(m_gameId);
 }
 
 int RoomManager::maxPlayers() const
 {
-    return m_gameId == QStringLiteral("doudizhu") ? 3 : 2;
+    return LanBoard::maxPlayersForGame(m_gameId);
 }
 
 int RoomManager::activePlayerCount() const
 {
     int count = 0;
     for (const auto &player : m_players) {
-        if (player.seatType == QStringLiteral("active"))
+        if (isActiveSeat(player.seatType))
             ++count;
     }
     return count;
@@ -156,7 +159,7 @@ bool RoomManager::setPlayerReadyById(int playerId, bool ready)
 {
     const int index = indexOfPlayerId(playerId);
     if (index < 0
-        || m_players[index].seatType != QStringLiteral("active")
+        || !isActiveSeat(m_players[index].seatType)
         || m_players[index].isReady == ready) {
         return false;
     }
@@ -172,9 +175,7 @@ bool RoomManager::setPlayerSeatById(int playerId, const QString &seatType)
     if (index < 0)
         return false;
 
-    const QString normalizedSeatType = seatType == QStringLiteral("spectator")
-        ? QStringLiteral("spectator")
-        : QStringLiteral("active");
+    const QString normalizedSeatType = normalizedSeatTypeValue(seatType);
     if (m_players[index].seatType == normalizedSeatType)
         return false;
 
@@ -189,7 +190,7 @@ bool RoomManager::clearReadyStates()
 {
     bool changed = false;
     for (auto &player : m_players) {
-        if (player.seatType != QStringLiteral("active") || !player.isReady)
+        if (!isActiveSeat(player.seatType) || !player.isReady)
             continue;
         player.isReady = false;
         changed = true;
@@ -215,16 +216,7 @@ bool RoomManager::removePlayerById(int playerId)
 int RoomManager::firstGuestPlayerId() const
 {
     for (const auto &player : m_players) {
-        if (!player.isHost && player.seatType == QStringLiteral("active"))
-            return player.playerId;
-    }
-    return -1;
-}
-
-int RoomManager::firstSpectatorPlayerId() const
-{
-    for (const auto &player : m_players) {
-        if (!player.isHost && player.seatType == QStringLiteral("spectator"))
+        if (!player.isHost && isActiveSeat(player.seatType))
             return player.playerId;
     }
     return -1;
@@ -234,28 +226,16 @@ int RoomManager::activeGuestCount() const
 {
     int count = 0;
     for (const auto &player : m_players) {
-        if (!player.isHost && player.seatType == QStringLiteral("active"))
+        if (!player.isHost && isActiveSeat(player.seatType))
             ++count;
     }
     return count;
 }
 
-QString RoomManager::seatTypeById(int playerId) const
-{
-    const int index = indexOfPlayerId(playerId);
-    if (index < 0)
-        return QStringLiteral("spectator");
-    return m_players[index].seatType;
-}
-
 bool RoomManager::isPlayerActive(int playerId) const
 {
-    return seatTypeById(playerId) == QStringLiteral("active");
-}
-
-bool RoomManager::localPlayerIsActive() const
-{
-    return isPlayerActive(m_localPlayerId);
+    const int index = indexOfPlayerId(playerId);
+    return index >= 0 && isActiveSeat(m_players[index].seatType);
 }
 
 int RoomManager::indexOfPlayerId(int playerId) const

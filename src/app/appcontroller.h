@@ -2,12 +2,14 @@
 
 #include <QObject>
 #include <QJsonArray>
-#include <QVariantList>
 #include <QTcpSocket>
-#include "src/lobby/roommanager.h"
-#include "src/game/gamecontroller.h"
+#include <QVariantList>
+#include "src/common/types.h"
 #include "src/game/doudizhucontroller.h"
 #include "src/game/flightchesscontroller.h"
+#include "src/game/gamecontroller.h"
+#include "src/game/survivorcontroller.h"
+#include "src/lobby/roommanager.h"
 #include "src/network/networkmanager.h"
 
 class AppController : public QObject
@@ -17,6 +19,7 @@ class AppController : public QObject
     Q_PROPERTY(GameController *gameController READ gameController CONSTANT)
     Q_PROPERTY(DouDiZhuController *douDiZhuController READ douDiZhuController CONSTANT)
     Q_PROPERTY(FlightChessController *flightChessController READ flightChessController CONSTANT)
+    Q_PROPERTY(SurvivorController *survivorController READ survivorController CONSTANT)
     Q_PROPERTY(NetworkManager *networkManager READ networkManager CONSTANT)
     Q_PROPERTY(bool isHostMode READ isHostMode NOTIFY modeChanged)
     Q_PROPERTY(bool isClientMode READ isClientMode NOTIFY modeChanged)
@@ -28,6 +31,8 @@ class AppController : public QObject
     Q_PROPERTY(QString onlineServerName READ onlineServerName NOTIFY settingsChanged)
     Q_PROPERTY(QString onlineServerHost READ onlineServerHost NOTIFY settingsChanged)
     Q_PROPERTY(quint16 onlineServerPort READ onlineServerPort NOTIFY settingsChanged)
+    Q_PROPERTY(QVariantList availableGames READ availableGames CONSTANT)
+    Q_PROPERTY(QString lobbyGameId READ lobbyGameId NOTIFY lobbyGameChanged)
 
 public:
     explicit AppController(QObject *parent = nullptr);
@@ -36,6 +41,7 @@ public:
     GameController *gameController() const { return m_gameController; }
     DouDiZhuController *douDiZhuController() const { return m_douDiZhuController; }
     FlightChessController *flightChessController() const { return m_flightChessController; }
+    SurvivorController *survivorController() const { return m_survivorController; }
     NetworkManager *networkManager() const { return m_networkManager; }
     bool isHostMode() const { return m_isHostMode; }
     bool isClientMode() const { return m_isClientMode; }
@@ -47,29 +53,25 @@ public:
     QString onlineServerName() const { return m_onlineServerName; }
     QString onlineServerHost() const { return m_onlineServerHost; }
     quint16 onlineServerPort() const { return m_onlineServerPort; }
+    QVariantList availableGames() const { return LanBoard::availableGames(); }
+    QString lobbyGameId() const { return m_lobbyGameId; }
 
-    Q_INVOKABLE void startLocalMode();
-    Q_INVOKABLE void startGomokuLocalGame();
-    Q_INVOKABLE void startDouDiZhuLocalMode();
-    Q_INVOKABLE void startFlightChessLocalMode();
-    Q_INVOKABLE void startRoomAsHost();
-    Q_INVOKABLE void startDouDiZhuRoomAsHost();
+    Q_INVOKABLE void startLocalGame(const QString &gameId);
+    Q_INVOKABLE void startRoomAsHost(const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE void joinRoom(const QString &ip, int port, const QString &playerName,
                               const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE void leaveRoom();
     Q_INVOKABLE void toggleLocalReady();
     Q_INVOKABLE void switchRoomGame(const QString &gameId);
     Q_INVOKABLE void requestSeatChange(const QString &seatType);
-    Q_INVOKABLE void openOnlinePage();
-    Q_INVOKABLE void openDouDiZhuPage();
     Q_INVOKABLE bool playDouDiZhuCards(const QVariantList &cardIds);
     Q_INVOKABLE bool passDouDiZhuTurn();
     Q_INVOKABLE void restartDouDiZhuGame();
-    Q_INVOKABLE void joinOnlineServer(const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE void refreshOnlineRooms();
     Q_INVOKABLE void createOnlineRoom(const QString &gameId,
                                       const QString &roomName = QString());
     Q_INVOKABLE void joinOnlineRoom(const QString &roomId);
+    Q_INVOKABLE void openLobbyForGame(const QString &gameId);
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
     Q_INVOKABLE bool updateOnlineServerEndpoint(const QString &host, int port);
@@ -77,8 +79,9 @@ public:
 signals:
     void modeChanged();
     void settingsChanged();
+    void lobbyGameChanged();
     void roomReady();  // Host: server started. Client: connected & received room_state
-    void navigationRequested(int page); // 0=home, 1=room, 2=gomoku, 3=online page, 4=doudizhu, 5=flight chess
+    void navigationRequested(int page);
 
 private slots:
     void onJoinRequested(const QString &name, QTcpSocket *socket);
@@ -99,11 +102,20 @@ private:
     void loadSettings();
     void saveSettings() const;
     QJsonArray currentRoomState() const;
+    QString currentGameId() const;
+    int currentGamePage() const;
+    void setLobbyGameId(const QString &gameId);
+    void setModeState(bool hostMode, bool clientMode, int playerId);
+    void resetGameControllers();
+    void resetRoomSession(const QString &gameId, int localPlayerId = -1);
+    void startCurrentGameSession();
+    void finishCurrentGameSession(int winner, bool resetOfflineRoom);
+    void startCurrentGameRuntime(bool waitForRemoteState = false);
     bool isDouDiZhuRoom() const;
     bool isFlightChessRoom() const;
+    void navigateToCurrentGame();
     void configureRoomGame(const QString &gameId);
     void normalizeRoomSeatsForCurrentGame();
-    bool isGameInProgress() const;
     int roomCapacity() const;
     int activeGuestLimit() const;
 
@@ -111,6 +123,7 @@ private:
     GameController *m_gameController = nullptr;
     DouDiZhuController *m_douDiZhuController = nullptr;
     FlightChessController *m_flightChessController = nullptr;
+    SurvivorController *m_survivorController = nullptr;
     NetworkManager *m_networkManager = nullptr;
 
     bool m_isHostMode = false;
@@ -124,4 +137,5 @@ private:
     QString m_onlineServerName = QStringLiteral("ECS 演示服务器");
     QString m_onlineServerHost = QStringLiteral("47.105.54.227");
     quint16 m_onlineServerPort = 44567;
+    QString m_lobbyGameId = QStringLiteral("gomoku");
 };
