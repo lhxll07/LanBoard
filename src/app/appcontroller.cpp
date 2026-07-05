@@ -2,6 +2,7 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QSettings>
+#include <QTimer>
 
 namespace {
 
@@ -97,9 +98,14 @@ AppController::AppController(QObject *parent)
 
         if (m_networkManager->isHost()) {
             m_networkManager->setDiscoveryGameInProgress(false);
-            m_networkManager->broadcastGameOver(m_gameController->winner());
-            m_roomManager->clearReadyStates();
-            broadcastCurrentRoomState();
+            const int winner = m_gameController->winner();
+            QTimer::singleShot(0, this, [this, winner]() {
+                if (!m_networkManager->isHost())
+                    return;
+                m_networkManager->broadcastGameOver(winner);
+                m_roomManager->clearReadyStates();
+                broadcastCurrentRoomState();
+            });
         } else if (!m_networkManager->isConnected()) {
             m_networkManager->setDiscoveryGameInProgress(false);
             m_roomManager->reset();
@@ -116,9 +122,14 @@ AppController::AppController(QObject *parent)
 
         if (m_networkManager->isHost()) {
             m_networkManager->setDiscoveryGameInProgress(false);
-            m_networkManager->broadcastGameOver(m_flightChessController->winner());
-            m_roomManager->clearReadyStates();
-            broadcastCurrentRoomState();
+            const int winner = m_flightChessController->winner();
+            QTimer::singleShot(0, this, [this, winner]() {
+                if (!m_networkManager->isHost())
+                    return;
+                m_networkManager->broadcastGameOver(winner);
+                m_roomManager->clearReadyStates();
+                broadcastCurrentRoomState();
+            });
         } else if (!m_networkManager->isConnected()) {
             m_networkManager->setDiscoveryGameInProgress(false);
             m_roomManager->clearReadyStates();
