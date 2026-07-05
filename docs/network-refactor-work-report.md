@@ -4,7 +4,7 @@
 
 ## 结论
 
-当前分支 `refactor/network-internals` 有效。分支基于 `origin/main` 的 `2c1a3ba Add networked flight chess and 8-player rooms`，当前提交为 `492d51a refactor: extract LAN room discovery service`，本地 `HEAD` 与 `origin/refactor/network-internals` 一致。
+当前分支 `refactor/network-internals` 有效。分支基于 `origin/main` 的 `2c1a3ba Add networked flight chess and 8-player rooms`。代码重构完成于 `492d51a refactor: extract LAN room discovery service`，后续文档提交不改变本报告对网络拆分有效性的判断。最新提交以 `git log -1 --oneline` 为准。
 
 本轮工作没有改变 `NetworkManager` 暴露给 QML 和 `AppController` 的主要 public API，而是将网络层内部职责拆为三个更小模块：
 
@@ -12,7 +12,7 @@
 - `NetworkAddressUtils`：本机 IPv4 选择和面向对端的地址选择。
 - `RoomDiscoveryService`：局域网 UDP 房间发现、发布、缓存、去重、排序和过期清理。
 
-桌面端构建已通过，分支已推送到远端。除本报告外，当前工作区只剩一个本地未跟踪文件 `AGENTS.md`，未纳入提交。
+桌面端构建已通过，分支已推送到远端。`AGENTS.md` 是本地未跟踪文件，未纳入提交。
 
 ## 检查范围
 
@@ -127,11 +127,11 @@ cmake --build build\codex-branch-check
 
 已新增网络重构计划和消息表，能支撑组员审阅当前网络协议。
 
-需要后续修正的文档一致性问题：
+本报告初次检查时发现过以下文档一致性问题，后续应以当前文件内容为准复核：
 
-- `README.md` 开头仍写“当前已落地两款游戏”，但当前代码和页面已经包含飞行棋。
-- `任务分工.md` 更像旧的现状说明，部分描述仍偏五子棋 MVP，不完全反映当前三游戏、在线房间和 8 人房间状态。
-- `CMakePresets.json` 指向 Qt `6.11.1`，而 `README.md`、`Qt安装流程.md` 和当前可用环境以 Qt `6.10.3` 为准。
+- `README.md` 需要准确反映五子棋、斗地主、飞行棋三款游戏。
+- `任务分工.md` 需要反映当前三游戏、在线房间和 8 人房间状态。
+- `CMakePresets.json` 需要与 `README.md`、`Qt安装流程.md` 和当前可用 Qt `6.10.3` 环境保持一致。
 
 ### 构建配置
 
@@ -236,8 +236,8 @@ cmake --build build\codex-branch-check
 ```text
 分支：refactor/network-internals
 远端：origin/refactor/network-internals
-当前提交：492d51a refactor: extract LAN room discovery service
+代码重构完成提交：492d51a refactor: extract LAN room discovery service
 主线基线：2c1a3ba Add networked flight chess and 8-player rooms
 构建结果：通过
-未跟踪文件：AGENTS.md、docs/network-refactor-work-report.md
+本地未跟踪文件：AGENTS.md
 ```

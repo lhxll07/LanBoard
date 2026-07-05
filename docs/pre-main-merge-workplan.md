@@ -6,10 +6,10 @@
 
 - 当前分支：`refactor/network-internals`
 - 远端分支：`origin/refactor/network-internals`
-- 当前提交：`25ad4aa docs: add network refactor work report`
+- 阶段起点提交：`eeeb189 docs: add pre-main merge work plan`
 - 主线基线：`2c1a3ba Add networked flight chess and 8-player rooms`
 - 当前本地未跟踪文件：`AGENTS.md`
-- 本计划保存后会新增未跟踪文件 `docs/pre-main-merge-workplan.md`；如需提交，只暂存本计划文件，继续不提交 `AGENTS.md`。
+- 本计划已经提交到当前分支，后续仍继续不提交 `AGENTS.md`。
 
 当前分支相对 `origin/main` 的改动集中在网络层内部拆分和文档：
 
@@ -63,21 +63,22 @@ git diff --name-status origin/main...HEAD
 
 目标：让项目文档准确反映当前代码状态。
 
-建议修改：
+执行状态：本阶段已处理，后续仍需在 PR 前复核。
+
+已处理项：
 
 - `docs/network-refactor-work-report.md`
-  - 更新当前提交为 `25ad4aa`。
-  - 移除“报告仍未跟踪”的旧状态描述。
+  - 避免用固定 HEAD 作为长期状态。
+  - 移除已失效的未跟踪状态描述。
 - `README.md`
-  - 将“当前已落地两款游戏”修正为当前实际的五子棋、斗地主、飞行棋。
-  - 项目结构中补充 `FlightChessPage.qml`。
+  - 更新为当前实际的五子棋、斗地主、飞行棋三款游戏。
+  - 项目结构中补充飞行棋页面。
   - 开发说明中把网络层描述更新为已拆分后的 `NetworkManager` + 辅助模块。
 - `任务分工.md`
-  - 从“五子棋 MVP”现状说明更新为当前三游戏、8 人房间、在线房间状态。
+  - 更新为当前三游戏、8 人房间、在线房间状态。
   - 明确网络层当前负责连接、消息分发和房间发现，不负责房间规则或游戏规则。
 - `CMakePresets.json`
-  - 当前指向 Qt `6.11.1`，而项目文档和本地验证使用 Qt `6.10.3`。
-  - 建议统一为 `C:/Qt/6.10.3/mingw_64` 和对应工具链，或在文档中明确该 preset 是个人本地配置。
+  - 统一为 `C:/Qt/6.10.3/mingw_64`，与 `README.md`、`Qt安装流程.md` 和本地验证环境一致。
 
 验收标准：
 

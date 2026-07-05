@@ -12,7 +12,7 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build-qt-ascii",
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "C:/Qt/6.11.1/mingw_64",
+        "CMAKE_PREFIX_PATH": "C:/Qt/6.10.3/mingw_64",
         "CMAKE_CXX_COMPILER": "C:/Qt/Tools/mingw1310_64/bin/g++.exe",
         "CMAKE_MAKE_PROGRAM": "C:/Qt/Tools/Ninja/ninja.exe",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"

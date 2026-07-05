@@ -2,10 +2,11 @@
 
 一个基于 `Qt 6 + Qt Quick + QML + C++` 的联机桌游项目，面向课程大作业和局域网演示场景。
 
-当前已落地两款游戏：
+当前已落地三款游戏：
 
 - `五子棋`：双人对弈
 - `斗地主`：三人联机
+- `飞行棋`：双人联机
 
 项目同时支持：
 
@@ -24,6 +25,7 @@
 - 房间支持 `游戏位 / 旁观位`
 - 五子棋房间按双人规则限制游戏位
 - 斗地主房间按三人规则限制游戏位
+- 飞行棋房间按双人规则限制游戏位
 - 对局结束后自动返回房间，并清空准备状态
 
 ### 联机方式
@@ -50,6 +52,7 @@
 - `房间页`：联机大厅、局域网发现、在线房间列表、房间状态
 - `五子棋页`：棋盘、回合提示、认输、结算后返回房间
 - `斗地主页`：手牌、出牌/不出、回合状态、联网同步
+- `飞行棋页`：棋盘、掷骰、移动飞机、联网同步
 - `设置页`：昵称、默认端口、在线服务器地址等
 
 ## 项目结构
@@ -72,13 +75,14 @@ LanBoard/
 │       ├── RoomPage.qml
 │       ├── GamePage.qml
 │       ├── DouDiZhuPage.qml
+│       ├── FlightChessPage.qml
 │       └── SettingsPage.qml
 ├── src/
 │   ├── app/       AppController，负责流程调度、设置持久化、导航
 │   ├── common/    共享类型
-│   ├── game/      五子棋 / 斗地主规则控制器
+│   ├── game/      五子棋 / 斗地主 / 飞行棋规则控制器
 │   ├── lobby/     房间、玩家、准备状态、座位状态
-│   ├── network/   客户端 / 局域网 / 在线房间网络逻辑
+│   ├── network/   TCP 连接、消息分发、局域网发现和地址选择
 │   └── server/    独立在线服务端
 ├── design/
 ├── CMakeLists.txt
@@ -205,7 +209,8 @@ Get-Process appLanBoard -ErrorAction SilentlyContinue | Stop-Process -Force
 - UI 主体在 `qml/`
 - 页面协调集中在 `src/app/appcontroller.cpp`
 - 房间逻辑集中在 `src/lobby/roommanager.cpp`
-- 网络逻辑集中在 `src/network/networkmanager.cpp`
+- 网络门面集中在 `src/network/networkmanager.cpp`
+- 换行 JSON 协议、地址选择和局域网发现分别在 `src/network/linejsonprotocol.*`、`src/network/networkaddressutils.*`、`src/network/roomdiscoveryservice.*`
 - 在线服务端逻辑集中在 `src/server/serverapp.cpp`
 - 当前最复杂页面是 `qml/pages/RoomPage.qml`
 
@@ -214,3 +219,6 @@ Get-Process appLanBoard -ErrorAction SilentlyContinue | Stop-Process -Force
 - [Qt安装流程.md](./Qt安装流程.md)
 - [Git协作流程.md](./Git协作流程.md)
 - [任务分工.md](./任务分工.md)
+- [网络消息表](./docs/network-messages.md)
+- [网络重构工作报告](./docs/network-refactor-work-report.md)
+- [并入 main 前工作计划](./docs/pre-main-merge-workplan.md)
