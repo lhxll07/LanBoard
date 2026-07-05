@@ -34,6 +34,7 @@ if (LANBOARD_BUILD_APP)
         src/main.cpp
         src/app/appcontroller.cpp
         src/lobby/roommanager.cpp
+        src/network/linejsonprotocol.cpp
         src/network/networkmanager.cpp
         src/game/gamecontroller.cpp
         src/game/doudizhucontroller.cpp
@@ -63,6 +64,7 @@ if (LANBOARD_BUILD_APP)
             src/app/appcontroller.h
             src/common/types.h
             src/lobby/roommanager.h
+            src/network/linejsonprotocol.h
             src/network/networkmanager.h
             src/game/gamecontroller.h
             src/game/doudizhucontroller.h

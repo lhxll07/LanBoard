@@ -1,5 +1,7 @@
 #include "networkmanager.h"
 
+#include "linejsonprotocol.h"
+
 #include <QNetworkInterface>
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -528,35 +530,16 @@ void NetworkManager::onReadyRead()
     if (!sender)
         return;
 
-    // Per-socket read buffer (stored as property)
     QByteArray buf = sender->property("readBuffer").toByteArray();
     buf.append(sender->readAll());
 
-    // Process complete messages (newline-delimited JSON)
-    while (true) {
-        int idx = buf.indexOf('\n');
-        if (idx < 0)
-            break;
+    QStringList errors;
+    const QList<QJsonObject> messages = LineJsonProtocol::takeMessages(&buf, &errors);
+    for (const QString &error : errors)
+        qWarning() << "JSON parse error:" << error;
+    for (const QJsonObject &message : messages)
+        processMessage(sender, message);
 
-        QByteArray line = buf.left(idx).trimmed();
-        buf.remove(0, idx + 1);
-
-        if (line.isEmpty())
-            continue;
-
-        QJsonParseError err;
-        QJsonDocument doc = QJsonDocument::fromJson(line, &err);
-        if (err.error != QJsonParseError::NoError) {
-            qWarning() << "JSON parse error:" << err.errorString();
-            continue;
-        }
-        if (!doc.isObject())
-            continue;
-
-        processMessage(sender, doc.object());
-    }
-
-    // Save remaining partial data
     sender->setProperty("readBuffer", buf);
 }
 
@@ -635,22 +618,8 @@ void NetworkManager::onOnlineLobbyReadyRead()
     QByteArray buf = m_onlineLobbySocket->property("readBuffer").toByteArray();
     buf.append(m_onlineLobbySocket->readAll());
 
-    while (true) {
-        const int idx = buf.indexOf('\n');
-        if (idx < 0)
-            break;
-
-        const QByteArray line = buf.left(idx).trimmed();
-        buf.remove(0, idx + 1);
-        if (line.isEmpty())
-            continue;
-
-        QJsonParseError err;
-        const QJsonDocument doc = QJsonDocument::fromJson(line, &err);
-        if (err.error != QJsonParseError::NoError || !doc.isObject())
-            continue;
-
-        const QJsonObject msg = doc.object();
+    const QList<QJsonObject> messages = LineJsonProtocol::takeMessages(&buf);
+    for (const QJsonObject &msg : messages) {
         const QString type = msg.value(QStringLiteral("type")).toString();
         if (type == QStringLiteral("rooms_list")) {
             applyOnlineRooms(msg.value(QStringLiteral("rooms")).toArray());
@@ -776,9 +745,7 @@ void NetworkManager::sendJson(QTcpSocket *socket, const QJsonObject &obj)
     if (!socket || socket->state() != QAbstractSocket::ConnectedState)
         return;
 
-    QByteArray data = QJsonDocument(obj).toJson(QJsonDocument::Compact);
-    data.append('\n');
-    socket->write(data);
+    socket->write(LineJsonProtocol::encode(obj));
     socket->flush();
 }
 
