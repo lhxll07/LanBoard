@@ -156,7 +156,6 @@ private:
                              const QString &action, const QString &roomId = QString(),
                              const QString &roomName = QString());
     bool ensureDiscoverySocket();
-    QString localIpForPeer(const QHostAddress &peer) const;
     void sendRoomAnnouncement(const QHostAddress &address, quint16 port);
     void broadcastRoomAnnouncement();
     void upsertDiscoveredRoom(const QJsonObject &msg, const QHostAddress &senderAddress);

@@ -1,6 +1,7 @@
 #include "networkmanager.h"
 
 #include "linejsonprotocol.h"
+#include "networkaddressutils.h"
 
 #include <QNetworkInterface>
 #include <QJsonDocument>
@@ -14,7 +15,6 @@
 #include <QDebug>
 #include <QUuid>
 #include <algorithm>
-#include <limits>
 
 #ifdef Q_OS_ANDROID
 #include <QCoreApplication>
@@ -40,50 +40,6 @@ QString defaultGameName(const QString &gameId)
     if (gameId == QStringLiteral("flightchess"))
         return QStringLiteral("飞行棋");
     return QStringLiteral("五子棋");
-}
-
-bool isUsableIpv4(const QHostAddress &address)
-{
-    if (address.protocol() != QAbstractSocket::IPv4Protocol)
-        return false;
-
-    if (address == QHostAddress::LocalHost)
-        return false;
-
-    const QString ip = address.toString();
-    return !ip.startsWith(QStringLiteral("169.254."));
-}
-
-int ipPreferenceScore(const QNetworkInterface &iface, const QHostAddress &address)
-{
-    int score = 0;
-    const QString humanName = (iface.humanReadableName() + QLatin1Char(' ') + iface.name()).toLower();
-    const QString ip = address.toString();
-
-    if (ip.startsWith(QStringLiteral("192.168.")) || ip.startsWith(QStringLiteral("10.")))
-        score += 40;
-    else if (ip.startsWith(QStringLiteral("172.")))
-        score += 30;
-    else
-        score += 10;
-
-    if (humanName.contains(QStringLiteral("wlan"))
-        || humanName.contains(QStringLiteral("wi-fi"))
-        || humanName.contains(QStringLiteral("wifi"))) {
-        score += 30;
-    }
-
-    if (humanName.contains(QStringLiteral("rmnet"))
-        || humanName.contains(QStringLiteral("cell"))
-        || humanName.contains(QStringLiteral("mobile"))
-        || humanName.contains(QStringLiteral("tun"))
-        || humanName.contains(QStringLiteral("tap"))
-        || humanName.contains(QStringLiteral("vpn"))
-        || humanName.contains(QStringLiteral("virtual"))) {
-        score -= 20;
-    }
-
-    return score;
 }
 
 }
@@ -183,31 +139,7 @@ bool NetworkManager::isConnected() const
 
 QString NetworkManager::localIp() const
 {
-    QHostAddress bestAddress;
-    int bestScore = std::numeric_limits<int>::min();
-
-    for (const QNetworkInterface &iface : QNetworkInterface::allInterfaces()) {
-        const auto flags = iface.flags();
-        if (!(flags & QNetworkInterface::IsUp) || !(flags & QNetworkInterface::IsRunning)
-            || (flags & QNetworkInterface::IsLoopBack)) {
-            continue;
-        }
-
-        for (const QNetworkAddressEntry &entry : iface.addressEntries()) {
-            const QHostAddress address = entry.ip();
-            if (!isUsableIpv4(address))
-                continue;
-
-            const int score = ipPreferenceScore(iface, address);
-            if (score <= bestScore)
-                continue;
-
-            bestScore = score;
-            bestAddress = address;
-        }
-    }
-
-    return bestAddress.isNull() ? QStringLiteral("127.0.0.1") : bestAddress.toString();
+    return NetworkAddressUtils::bestLocalIpv4();
 }
 
 // ── Send actions (client → server) ──
@@ -938,38 +870,6 @@ void NetworkManager::releaseMulticastLock()
 }
 #endif
 
-QString NetworkManager::localIpForPeer(const QHostAddress &peer) const
-{
-    QHostAddress fallbackAddress;
-    int fallbackScore = std::numeric_limits<int>::min();
-
-    for (const QNetworkInterface &iface : QNetworkInterface::allInterfaces()) {
-        const auto flags = iface.flags();
-        if (!(flags & QNetworkInterface::IsUp) || !(flags & QNetworkInterface::IsRunning)
-            || (flags & QNetworkInterface::IsLoopBack)) {
-            continue;
-        }
-
-        for (const QNetworkAddressEntry &entry : iface.addressEntries()) {
-            const QHostAddress ip = entry.ip();
-            if (!isUsableIpv4(ip))
-                continue;
-
-            if (peer.isInSubnet(ip, entry.prefixLength()))
-                return ip.toString();
-
-            const int score = ipPreferenceScore(iface, ip);
-            if (score <= fallbackScore)
-                continue;
-
-            fallbackScore = score;
-            fallbackAddress = ip;
-        }
-    }
-
-    return fallbackAddress.isNull() ? localIp() : fallbackAddress.toString();
-}
-
 void NetworkManager::sendRoomAnnouncement(const QHostAddress &address, quint16 port)
 {
     if (!m_discoverySocket || port == 0)
@@ -983,7 +883,7 @@ void NetworkManager::sendRoomAnnouncement(const QHostAddress &address, quint16 p
     msg[QStringLiteral("hostName")] = m_discoveryHostName.isEmpty()
         ? QStringLiteral("host")
         : m_discoveryHostName;
-    msg[QStringLiteral("hostIp")] = localIpForPeer(address);
+    msg[QStringLiteral("hostIp")] = NetworkAddressUtils::localIpv4ForPeer(address);
     msg[QStringLiteral("port")] = static_cast<int>(m_serverPort);
     msg[QStringLiteral("playerCount")] = 1 + m_clients.size();
     msg[QStringLiteral("roomCapacity")] = m_discoveryRoomCapacity;
@@ -1031,7 +931,7 @@ void NetworkManager::broadcastRoomAnnouncement()
 
         for (const QNetworkAddressEntry &entry : iface.addressEntries()) {
             const QHostAddress ip = entry.ip();
-            if (!isUsableIpv4(ip) || entry.broadcast().isNull())
+            if (!NetworkAddressUtils::isUsableIpv4(ip) || entry.broadcast().isNull())
                 continue;
 
             QJsonObject scopedMsg = msg;
@@ -1058,7 +958,7 @@ void NetworkManager::upsertDiscoveredRoom(const QJsonObject &msg, const QHostAdd
 
     const QString announcedIp = msg.value(QStringLiteral("hostIp")).toString().trimmed();
     const QHostAddress announcedAddress(announcedIp);
-    const QString roomIp = isUsableIpv4(announcedAddress)
+    const QString roomIp = NetworkAddressUtils::isUsableIpv4(announcedAddress)
         ? announcedAddress.toString()
         : senderAddress.toString();
 
