@@ -1,20 +1,15 @@
 #include "appcontroller.h"
+
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QSettings>
 
-namespace {
-
-QString normalizeGameIdValue(const QString &gameId)
-{
-    if (gameId == QStringLiteral("doudizhu"))
-        return QStringLiteral("doudizhu");
-    if (gameId == QStringLiteral("flightchess"))
-        return QStringLiteral("flightchess");
-    return QStringLiteral("gomoku");
-}
-
-}
+#include "src/game/doudizhucontroller.h"
+#include "src/game/flightchesscontroller.h"
+#include "src/game/gamecontroller.h"
+#include "src/game/survivorcontroller.h"
+#include "src/lobby/roommanager.h"
+#include "src/network/networkmanager.h"
 
 AppController::AppController(QObject *parent)
     : QObject(parent)
@@ -22,6 +17,7 @@ AppController::AppController(QObject *parent)
     , m_gameController(new GameController(this))
     , m_douDiZhuController(new DouDiZhuController(this))
     , m_flightChessController(new FlightChessController(this))
+    , m_survivorController(new SurvivorController(this))
     , m_networkManager(new NetworkManager(this))
 {
     loadSettings();
@@ -30,64 +26,7 @@ AppController::AppController(QObject *parent)
 
     // Local mode: room gameStarted → start game
     connect(m_roomManager, &RoomManager::gameStarted, this, [this]() {
-        if (isDouDiZhuRoom()) {
-            if (m_networkManager->isHost()) {
-                m_networkManager->setDiscoveryGameInProgress(true);
-                m_douDiZhuController->startNetworkGame(0);
-                m_networkManager->broadcastGameStarted(QStringLiteral("doudizhu"));
-                broadcastDouDiZhuStates();
-                emit navigationRequested(4);
-                return;
-            }
-
-            if (m_networkManager->isConnected()) {
-                m_networkManager->sendStartGame();
-                return;
-            }
-
-            m_douDiZhuController->startNewGame();
-            emit navigationRequested(4);
-            return;
-        }
-
-        if (isFlightChessRoom()) {
-            if (m_networkManager->isHost()) {
-                m_networkManager->setDiscoveryGameInProgress(true);
-                m_flightChessController->startNewGame();
-                m_activeGuestPlayerId = m_roomManager->firstGuestPlayerId();
-                m_networkManager->broadcastGameStarted(QStringLiteral("flightchess"));
-                emit navigationRequested(5);
-                return;
-            }
-
-            if (m_networkManager->isConnected()) {
-                m_networkManager->sendStartGame();
-                return;
-            }
-
-            m_networkManager->setDiscoveryGameInProgress(true);
-            m_flightChessController->startNewGame();
-            emit navigationRequested(5);
-            return;
-        }
-
-        if (m_networkManager->isHost()) {
-            m_networkManager->setDiscoveryGameInProgress(true);
-            m_gameController->startNewGame();
-            m_activeGuestPlayerId = m_roomManager->firstGuestPlayerId();
-            m_networkManager->broadcastGameStarted(QStringLiteral("gomoku"));
-            emit navigationRequested(2); // go to game page
-            return;
-        }
-
-        if (m_networkManager->isConnected()) {
-            m_networkManager->sendStartGame();
-            return;
-        }
-
-        m_networkManager->setDiscoveryGameInProgress(true);
-        m_gameController->startNewGame();
-        emit navigationRequested(2); // go to game page
+        startCurrentGameSession();
     });
 
     // End of game: synchronize result, reset ready state, and return to room.
@@ -95,36 +34,14 @@ AppController::AppController(QObject *parent)
         if (!m_gameController->isGameOver())
             return;
 
-        if (m_networkManager->isHost()) {
-            m_networkManager->setDiscoveryGameInProgress(false);
-            m_networkManager->broadcastGameOver(m_gameController->winner());
-            m_roomManager->clearReadyStates();
-            broadcastCurrentRoomState();
-        } else if (!m_networkManager->isConnected()) {
-            m_networkManager->setDiscoveryGameInProgress(false);
-            m_roomManager->reset();
-            m_roomManager->setGameId(QStringLiteral("gomoku"));
-            m_roomManager->setLocalPlayerId(-1);
-        }
-
-        emit navigationRequested(1);
+        finishCurrentGameSession(m_gameController->winner(), true);
     });
 
     connect(m_flightChessController, &FlightChessController::gameOverChanged, this, [this]() {
         if (!m_flightChessController->isGameOver())
             return;
 
-        if (m_networkManager->isHost()) {
-            m_networkManager->setDiscoveryGameInProgress(false);
-            m_networkManager->broadcastGameOver(m_flightChessController->winner());
-            m_roomManager->clearReadyStates();
-            broadcastCurrentRoomState();
-        } else if (!m_networkManager->isConnected()) {
-            m_networkManager->setDiscoveryGameInProgress(false);
-            m_roomManager->clearReadyStates();
-        }
-
-        emit navigationRequested(1);
+        finishCurrentGameSession(m_flightChessController->winner(), false);
     });
 
     // Network signals
@@ -161,11 +78,9 @@ AppController::AppController(QObject *parent)
 
         m_roomManager->reset();
         m_roomManager->setLocalPlayerId(-1);
-        m_isClientMode = false;
-        m_networkPlayerId = 0;
+        setModeState(false, false, 0);
         m_activeGuestPlayerId = -1;
         m_networkManager->setDiscoveryGameInProgress(false);
-        emit modeChanged();
     });
     connect(m_networkManager, &NetworkManager::gameOverReceived,
             this, [this](int winner) {
@@ -217,142 +132,32 @@ AppController::AppController(QObject *parent)
     });
 }
 
-void AppController::startLocalMode()
+void AppController::startLocalGame(const QString &gameId)
 {
-    configureRoomGame(QStringLiteral("gomoku"));
-    m_isHostMode = false;
-    m_isClientMode = false;
-    m_networkPlayerId = 0;
-    m_activeGuestPlayerId = -1;
-    emit modeChanged();
     m_networkManager->disconnectAll();
-    m_networkManager->setDiscoveryGameInProgress(false);
-    m_gameController->reset();
-    m_flightChessController->reset();
-    m_roomManager->reset();
-    m_roomManager->setLocalPlayerId(0);
-    m_roomManager->addPlayer(m_nickname, true, false, 0);
-    emit roomReady();
+    setModeState(false, false, 0);
+    m_activeGuestPlayerId = -1;
+    setLobbyGameId(gameId);
+    resetRoomSession(gameId);
+    startCurrentGameRuntime();
+    navigateToCurrentGame();
 }
 
-void AppController::startGomokuLocalGame()
-{
-    configureRoomGame(QStringLiteral("gomoku"));
-    m_isHostMode = false;
-    m_isClientMode = false;
-    m_networkPlayerId = 0;
-    m_activeGuestPlayerId = -1;
-    emit modeChanged();
-
-    m_networkManager->disconnectAll();
-    m_networkManager->setDiscoveryGameInProgress(false);
-    m_roomManager->reset();
-    m_roomManager->setLocalPlayerId(-1);
-    m_douDiZhuController->startNewGame();
-    m_flightChessController->reset();
-    m_gameController->startNewGame();
-    emit navigationRequested(2);
-}
-
-void AppController::startDouDiZhuLocalMode()
+void AppController::startRoomAsHost(const QString &gameId)
 {
     m_networkManager->disconnectAll();
-    m_networkManager->setDiscoveryGameInProgress(false);
-    m_gameController->reset();
-    m_flightChessController->reset();
-    m_roomManager->reset();
-    m_roomManager->setGameId(QStringLiteral("gomoku"));
-    m_roomManager->setLocalPlayerId(-1);
-    m_douDiZhuController->startNewGame();
-
-    m_isHostMode = false;
-    m_isClientMode = false;
-    m_networkPlayerId = 0;
-    m_activeGuestPlayerId = -1;
-    emit modeChanged();
-    emit navigationRequested(4);
-}
-
-void AppController::startFlightChessLocalMode()
-{
-    m_networkManager->disconnectAll();
-    m_networkManager->setDiscoveryGameInProgress(false);
-    m_gameController->reset();
-    m_douDiZhuController->startNewGame();
-    m_roomManager->reset();
-    m_roomManager->setGameId(QStringLiteral("flightchess"));
-    m_roomManager->setLocalPlayerId(-1);
-    m_flightChessController->startNewGame();
-
-    m_isHostMode = false;
-    m_isClientMode = false;
-    m_networkPlayerId = 0;
-    m_activeGuestPlayerId = -1;
-    emit modeChanged();
-    emit navigationRequested(5);
-}
-
-void AppController::startRoomAsHost()
-{
-    configureRoomGame(QStringLiteral("gomoku"));
-    m_networkManager->disconnectAll();
-    m_networkManager->setDiscoveryGameInProgress(false);
-    m_gameController->reset();
-    m_douDiZhuController->startNewGame();
-    m_flightChessController->reset();
-    m_networkManager->setDiscoveryRoomInfo(m_roomManager->gameId(),
-                                           m_roomManager->gameName(),
-                                           roomCapacity(),
-                                           m_roomManager->maxPlayers());
+    resetGameControllers();
+    setLobbyGameId(gameId);
+    configureRoomGame(gameId);
     m_networkManager->startServer(m_defaultPort);
     if (!m_networkManager->isHost()) {
-        m_isHostMode = false;
-        m_isClientMode = false;
-        m_networkPlayerId = 0;
+        setModeState(false, false, 0);
         m_activeGuestPlayerId = -1;
-        emit modeChanged();
         return;
     }
 
-    m_isHostMode = true;
-    m_isClientMode = false;
-    m_networkPlayerId = 0;
+    setModeState(true, false, 0);
     m_activeGuestPlayerId = -1;
-    emit modeChanged();
-
-    m_roomManager->reset();
-    m_roomManager->setLocalPlayerId(0);
-    m_roomManager->addPlayer(m_nickname, true, false, 0);
-    emit roomReady();
-}
-
-void AppController::startDouDiZhuRoomAsHost()
-{
-    configureRoomGame(QStringLiteral("doudizhu"));
-    m_networkManager->disconnectAll();
-    m_networkManager->setDiscoveryGameInProgress(false);
-    m_gameController->reset();
-    m_flightChessController->reset();
-    m_douDiZhuController->setLocalPlayer(0);
-    m_networkManager->setDiscoveryRoomInfo(m_roomManager->gameId(),
-                                           m_roomManager->gameName(),
-                                           roomCapacity(),
-                                           m_roomManager->maxPlayers());
-    m_networkManager->startServer(m_defaultPort);
-    if (!m_networkManager->isHost()) {
-        m_isHostMode = false;
-        m_isClientMode = false;
-        m_networkPlayerId = 0;
-        m_activeGuestPlayerId = -1;
-        emit modeChanged();
-        return;
-    }
-
-    m_isHostMode = true;
-    m_isClientMode = false;
-    m_networkPlayerId = 0;
-    m_activeGuestPlayerId = -1;
-    emit modeChanged();
 
     m_roomManager->reset();
     m_roomManager->setLocalPlayerId(0);
@@ -369,23 +174,12 @@ void AppController::joinRoom(const QString &ip, int port, const QString &playerN
     if (trimmedIp.isEmpty())
         return;
 
-    const QString normalizedGameId = normalizeGameIdValue(gameId);
-    configureRoomGame(normalizedGameId);
-
+    const QString normalizedGameId = LanBoard::normalizeGameId(gameId);
+    setLobbyGameId(normalizedGameId);
     m_networkManager->disconnectAll();
-    m_networkManager->setDiscoveryGameInProgress(false);
-    m_gameController->reset();
-    m_douDiZhuController->setLocalPlayer(0);
-    m_flightChessController->reset();
-
-    m_isHostMode = false;
-    m_isClientMode = true;
-    m_networkPlayerId = -1;
+    resetRoomSession(normalizedGameId);
+    setModeState(false, true, -1);
     m_activeGuestPlayerId = -1;
-    emit modeChanged();
-
-    m_roomManager->reset();
-    m_roomManager->setLocalPlayerId(-1);
 
     const QString resolvedName = playerName.trimmed().isEmpty() ? m_nickname : playerName.trimmed();
     m_recentJoinIp = trimmedIp;
@@ -399,29 +193,9 @@ void AppController::joinRoom(const QString &ip, int port, const QString &playerN
 void AppController::leaveRoom()
 {
     m_networkManager->disconnectAll();
-    m_networkManager->setDiscoveryGameInProgress(false);
-    m_gameController->reset();
-    m_douDiZhuController->startNewGame();
-    m_flightChessController->reset();
-    m_roomManager->reset();
-    m_roomManager->setGameId(QStringLiteral("gomoku"));
-    m_roomManager->setLocalPlayerId(-1);
-
-    m_isHostMode = false;
-    m_isClientMode = false;
-    m_networkPlayerId = 0;
+    resetRoomSession(QStringLiteral("gomoku"));
+    setModeState(false, false, 0);
     m_activeGuestPlayerId = -1;
-    emit modeChanged();
-}
-
-void AppController::openOnlinePage()
-{
-    emit navigationRequested(3);
-}
-
-void AppController::openDouDiZhuPage()
-{
-    startDouDiZhuLocalMode();
 }
 
 bool AppController::playDouDiZhuCards(const QVariantList &cardIds)
@@ -475,11 +249,6 @@ void AppController::restartDouDiZhuGame()
     m_douDiZhuController->startNewGame();
 }
 
-void AppController::joinOnlineServer(const QString &gameId)
-{
-    joinRoom(m_onlineServerHost, m_onlineServerPort, m_nickname, gameId);
-}
-
 void AppController::refreshOnlineRooms()
 {
     m_networkManager->requestOnlineRooms(m_onlineServerHost, m_onlineServerPort);
@@ -487,23 +256,13 @@ void AppController::refreshOnlineRooms()
 
 void AppController::createOnlineRoom(const QString &gameId, const QString &roomName)
 {
-    const QString normalizedGameId = normalizeGameIdValue(gameId);
+    const QString normalizedGameId = LanBoard::normalizeGameId(gameId);
+    setLobbyGameId(normalizedGameId);
 
-    configureRoomGame(normalizedGameId);
     m_networkManager->disconnectAll();
-    m_networkManager->setDiscoveryGameInProgress(false);
-    m_gameController->reset();
-    m_douDiZhuController->setLocalPlayer(0);
-    m_flightChessController->reset();
-
-    m_isHostMode = false;
-    m_isClientMode = true;
-    m_networkPlayerId = -1;
+    resetRoomSession(normalizedGameId);
+    setModeState(false, true, -1);
     m_activeGuestPlayerId = -1;
-    emit modeChanged();
-
-    m_roomManager->reset();
-    m_roomManager->setLocalPlayerId(-1);
     m_networkManager->createOnlineRoom(m_onlineServerHost,
                                        m_onlineServerPort,
                                        m_nickname,
@@ -517,23 +276,19 @@ void AppController::joinOnlineRoom(const QString &roomId)
         return;
 
     m_networkManager->disconnectAll();
-    m_networkManager->setDiscoveryGameInProgress(false);
-    m_gameController->reset();
-    m_douDiZhuController->setLocalPlayer(0);
-    m_flightChessController->reset();
-
-    m_isHostMode = false;
-    m_isClientMode = true;
-    m_networkPlayerId = -1;
+    resetRoomSession(currentGameId());
+    setModeState(false, true, -1);
     m_activeGuestPlayerId = -1;
-    emit modeChanged();
-
-    m_roomManager->reset();
-    m_roomManager->setLocalPlayerId(-1);
     m_networkManager->joinOnlineRoom(m_onlineServerHost,
                                      m_onlineServerPort,
                                      m_nickname,
                                      roomId.trimmed());
+}
+
+void AppController::openLobbyForGame(const QString &gameId)
+{
+    setLobbyGameId(gameId);
+    emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Room));
 }
 
 void AppController::toggleLocalReady()
@@ -546,17 +301,12 @@ void AppController::toggleLocalReady()
 
 void AppController::switchRoomGame(const QString &gameId)
 {
-    const QString normalizedGameId = normalizeGameIdValue(gameId);
+    const QString normalizedGameId = LanBoard::normalizeGameId(gameId);
     if (m_roomManager->gameId() == normalizedGameId || !m_roomManager->isHost())
         return;
 
     if (m_networkManager->isHost()) {
-        m_networkManager->setDiscoveryGameInProgress(false);
-        m_gameController->reset();
-        m_douDiZhuController->startNewGame();
-        m_douDiZhuController->setLocalPlayer(0);
-        m_flightChessController->reset();
-
+        resetGameControllers();
         configureRoomGame(normalizedGameId);
         normalizeRoomSeatsForCurrentGame();
         m_roomManager->clearReadyStates();
@@ -770,25 +520,11 @@ void AppController::onRemoteStartGame(const QString &gameId)
     if (m_networkManager->isHost())
         return;
 
-    if (gameId == QStringLiteral("doudizhu") || isDouDiZhuRoom()) {
-        m_roomManager->setGameId(QStringLiteral("doudizhu"));
-        m_networkManager->setDiscoveryGameInProgress(true);
-        emit navigationRequested(4);
-        return;
-    }
-
-    if (gameId == QStringLiteral("flightchess") || isFlightChessRoom()) {
-        m_roomManager->setGameId(QStringLiteral("flightchess"));
-        m_networkManager->setDiscoveryGameInProgress(true);
-        m_flightChessController->startNewGame();
-        emit navigationRequested(5);
-        return;
-    }
-
-    // Client received game_start from host
+    const QString targetGameId = gameId.isEmpty() ? currentGameId() : gameId;
+    configureRoomGame(targetGameId);
+    startCurrentGameRuntime();
     m_networkManager->setDiscoveryGameInProgress(true);
-    m_gameController->startNewGame();
-    emit navigationRequested(2); // go to game page
+    navigateToCurrentGame();
 }
 
 void AppController::onRemoteDouDiZhuPlay(int playerId, const QJsonArray &cardIds)
@@ -833,6 +569,111 @@ void AppController::onClientDisconnected(int playerId)
     }
 
     broadcastCurrentRoomState();
+}
+
+void AppController::setModeState(bool hostMode, bool clientMode, int playerId)
+{
+    if (m_isHostMode == hostMode
+        && m_isClientMode == clientMode
+        && m_networkPlayerId == playerId) {
+        return;
+    }
+
+    m_isHostMode = hostMode;
+    m_isClientMode = clientMode;
+    m_networkPlayerId = playerId;
+    emit modeChanged();
+}
+
+void AppController::resetGameControllers()
+{
+    m_networkManager->setDiscoveryGameInProgress(false);
+    m_gameController->reset();
+    m_douDiZhuController->startNewGame();
+    m_douDiZhuController->setLocalPlayer(0);
+    m_flightChessController->reset();
+    m_survivorController->stopRun();
+}
+
+void AppController::resetRoomSession(const QString &gameId, int localPlayerId)
+{
+    resetGameControllers();
+    m_roomManager->reset();
+    configureRoomGame(gameId);
+    m_roomManager->setLocalPlayerId(localPlayerId);
+}
+
+void AppController::startCurrentGameSession()
+{
+    if (m_networkManager->isConnected()) {
+        m_networkManager->sendStartGame();
+        return;
+    }
+
+    const bool hostMode = m_networkManager->isHost();
+    if (!isDouDiZhuRoom()) {
+        m_networkManager->setDiscoveryGameInProgress(true);
+    } else if (hostMode) {
+        m_networkManager->setDiscoveryGameInProgress(true);
+    }
+
+    startCurrentGameRuntime(true);
+    if (hostMode) {
+        m_activeGuestPlayerId = m_roomManager->firstGuestPlayerId();
+        m_networkManager->broadcastGameStarted(currentGameId());
+        if (isDouDiZhuRoom())
+            broadcastDouDiZhuStates();
+    }
+
+    navigateToCurrentGame();
+}
+
+void AppController::finishCurrentGameSession(int winner, bool resetOfflineRoom)
+{
+    if (m_networkManager->isHost()) {
+        m_networkManager->setDiscoveryGameInProgress(false);
+        m_networkManager->broadcastGameOver(winner);
+        m_roomManager->clearReadyStates();
+        broadcastCurrentRoomState();
+    } else if (!m_networkManager->isConnected()) {
+        m_networkManager->setDiscoveryGameInProgress(false);
+        if (resetOfflineRoom) {
+            m_roomManager->reset();
+            configureRoomGame(QStringLiteral("gomoku"));
+            m_roomManager->setLocalPlayerId(-1);
+        } else {
+            m_roomManager->clearReadyStates();
+        }
+    }
+
+    emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Room));
+}
+
+void AppController::startCurrentGameRuntime(bool waitForRemoteState)
+{
+    if (currentGameId() == QStringLiteral("survivor")) {
+        m_survivorController->startRun(m_networkManager->isConnected() || m_networkManager->isHost());
+        return;
+    }
+
+    if (isDouDiZhuRoom()) {
+        if (waitForRemoteState && m_networkManager->isConnected() && !m_networkManager->isHost())
+            return;
+
+        if (m_networkManager->isHost()) {
+            m_douDiZhuController->startNetworkGame(0);
+        } else {
+            m_douDiZhuController->startNewGame();
+        }
+        return;
+    }
+
+    if (isFlightChessRoom()) {
+        m_flightChessController->startNewGame();
+        return;
+    }
+
+    m_gameController->startNewGame();
 }
 
 void AppController::broadcastCurrentRoomState()
@@ -925,19 +766,44 @@ QJsonArray AppController::currentRoomState() const
     return players;
 }
 
+QString AppController::currentGameId() const
+{
+    return LanBoard::normalizeGameId(m_roomManager->gameId());
+}
+
+int AppController::currentGamePage() const
+{
+    return LanBoard::navigationPageForGame(currentGameId());
+}
+
+void AppController::setLobbyGameId(const QString &gameId)
+{
+    const QString normalizedGameId = LanBoard::normalizeGameId(gameId);
+    if (m_lobbyGameId == normalizedGameId)
+        return;
+
+    m_lobbyGameId = normalizedGameId;
+    emit lobbyGameChanged();
+}
+
 bool AppController::isDouDiZhuRoom() const
 {
-    return m_roomManager->gameId() == QStringLiteral("doudizhu");
+    return LanBoard::isDouDiZhuGame(m_roomManager->gameId());
 }
 
 bool AppController::isFlightChessRoom() const
 {
-    return m_roomManager->gameId() == QStringLiteral("flightchess");
+    return LanBoard::isFlightChessGame(m_roomManager->gameId());
+}
+
+void AppController::navigateToCurrentGame()
+{
+    emit navigationRequested(currentGamePage());
 }
 
 void AppController::configureRoomGame(const QString &gameId)
 {
-    m_roomManager->setGameId(normalizeGameIdValue(gameId));
+    m_roomManager->setGameId(LanBoard::normalizeGameId(gameId));
     m_networkManager->setDiscoveryRoomInfo(m_roomManager->gameId(),
                                            m_roomManager->gameName(),
                                            roomCapacity(),
@@ -964,11 +830,6 @@ void AppController::normalizeRoomSeatsForCurrentGame()
         if (targetSeatType == QStringLiteral("active"))
             ++activeGuests;
     }
-}
-
-bool AppController::isGameInProgress() const
-{
-    return false;
 }
 
 int AppController::roomCapacity() const

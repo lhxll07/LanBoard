@@ -35,6 +35,10 @@ ApplicationWindow {
                     && stackView.currentItem.objectName === "flightChessPage"
                     && stackView.currentItem.leaveCurrentGame) {
                 stackView.currentItem.leaveCurrentGame()
+            } else if (stackView.currentItem
+                    && stackView.currentItem.objectName === "survivorPage"
+                    && stackView.currentItem.leaveCurrentGame) {
+                stackView.currentItem.leaveCurrentGame()
             } else {
                 stackView.pop()
             }
@@ -73,6 +77,12 @@ ApplicationWindow {
         stackView.push(Qt.resolvedUrl("pages/FlightChessPage.qml"))
     }
 
+    function showSurvivorPage() {
+        if (stackView.currentItem && stackView.currentItem.objectName === "survivorPage")
+            return
+        stackView.push(Qt.resolvedUrl("pages/SurvivorPage.qml"))
+    }
+
     Connections {
         target: AppCtrl
         function onNavigationRequested(page) {
@@ -81,7 +91,8 @@ ApplicationWindow {
                         && window.stackView.currentItem
                         && (window.stackView.currentItem.objectName === "gamePage"
                             || window.stackView.currentItem.objectName === "flightChessPage"
-                            || window.stackView.currentItem.objectName === "doudizhuPage")) {
+                            || window.stackView.currentItem.objectName === "doudizhuPage"
+                            || window.stackView.currentItem.objectName === "survivorPage")) {
                     window.stackView.pop()
                 } else if (window.stackView.depth === 1) {
                     window.currentTab = 1
@@ -94,6 +105,8 @@ ApplicationWindow {
                 showDouDiZhuPage()
             } else if (page === 5) {
                 showFlightChessPage()
+            } else if (page === 6) {
+                showSurvivorPage()
             }
         }
     }

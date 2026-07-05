@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QObject>
-#include <QByteArray>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QList>
@@ -10,6 +9,7 @@
 #include <QTcpSocket>
 #include <memory>
 
+#include "../common/types.h"
 #include "../game/gamecontroller.h"
 #include "../game/doudizhucontroller.h"
 #include "../game/flightchesscontroller.h"
@@ -73,6 +73,12 @@ private:
     void broadcastDouDiZhuStates(RoomState *room);
     void clearReadyStates(RoomState *room);
     void resetGame(RoomState *room);
+    bool isGameFinished(const RoomState *room) const;
+    int firstPlayerForRoom(const RoomState *room) const;
+    QString missingPlayersError(const RoomState *room) const;
+    int initialPieceForGame(const QString &gameId, bool isHost) const;
+    void concludeRoomGame(RoomState *room, int winner, bool broadcastRoomStateAfterward = true);
+    void resetFinishedRoom(RoomState *room);
     void removeRoomIfEmpty(const QString &roomId);
     QJsonArray roomListPayload() const;
 

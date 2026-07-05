@@ -37,7 +37,7 @@ Page {
                 tagText: "本地游戏"
                 opacity: 0
                 transform: Translate { id: gameCardOffset; y: 20 }
-                onClicked: AppCtrl.startGomokuLocalGame()
+                onClicked: AppCtrl.startLocalGame("gomoku")
             }
 
             GameCard {
@@ -51,7 +51,7 @@ Page {
                 tagText: "本地游戏"
                 opacity: 0
                 transform: Translate { id: douDiZhuCardOffset; y: 20 }
-                onClicked: AppCtrl.openDouDiZhuPage()
+                onClicked: AppCtrl.startLocalGame("doudizhu")
             }
 
             GameCard {
@@ -65,7 +65,21 @@ Page {
                 tagText: "本地游戏"
                 opacity: 0
                 transform: Translate { id: flightChessCardOffset; y: 20 }
-                onClicked: AppCtrl.startFlightChessLocalMode()
+                onClicked: AppCtrl.startLocalGame("flightchess")
+            }
+
+            GameCard {
+                id: survivorCard
+                width: parent.width
+                height: 182
+                gameType: "survivor"
+                dark: true
+                titleText: "Survivor"
+                subtitleText: "MVP 阶段先复用房间页作为入口，支持单机原型体验，并预留局域网和在线房间模式。"
+                tagText: "MVP 原型"
+                opacity: 0
+                transform: Translate { id: survivorCardOffset; y: 20 }
+                onClicked: AppCtrl.openLobbyForGame("survivor")
             }
 
             SettingCard {
@@ -98,6 +112,11 @@ Page {
         ParallelAnimation {
             NumberAnimation { target: flightChessCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: flightChessCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 80 }
+        ParallelAnimation {
+            NumberAnimation { target: survivorCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: survivorCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
         PauseAnimation { duration: 80 }
         ParallelAnimation {
