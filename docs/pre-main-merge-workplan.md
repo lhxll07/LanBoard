@@ -120,6 +120,11 @@ cmake --build build-qt6103 --parallel 8
 
 目标：验证 `RoomDiscoveryService` 拆分后行为没有退化。
 
+执行状态：
+
+- 已完成 `RoomDiscoveryService` 服务级自动冒烟测试，结果记录见 `docs/pre-main-merge-test-results.md`。
+- GUI 双实例实际操作仍需继续执行。
+
 测试准备：
 
 - 打开两个桌面实例，记为 A 和 B。

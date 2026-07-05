@@ -222,3 +222,4 @@ Get-Process appLanBoard -ErrorAction SilentlyContinue | Stop-Process -Force
 - [网络消息表](./docs/network-messages.md)
 - [网络重构工作报告](./docs/network-refactor-work-report.md)
 - [并入 main 前工作计划](./docs/pre-main-merge-workplan.md)
+- [并入 main 前测试记录](./docs/pre-main-merge-test-results.md)
