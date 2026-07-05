@@ -4,5 +4,7 @@ singleton AppTheme 1.0 AppTheme.qml
 ActionButton 1.0 ActionButton.qml
 BottomTextNav 1.0 BottomTextNav.qml
 GameCard 1.0 GameCard.qml
+PageHeader 1.0 PageHeader.qml
+PlayerAvatar 1.0 PlayerAvatar.qml
 PlayerCard 1.0 PlayerCard.qml
 SettingCard 1.0 SettingCard.qml

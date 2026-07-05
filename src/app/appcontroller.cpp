@@ -311,6 +311,25 @@ void AppController::startFlightChessLocalMode()
     emit navigationRequested(4);
 }
 
+void AppController::startChessLocalMode()
+{
+    m_networkManager->disconnectAll();
+    m_networkManager->setDiscoveryGameInProgress(false);
+    m_currentGameKey = QStringLiteral("chess");
+    emit currentGameChanged();
+    m_gameController->reset();
+    m_flightChessController->reset();
+    m_roomManager->reset();
+    m_roomManager->setLocalPlayerId(-1);
+
+    m_isHostMode = false;
+    m_isClientMode = false;
+    m_networkPlayerId = 0;
+    m_activeGuestPlayerId = -1;
+    emit modeChanged();
+    emit navigationRequested(5);
+}
+
 void AppController::toggleLocalReady()
 {
     m_roomManager->toggleReady();
@@ -463,6 +482,8 @@ QString AppController::currentGameName() const
 {
     if (m_currentGameKey == QStringLiteral("flightchess"))
         return QStringLiteral("飞行棋");
+    if (m_currentGameKey == QStringLiteral("chess"))
+        return QStringLiteral("国际象棋");
     return QStringLiteral("五子棋");
 }
 

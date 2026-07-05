@@ -51,6 +51,7 @@ public:
     Q_INVOKABLE void toggleLocalReady();
     Q_INVOKABLE void openOnlinePage();
     Q_INVOKABLE void startFlightChessLocalMode();
+    Q_INVOKABLE void startChessLocalMode();
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
 

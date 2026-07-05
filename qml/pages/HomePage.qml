@@ -53,6 +53,20 @@ Page {
                 onClicked: AppCtrl.startFlightChessLocalMode()
             }
 
+            GameCard {
+                id: chessCard
+                width: parent.width
+                height: 182
+                titleText: "国际象棋"
+                subtitleText: "本地双人轮流走子，带棋盘坐标、计时、吃子区和走子记录，适合快速对局。"
+                tagText: "本地对弈"
+                gameType: "chess"
+                dark: true
+                opacity: 0
+                transform: Translate { id: chessCardOffset; y: 20 }
+                onClicked: AppCtrl.startChessLocalMode()
+            }
+
             SettingCard {
                 id: configCard
                 width: parent.width
@@ -78,6 +92,11 @@ Page {
         ParallelAnimation {
             NumberAnimation { target: flightCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: flightCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        }
+        PauseAnimation { duration: 80 }
+        ParallelAnimation {
+            NumberAnimation { target: chessCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: chessCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
         PauseAnimation { duration: 80 }
         ParallelAnimation {

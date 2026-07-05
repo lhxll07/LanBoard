@@ -34,6 +34,9 @@ ApplicationWindow {
             } else if (stackView.currentItem
                        && stackView.currentItem.objectName === "flightChessPage") {
                 stackView.pop()
+            } else if (stackView.currentItem
+                       && stackView.currentItem.objectName === "chessPage") {
+                stackView.pop()
             } else {
                 stackView.pop()
             }
@@ -77,6 +80,8 @@ ApplicationWindow {
                 showOnlinePage()
             } else if (page === 4) {
                 stackView.push(Qt.resolvedUrl("pages/FlightChessPage.qml"))
+            } else if (page === 5) {
+                stackView.push(Qt.resolvedUrl("pages/ChessPage.qml"))
             }
         }
     }

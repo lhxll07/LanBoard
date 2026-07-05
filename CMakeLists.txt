@@ -57,6 +57,7 @@ if (LANBOARD_BUILD_APP)
             qml/pages/SettingsPage.qml
             qml/pages/GamePage.qml
             qml/pages/FlightChessPage.qml
+            qml/pages/ChessPage.qml
         RESOURCES
             qml/components/qmldir
             qml/pages/qmldir
