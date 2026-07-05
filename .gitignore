@@ -1,19 +1,31 @@
+# Build directories
 build/
 build-*/
 cmake-build-*/
+android-build/
 
+# CMake / Qt generated files
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 compile_commands.json
 Makefile
+*.cmake.user
+.qmake.stash
+.qt/
 
+# IDE / editor local files
 *.pro.user
 *.pro.user.*
 *.qbs.user
 *.qtc_clangd
 *.autosave
+*.user
+.idea/
+.vscode/
+.qtcreator/
 
+# Binary artifacts
 *.o
 *.obj
 *.lo
@@ -27,15 +39,20 @@ Makefile
 *.exe
 *.out
 *.app
+*.apk
+*.aab
+*.ipa
+
+# Android signing / local machine config
+*.jks
+*.keystore
+keystore.properties
+local.properties
 
 # Logs
 *.log
 
+# OS junk
 .DS_Store
 Thumbs.db
 desktop.ini
-
-.idea/
-.vscode/
-.qtcreator/
-*.user
