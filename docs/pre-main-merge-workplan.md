@@ -123,7 +123,7 @@ cmake --build build-qt6103 --parallel 8
 执行状态：
 
 - 已完成 `RoomDiscoveryService` 服务级自动冒烟测试，结果记录见 `docs/pre-main-merge-test-results.md`。
-- GUI 双实例实际操作仍需继续执行。
+- 已完成 GUI 本地多实例局域网发现和加入测试，结果记录见 `docs/pre-main-merge-test-results.md`。
 
 测试准备：
 
@@ -161,7 +161,7 @@ cmake --build build-qt6103 --parallel 8
 
 - 已完成控制层端到端自动冒烟测试，结果记录见 `docs/pre-main-merge-test-results.md`。
 - 测试覆盖五子棋胜负闭环、飞行棋掷骰/移动同步、斗地主三人开局和私有状态下发。
-- GUI 双实例实际操作仍需继续执行。
+- 已完成 GUI 本地多实例五子棋、飞行棋和斗地主核心联机流程测试。
 
 ### 五子棋
 
