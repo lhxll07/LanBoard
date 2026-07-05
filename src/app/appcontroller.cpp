@@ -1,6 +1,10 @@
 #include "appcontroller.h"
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QStandardPaths>
 #include <QSettings>
 #include <QTimer>
 
@@ -404,6 +408,137 @@ void AppController::toggleLocalReady()
     if (m_networkManager->isHost()) {
         broadcastCurrentRoomState();
     }
+}
+
+void AppController::startDouDiZhuMusic()
+{
+#ifdef Q_OS_WIN
+    if (m_douDiZhuMusicProcess && m_douDiZhuMusicProcess->state() != QProcess::NotRunning)
+        return;
+
+    const QString musicDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+        + QStringLiteral("/LanBoard");
+    QDir().mkpath(musicDir);
+
+    const QString musicPath = musicDir + QStringLiteral("/doudizhu_theme.m4a");
+    if (!QFile::exists(musicPath)) {
+        const QString localAssetPath = QDir(QCoreApplication::applicationDirPath())
+            .absoluteFilePath(QStringLiteral("../assets/audio/doudizhu_theme.m4a"));
+        const QString sourcePath = QFile::exists(localAssetPath)
+            ? localAssetPath
+            : QDir::home().absoluteFilePath(QStringLiteral("Downloads/下载.m4a"));
+        if (!QFile::exists(sourcePath) || !QFile::copy(sourcePath, musicPath))
+            return;
+        QFile::setPermissions(musicPath, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser);
+    }
+
+    if (!m_douDiZhuMusicProcess)
+        m_douDiZhuMusicProcess = new QProcess(this);
+
+    const QString escapedPath = musicPath;
+    QString script = QStringLiteral(
+        "Add-Type -AssemblyName PresentationCore;"
+        "$p=New-Object System.Windows.Media.MediaPlayer;"
+        "$p.Open([Uri]::new('%1'));"
+        "$p.Volume=0.45;"
+        "Register-ObjectEvent -InputObject $p -EventName MediaEnded -Action {"
+        "$Event.Sender.Position=[TimeSpan]::Zero;$Event.Sender.Play()"
+        "} | Out-Null;"
+        "$p.Play();"
+        "while ($true) { Start-Sleep -Seconds 60 }");
+    script = script.arg(QString(escapedPath).replace("\\", "/").replace("'", "''"));
+
+    m_douDiZhuMusicProcess->start(
+        QStringLiteral("powershell"),
+        {QStringLiteral("-NoProfile"),
+         QStringLiteral("-ExecutionPolicy"),
+         QStringLiteral("Bypass"),
+         QStringLiteral("-WindowStyle"),
+         QStringLiteral("Hidden"),
+         QStringLiteral("-Command"),
+         script});
+#endif
+}
+
+void AppController::stopDouDiZhuMusic()
+{
+    if (!m_douDiZhuMusicProcess)
+        return;
+
+    if (m_douDiZhuMusicProcess->state() != QProcess::NotRunning) {
+        m_douDiZhuMusicProcess->terminate();
+        if (!m_douDiZhuMusicProcess->waitForFinished(800))
+            m_douDiZhuMusicProcess->kill();
+    }
+}
+
+void AppController::speakDouDiZhuAction(const QString &text)
+{
+#ifdef Q_OS_WIN
+    const QString phrase = text.trimmed();
+    if (phrase.isEmpty())
+        return;
+
+    const QString livelyPhrase = phrase.endsWith(QStringLiteral("！"))
+        ? phrase
+        : phrase + QStringLiteral("！");
+    QString rate = QStringLiteral("+14%");
+    QString pitch = QStringLiteral("+10%");
+    QString prefix;
+    QString suffix;
+    if (phrase == QStringLiteral("不要")) {
+        rate = QStringLiteral("+8%");
+        pitch = QStringLiteral("+2%");
+    } else if (phrase.contains(QStringLiteral("王炸"))
+               || phrase.contains(QStringLiteral("炸弹"))
+               || phrase.contains(QStringLiteral("四个"))) {
+        rate = QStringLiteral("+20%");
+        pitch = QStringLiteral("+18%");
+        prefix = QStringLiteral("<emphasis level='strong'>");
+        suffix = QStringLiteral("</emphasis>");
+    } else if (phrase.contains(QStringLiteral("顺子"))
+               || phrase.contains(QStringLiteral("连对"))
+               || phrase.contains(QStringLiteral("飞机"))) {
+        rate = QStringLiteral("+18%");
+        pitch = QStringLiteral("+14%");
+    } else if (phrase.contains(QStringLiteral("三带"))) {
+        rate = QStringLiteral("+16%");
+        pitch = QStringLiteral("+12%");
+    }
+    const QString escapedPhrase = QString(livelyPhrase)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("'", "&apos;")
+        .replace("\"", "&quot;");
+    const QString script = QStringLiteral(
+        "Add-Type -AssemblyName System.Speech;"
+        "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
+        "$voice=$s.GetInstalledVoices() | "
+        "Where-Object { $_.VoiceInfo.Gender -eq 'Female' -and "
+        "($_.VoiceInfo.Culture.Name -like 'zh*' -or $_.VoiceInfo.Name -match 'Huihui|Hanhan|Yaoyao') } | "
+        "Select-Object -First 1;"
+        "if ($voice) { $s.SelectVoice($voice.VoiceInfo.Name) };"
+        "$s.Rate=2;"
+        "$s.Volume=100;"
+        "$ssml=\"<speak version='1.0' xml:lang='zh-CN'>"
+        "<prosody rate='%1' pitch='%2' volume='x-loud'>%3%4%5"
+        "<break time='80ms'/></prosody>"
+        "</speak>\";"
+        "$s.SpeakSsml($ssml);").arg(rate, pitch, prefix, escapedPhrase, suffix);
+
+    QProcess::startDetached(
+        QStringLiteral("powershell"),
+        {QStringLiteral("-NoProfile"),
+         QStringLiteral("-ExecutionPolicy"),
+         QStringLiteral("Bypass"),
+         QStringLiteral("-WindowStyle"),
+         QStringLiteral("Hidden"),
+         QStringLiteral("-Command"),
+         script});
+#else
+    Q_UNUSED(text)
+#endif
 }
 
 bool AppController::updateNickname(const QString &nickname)

@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QJsonArray>
+#include <QProcess>
 #include <QVariantList>
 #include <QTcpSocket>
 #include "src/lobby/roommanager.h"
@@ -59,6 +60,9 @@ public:
     Q_INVOKABLE bool playDouDiZhuCards(const QVariantList &cardIds);
     Q_INVOKABLE bool passDouDiZhuTurn();
     Q_INVOKABLE void restartDouDiZhuGame();
+    Q_INVOKABLE void startDouDiZhuMusic();
+    Q_INVOKABLE void stopDouDiZhuMusic();
+    Q_INVOKABLE void speakDouDiZhuAction(const QString &text);
     Q_INVOKABLE void joinOnlineServer(const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
@@ -109,4 +113,5 @@ private:
     quint16 m_onlineServerPort = 44567;
     bool m_douDiZhuRobotTurnPending = false;
     int m_douDiZhuRobotTurnToken = 0;
+    QProcess *m_douDiZhuMusicProcess = nullptr;
 };
