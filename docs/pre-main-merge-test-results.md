@@ -5,7 +5,7 @@
 ## 当前分支状态
 
 - 分支：`refactor/network-internals`
-- 测试执行基线：`2e50ae3 docs: align project status before main merge`
+- 测试执行基线：`1bcca38 docs: record GUI multiplayer test results`
 - 主线基线：`2c1a3ba Add networked flight chess and 8-player rooms`
 - 本地未跟踪文件：`AGENTS.md`
 
@@ -162,16 +162,68 @@ build\codex-appcontroller-e2e\build\appControllerE2E.exe
 
 结果：通过。
 
+### 6. 在线房间本地服务端端到端测试
+
+测试方式：
+
+- 使用 `build-qt-ascii/lanboardServer.exe` 启动本地专用服务端。
+- 使用临时 PowerShell 测试脚本创建 3 个 TCP 客户端：
+  - Host：创建在线房间并作为房主。
+  - Guest：加入在线房间并进行游戏操作。
+  - Observer：请求在线房间列表并验证错误消息。
+- 服务端使用随机本地端口，本次测试端口为 `62456`。
+
+测试命令：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File build\codex-online-server-e2e\online-server-e2e.ps1
+```
+
+验证点：
+
+- 未加入房间的客户端发送 `ready` 后收到 `error: not_joined`。
+- Host 发送 `create_room` 后收到 `room_state`，并分配为五子棋黑方 `piece = 1`。
+- Observer 发送 `list_rooms` 后收到 `rooms_list`，能看到新建房间。
+- 房间列表字段正确：
+  - `roomId`
+  - `roomName`
+  - `hostName`
+  - `gameId`
+  - `gameName`
+  - `playerCount`
+  - `roomCapacity`
+  - `maxPlayers`
+  - `inGame`
+  - `isFull`
+- Guest 发送 `join_room` 后 Host 和 Guest 都收到 2 人 `room_state`。
+- Host 和 Guest 均发送 `ready` 后，双方收到 active 玩家全员 ready 的 `room_state`。
+- Host 发送 `start_game` 后，双方收到 `game_start`。
+- 游戏开始后 Observer 再次请求 `list_rooms`，对应房间 `inGame = true`。
+- Host 五子棋落子后，Host 和 Guest 均收到 `move`。
+- Guest 五子棋落子后，Host 和 Guest 均收到 `move`。
+
+结果：通过。
+
+说明：
+
+- 本项覆盖本地 `lanboardServer` 的在线房间最小端到端流程。
+- 本项未覆盖远端 ECS 实例的真实公网连通性。
+
 ## 本次未覆盖
 
 以下项目仍需人工或更完整的端到端测试：
 
-- ECS 或本地 `lanboardServer` 的在线房间端到端流程。
+- 远端 ECS 实例的在线房间端到端流程。
 - Android 真机或同 Wi-Fi 设备测试。
 - 跨设备同一 Wi-Fi 下的真实 UDP 广播发现。
 
+当前环境说明：
+
+- `adb devices -l` 未检测到已连接 Android 设备，因此 Android 真机安装和运行测试未执行。
+- 当前只有本机自动化环境，缺少第二台同 Wi-Fi 设备，因此真实跨设备 UDP 广播发现未执行。
+
 ## 当前判断
 
-本次测试说明 `RoomDiscoveryService` 的核心服务级行为可用，控制层三款游戏的本地 TCP 联机主流程可用，桌面 GUI 本地多实例联机流程可用。
+本次测试说明 `RoomDiscoveryService` 的核心服务级行为可用，控制层三款游戏的本地 TCP 联机主流程可用，桌面 GUI 本地多实例联机流程可用，本地 `lanboardServer` 在线房间最小端到端流程可用。
 
-在并入 `main` 前，仍应按 `docs/pre-main-merge-workplan.md` 继续完成在线房间端到端测试；跨设备和 Android 测试可作为合并风险项由团队决定是否阻塞。
+在并入 `main` 前，远端 ECS、跨设备同 Wi-Fi UDP 广播和 Android 真机测试仍需要外部环境或设备；这些项目可作为合并风险项由团队决定是否阻塞。

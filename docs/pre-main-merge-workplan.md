@@ -221,6 +221,12 @@ cmake --build build-qt6103 --parallel 8
 
 目标：确认在线房间相关消息仍可用。
 
+执行状态：
+
+- 已完成本地 `lanboardServer` 在线房间自动端到端测试，结果记录见 `docs/pre-main-merge-test-results.md`。
+- 已验证 `list_rooms`、`rooms_list`、`create_room`、`join_room`、`room_state`、`ready`、`start_game`、`move` 和错误消息。
+- 未连接远端 ECS 实例，真实公网服务端流程仍未覆盖。
+
 前提：
 
 - ECS 或本地 `lanboardServer` 可运行。
