@@ -21,25 +21,6 @@
 #endif
 
 namespace {
-
-QString normalizedGameId(const QString &gameId)
-{
-    if (gameId == QStringLiteral("doudizhu"))
-        return QStringLiteral("doudizhu");
-    if (gameId == QStringLiteral("flightchess"))
-        return QStringLiteral("flightchess");
-    return QStringLiteral("gomoku");
-}
-
-QString defaultGameName(const QString &gameId)
-{
-    if (gameId == QStringLiteral("doudizhu"))
-        return QStringLiteral("斗地主");
-    if (gameId == QStringLiteral("flightchess"))
-        return QStringLiteral("飞行棋");
-    return QStringLiteral("五子棋");
-}
-
 bool isUsableIpv4(const QHostAddress &address)
 {
     if (address.protocol() != QAbstractSocket::IPv4Protocol)
@@ -387,7 +368,7 @@ void NetworkManager::sendSwitchRoomGame(const QString &gameId)
 {
     QJsonObject msg;
     msg[QStringLiteral("type")] = QStringLiteral("switch_room_game");
-    msg[QStringLiteral("gameId")] = normalizedGameId(gameId);
+    msg[QStringLiteral("gameId")] = LanBoard::normalizeGameId(gameId);
     sendJson(m_socket, msg);
 }
 
@@ -408,9 +389,9 @@ void NetworkManager::setDiscoveryGameInProgress(bool inProgress)
 void NetworkManager::setDiscoveryRoomInfo(const QString &gameId, const QString &gameName,
                                           int roomCapacity, int maxPlayers)
 {
-    m_discoveryGameId = normalizedGameId(gameId);
+    m_discoveryGameId = LanBoard::normalizeGameId(gameId);
     m_discoveryGameName = gameName.trimmed().isEmpty()
-        ? defaultGameName(m_discoveryGameId)
+        ? LanBoard::gameName(m_discoveryGameId)
         : gameName.trimmed();
     m_discoveryRoomCapacity = qMax(2, roomCapacity);
     m_discoveryMaxPlayers = qMax(2, maxPlayers);
@@ -898,7 +879,7 @@ void NetworkManager::connectClientSocket(const QString &ip, quint16 port,
     m_connectedIp = ip;
     m_connectedPort = port;
     m_socket->setProperty("playerName", playerName);
-    m_socket->setProperty("gameId", normalizedGameId(gameId));
+    m_socket->setProperty("gameId", LanBoard::normalizeGameId(gameId));
     m_socket->setProperty("connectAction", action);
     m_socket->setProperty("roomId", roomId);
     m_socket->setProperty("roomName", roomName.trimmed());
@@ -1103,8 +1084,9 @@ void NetworkManager::upsertDiscoveredRoom(const QJsonObject &msg, const QHostAdd
     room.playerCount = msg.value(QStringLiteral("playerCount")).toInt();
     room.roomCapacity = qMax(2, msg.value(QStringLiteral("roomCapacity")).toInt(room.playerCount));
     room.maxPlayers = qMax(2, msg.value(QStringLiteral("maxPlayers")).toInt(2));
-    room.gameId = normalizedGameId(msg.value(QStringLiteral("gameId")).toString(QStringLiteral("gomoku")));
-    room.gameName = msg.value(QStringLiteral("gameName")).toString(defaultGameName(room.gameId));
+    room.gameId = LanBoard::normalizeGameId(
+        msg.value(QStringLiteral("gameId")).toString(QStringLiteral("gomoku")));
+    room.gameName = msg.value(QStringLiteral("gameName")).toString(LanBoard::gameName(room.gameId));
     room.inGame = msg.value(QStringLiteral("inGame")).toBool();
     room.isFull = msg.value(QStringLiteral("isFull")).toBool(room.playerCount >= room.roomCapacity);
     room.lastSeenMs = QDateTime::currentMSecsSinceEpoch();
@@ -1162,11 +1144,11 @@ void NetworkManager::applyOnlineRooms(const QJsonArray &rooms)
         map[QStringLiteral("roomId")] = room.value(QStringLiteral("roomId")).toString();
         map[QStringLiteral("roomName")] = room.value(QStringLiteral("roomName")).toString();
         map[QStringLiteral("hostName")] = room.value(QStringLiteral("hostName")).toString();
-        const QString gameId = normalizedGameId(
+        const QString gameId = LanBoard::normalizeGameId(
             room.value(QStringLiteral("gameId")).toString(QStringLiteral("gomoku")));
         map[QStringLiteral("gameId")] = gameId;
         map[QStringLiteral("gameName")] = room.value(QStringLiteral("gameName")).toString(
-            defaultGameName(gameId));
+            LanBoard::gameName(gameId));
         map[QStringLiteral("playerCount")] = room.value(QStringLiteral("playerCount")).toInt();
         map[QStringLiteral("roomCapacity")] = room.value(QStringLiteral("roomCapacity")).toInt(
             room.value(QStringLiteral("maxPlayers")).toInt(2));

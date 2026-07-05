@@ -1,16 +1,17 @@
 #pragma once
 
 #include <QObject>
+#include <QHostAddress>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QList>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QUdpSocket>
 #include <QTimer>
-#include <QJsonObject>
-#include <QJsonDocument>
-#include <QJsonArray>
-#include <QList>
-#include <QByteArray>
 #include <QVariantList>
+
+#include "src/common/types.h"
 
 #ifdef Q_OS_ANDROID
 #include <QJniObject>
@@ -32,33 +33,33 @@ class NetworkManager : public QObject
 public:
     explicit NetworkManager(QObject *parent = nullptr);
 
-    Q_INVOKABLE void startServer(quint16 port = 44567);
-    Q_INVOKABLE void connectToServer(const QString &ip, quint16 port = 44567,
-                                     const QString &playerName = QString(),
-                                     const QString &gameId = QStringLiteral("gomoku"));
-    Q_INVOKABLE void disconnectAll();
+    void startServer(quint16 port = 44567);
+    void connectToServer(const QString &ip, quint16 port = 44567,
+                         const QString &playerName = QString(),
+                         const QString &gameId = QStringLiteral("gomoku"));
+    void disconnectAll();
 
     Q_INVOKABLE void sendReady(bool ready);
     Q_INVOKABLE void sendPlacePiece(int row, int col);
     Q_INVOKABLE void sendFlightRoll();
     Q_INVOKABLE void sendFlightMove(int planeIndex);
     Q_INVOKABLE void sendSurrender();
-    Q_INVOKABLE void sendStartGame();
-    Q_INVOKABLE void sendDouDiZhuPlay(const QVariantList &cardIds);
-    Q_INVOKABLE void sendDouDiZhuPass();
-    Q_INVOKABLE void sendChangeSeat(const QString &seatType);
+    void sendStartGame();
+    void sendDouDiZhuPlay(const QVariantList &cardIds);
+    void sendDouDiZhuPass();
+    void sendChangeSeat(const QString &seatType);
     Q_INVOKABLE void startRoomDiscovery();
     Q_INVOKABLE void stopRoomDiscovery();
     Q_INVOKABLE void refreshRoomDiscovery();
     Q_INVOKABLE void clearDiscoveredRooms();
-    Q_INVOKABLE void requestOnlineRooms(const QString &host, quint16 port = 44567);
-    Q_INVOKABLE void clearOnlineRooms();
-    Q_INVOKABLE void createOnlineRoom(const QString &host, quint16 port,
-                                      const QString &playerName, const QString &gameId,
-                                      const QString &roomName = QString());
-    Q_INVOKABLE void joinOnlineRoom(const QString &host, quint16 port,
-                                    const QString &playerName, const QString &roomId);
-    Q_INVOKABLE void sendSwitchRoomGame(const QString &gameId);
+    void requestOnlineRooms(const QString &host, quint16 port = 44567);
+    void clearOnlineRooms();
+    void createOnlineRoom(const QString &host, quint16 port,
+                          const QString &playerName, const QString &gameId,
+                          const QString &roomName = QString());
+    void joinOnlineRoom(const QString &host, quint16 port,
+                        const QString &playerName, const QString &roomId);
+    void sendSwitchRoomGame(const QString &gameId);
 
     bool isHost() const { return m_isHost; }
     bool isConnected() const;
@@ -178,8 +179,8 @@ private:
     QTimer m_hostAnnouncementTimer;
     bool m_isHost = false;
     bool m_discoveryGameInProgress = false;
-    QString m_discoveryGameId = QStringLiteral("gomoku");
-    QString m_discoveryGameName = QStringLiteral("五子棋");
+    QString m_discoveryGameId = LanBoard::normalizeGameId(QStringLiteral("gomoku"));
+    QString m_discoveryGameName = LanBoard::gameName(QStringLiteral("gomoku"));
     int m_discoveryRoomCapacity = 2;
     int m_discoveryMaxPlayers = 2;
     quint16 m_serverPort = 0;

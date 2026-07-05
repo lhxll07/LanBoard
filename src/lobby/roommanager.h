@@ -20,14 +20,14 @@ class RoomManager : public QObject
 public:
     explicit RoomManager(QObject *parent = nullptr);
 
-    Q_INVOKABLE void addPlayer(const QString &name, bool host = false, bool ready = false,
-                               int playerId = -1,
-                               const QString &seatType = QStringLiteral("active"));
+    void addPlayer(const QString &name, bool host = false, bool ready = false,
+                   int playerId = -1,
+                   const QString &seatType = QStringLiteral("active"));
     Q_INVOKABLE void addTestPlayer(const QString &name);
-    Q_INVOKABLE void toggleReady();
+    void toggleReady();
     Q_INVOKABLE void startGame();
-    Q_INVOKABLE void reset();
-    Q_INVOKABLE void setGameId(const QString &gameId);
+    void reset();
+    void setGameId(const QString &gameId);
 
     QVariantList playerList() const;
     bool isHost() const;
@@ -44,11 +44,8 @@ public:
     bool clearReadyStates();
     bool removePlayerById(int playerId);
     int firstGuestPlayerId() const;
-    int firstSpectatorPlayerId() const;
     int activeGuestCount() const;
-    QString seatTypeById(int playerId) const;
     bool isPlayerActive(int playerId) const;
-    bool localPlayerIsActive() const;
 
 signals:
     void playerListChanged();
