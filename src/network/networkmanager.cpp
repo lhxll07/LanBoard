@@ -2,25 +2,14 @@
 
 #include "linejsonprotocol.h"
 #include "networkaddressutils.h"
+#include "roomdiscoveryservice.h"
 
-#include <QNetworkInterface>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QHostAddress>
-#include <QNetworkAddressEntry>
-#include <QNetworkDatagram>
 #include <QNetworkProxy>
-#include <QDateTime>
 #include <QDebug>
-#include <QUuid>
-#include <algorithm>
-
-#ifdef Q_OS_ANDROID
-#include <QCoreApplication>
-#include <QJniObject>
-#include <QtCore/qcoreapplication_platform.h>
-#endif
 
 namespace {
 
@@ -46,17 +35,12 @@ QString defaultGameName(const QString &gameId)
 
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
-    , m_discoveryRoomUid(QUuid::createUuid().toString(QUuid::WithoutBraces))
+    , m_roomDiscovery(new RoomDiscoveryService(this))
 {
-    m_discoveryTimer.setInterval(DiscoveryIntervalMs);
-    connect(&m_discoveryTimer, &QTimer::timeout, this, &NetworkManager::broadcastDiscoveryQuery);
-
-    m_discoveryPruneTimer.setInterval(1000);
-    connect(&m_discoveryPruneTimer, &QTimer::timeout, this, &NetworkManager::pruneDiscoveredRooms);
-
-    m_hostAnnouncementTimer.setInterval(DiscoveryIntervalMs);
-    connect(&m_hostAnnouncementTimer, &QTimer::timeout,
-            this, &NetworkManager::broadcastHostedRoomAnnouncement);
+    connect(m_roomDiscovery, &RoomDiscoveryService::discoveredRoomsChanged,
+            this, &NetworkManager::discoveredRoomsChanged);
+    connect(m_roomDiscovery, &RoomDiscoveryService::errorOccurred,
+            this, &NetworkManager::errorOccurred);
 }
 
 // ── Public API ──
@@ -81,9 +65,7 @@ void NetworkManager::startServer(quint16 port)
     m_isHost = true;
     m_nextPlayerId = 1;
     m_serverPort = port;
-    if (!m_hostAnnouncementTimer.isActive())
-        m_hostAnnouncementTimer.start();
-    broadcastHostedRoomAnnouncement();
+    updateDiscoveryIdentity();
     emit connectionChanged();
     emit serverStarted(port);
 }
@@ -125,7 +107,7 @@ void NetworkManager::disconnectAll()
     m_serverPort = 0;
     m_connectedIp.clear();
     m_connectedPort = 0;
-    m_hostAnnouncementTimer.stop();
+    updateDiscoveryIdentity();
     emit connectionChanged();
     emit clientCountChanged();
 }
@@ -140,6 +122,11 @@ bool NetworkManager::isConnected() const
 QString NetworkManager::localIp() const
 {
     return NetworkAddressUtils::bestLocalIpv4();
+}
+
+QVariantList NetworkManager::discoveredRooms() const
+{
+    return m_roomDiscovery ? m_roomDiscovery->discoveredRooms() : QVariantList();
 }
 
 // ── Send actions (client → server) ──
@@ -221,46 +208,26 @@ void NetworkManager::sendChangeSeat(const QString &seatType)
 
 void NetworkManager::startRoomDiscovery()
 {
-    if (!ensureDiscoverySocket())
-        return;
-
-    if (!m_discoveryPruneTimer.isActive())
-        m_discoveryPruneTimer.start();
-
-    if (!m_discoveryTimer.isActive())
-        m_discoveryTimer.start();
-
-#ifdef Q_OS_ANDROID
-    acquireMulticastLock();
-#endif
-    refreshRoomDiscovery();
+    if (m_roomDiscovery)
+        m_roomDiscovery->start();
 }
 
 void NetworkManager::stopRoomDiscovery()
 {
-    m_discoveryTimer.stop();
-    m_discoveryPruneTimer.stop();
-#ifdef Q_OS_ANDROID
-    releaseMulticastLock();
-#endif
+    if (m_roomDiscovery)
+        m_roomDiscovery->stop();
 }
 
 void NetworkManager::refreshRoomDiscovery()
 {
-    if (!ensureDiscoverySocket())
-        return;
-
-    pruneDiscoveredRooms();
-    broadcastDiscoveryQuery();
+    if (m_roomDiscovery)
+        m_roomDiscovery->refresh();
 }
 
 void NetworkManager::clearDiscoveredRooms()
 {
-    if (m_discoveredRoomEntries.isEmpty())
-        return;
-
-    m_discoveredRoomEntries.clear();
-    rebuildDiscoveredRooms();
+    if (m_roomDiscovery)
+        m_roomDiscovery->clear();
 }
 
 void NetworkManager::requestOnlineRooms(const QString &host, quint16 port)
@@ -328,15 +295,13 @@ void NetworkManager::sendSwitchRoomGame(const QString &gameId)
 void NetworkManager::setDiscoveryHostName(const QString &hostName)
 {
     m_discoveryHostName = hostName.trimmed();
-    if (m_isHost)
-        broadcastHostedRoomAnnouncement();
+    updateDiscoveryIdentity();
 }
 
 void NetworkManager::setDiscoveryGameInProgress(bool inProgress)
 {
     m_discoveryGameInProgress = inProgress;
-    if (m_isHost)
-        broadcastHostedRoomAnnouncement();
+    updateDiscoveryIdentity();
 }
 
 void NetworkManager::setDiscoveryRoomInfo(const QString &gameId, const QString &gameName,
@@ -348,8 +313,7 @@ void NetworkManager::setDiscoveryRoomInfo(const QString &gameId, const QString &
         : gameName.trimmed();
     m_discoveryRoomCapacity = qMax(2, roomCapacity);
     m_discoveryMaxPlayers = qMax(2, maxPlayers);
-    if (m_isHost)
-        broadcastHostedRoomAnnouncement();
+    updateDiscoveryIdentity();
 }
 
 // ── Broadcast from host ──
@@ -452,7 +416,7 @@ void NetworkManager::onNewConnection()
         m_nextPlayerId = qMax(m_nextPlayerId, playerId + 1);
 
         emit clientCountChanged();
-        broadcastHostedRoomAnnouncement();
+        updateDiscoveryIdentity();
     }
 }
 
@@ -484,7 +448,7 @@ void NetworkManager::onClientDisconnected()
         client->deleteLater();
         emit clientDisconnected(playerId);
         emit clientCountChanged();
-        broadcastHostedRoomAnnouncement();
+        updateDiscoveryIdentity();
     }
 }
 
@@ -576,98 +540,6 @@ void NetworkManager::onOnlineLobbyError(QAbstractSocket::SocketError)
 {
     if (m_onlineLobbySocket)
         emit errorOccurred(m_onlineLobbySocket->errorString());
-}
-
-void NetworkManager::onDiscoveryReadyRead()
-{
-    if (!m_discoverySocket)
-        return;
-
-    while (m_discoverySocket->hasPendingDatagrams()) {
-        QNetworkDatagram datagram = m_discoverySocket->receiveDatagram();
-        const QByteArray payload = datagram.data().trimmed();
-        if (payload.isEmpty())
-            continue;
-
-        QJsonParseError err;
-        const QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
-        if (err.error != QJsonParseError::NoError || !doc.isObject())
-            continue;
-
-        const QJsonObject msg = doc.object();
-        if (msg.value(QStringLiteral("app")).toString() != QStringLiteral("LanBoard"))
-            continue;
-        if (msg.value(QStringLiteral("version")).toInt() != 1)
-            continue;
-
-        const QString type = msg.value(QStringLiteral("type")).toString();
-        if (type == QStringLiteral("discover_room")) {
-            if (m_isHost && m_server && m_server->isListening())
-                sendRoomAnnouncement(datagram.senderAddress(), datagram.senderPort());
-        } else if (type == QStringLiteral("room_announce")) {
-            upsertDiscoveredRoom(msg, datagram.senderAddress());
-        }
-    }
-}
-
-void NetworkManager::pruneDiscoveredRooms()
-{
-    const qint64 now = QDateTime::currentMSecsSinceEpoch();
-    bool changed = false;
-
-    for (int i = m_discoveredRoomEntries.size() - 1; i >= 0; --i) {
-        if (now - m_discoveredRoomEntries.at(i).lastSeenMs <= DiscoveryStaleMs)
-            continue;
-
-        m_discoveredRoomEntries.removeAt(i);
-        changed = true;
-    }
-
-    if (changed)
-        rebuildDiscoveredRooms();
-}
-
-void NetworkManager::broadcastDiscoveryQuery()
-{
-    if (!m_discoverySocket)
-        return;
-
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("discover_room");
-    msg[QStringLiteral("app")] = QStringLiteral("LanBoard");
-    msg[QStringLiteral("version")] = 1;
-
-    const QByteArray payload = QJsonDocument(msg).toJson(QJsonDocument::Compact);
-    bool sent = false;
-
-    for (const QNetworkInterface &iface : QNetworkInterface::allInterfaces()) {
-        const auto flags = iface.flags();
-        if (!(flags & QNetworkInterface::IsUp) || !(flags & QNetworkInterface::IsRunning)
-            || (flags & QNetworkInterface::IsLoopBack)) {
-            continue;
-        }
-
-        for (const QNetworkAddressEntry &entry : iface.addressEntries()) {
-            if (entry.ip().protocol() != QAbstractSocket::IPv4Protocol)
-                continue;
-            if (entry.broadcast().isNull())
-                continue;
-
-            m_discoverySocket->writeDatagram(payload, entry.broadcast(), DiscoveryPort);
-            sent = true;
-        }
-    }
-
-    if (!sent)
-        m_discoverySocket->writeDatagram(payload, QHostAddress::Broadcast, DiscoveryPort);
-}
-
-void NetworkManager::broadcastHostedRoomAnnouncement()
-{
-    if (!m_isHost || !m_server || !m_server->isListening())
-        return;
-
-    broadcastRoomAnnouncement();
 }
 
 // ── Private ──
@@ -804,219 +676,21 @@ void NetworkManager::connectClientSocket(const QString &ip, quint16 port,
     m_socket->connectToHost(ip, port);
 }
 
-bool NetworkManager::ensureDiscoverySocket()
+void NetworkManager::updateDiscoveryIdentity()
 {
-    if (m_discoverySocket)
-        return true;
-
-    m_discoverySocket = new QUdpSocket(this);
-    m_discoverySocket->setProxy(QNetworkProxy::NoProxy);
-    connect(m_discoverySocket, &QUdpSocket::readyRead, this, &NetworkManager::onDiscoveryReadyRead);
-
-    const bool bound = m_discoverySocket->bind(QHostAddress::AnyIPv4,
-                                               DiscoveryPort,
-                                               QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint);
-    if (!bound) {
-        emit errorOccurred(QStringLiteral("无法启动局域网发现: %1")
-                               .arg(m_discoverySocket->errorString()));
-        m_discoverySocket->deleteLater();
-        m_discoverySocket = nullptr;
-        return false;
-    }
-
-    return true;
-}
-
-#ifdef Q_OS_ANDROID
-void NetworkManager::acquireMulticastLock()
-{
-    if (m_multicastLock.isValid())
+    if (!m_roomDiscovery)
         return;
 
-    const QJniObject context = QNativeInterface::QAndroidApplication::context();
-    if (!context.isValid())
-        return;
-
-    const QJniObject wifiService = QJniObject::getStaticObjectField(
-        "android/content/Context", "WIFI_SERVICE", "Ljava/lang/String;");
-    if (!wifiService.isValid())
-        return;
-
-    const QJniObject wifiManager = context.callObjectMethod(
-        "getSystemService",
-        "(Ljava/lang/String;)Ljava/lang/Object;",
-        wifiService.object<jstring>());
-    if (!wifiManager.isValid())
-        return;
-
-    m_multicastLock = wifiManager.callObjectMethod(
-        "createMulticastLock",
-        "(Ljava/lang/String;)Landroid/net/wifi/WifiManager$MulticastLock;",
-        QJniObject::fromString(QStringLiteral("LanBoardDiscovery")).object<jstring>());
-    if (!m_multicastLock.isValid())
-        return;
-
-    m_multicastLock.callMethod<void>("setReferenceCounted", "(Z)V", false);
-    m_multicastLock.callMethod<void>("acquire");
-}
-
-void NetworkManager::releaseMulticastLock()
-{
-    if (!m_multicastLock.isValid())
-        return;
-
-    m_multicastLock.callMethod<void>("release");
-    m_multicastLock = QJniObject();
-}
-#endif
-
-void NetworkManager::sendRoomAnnouncement(const QHostAddress &address, quint16 port)
-{
-    if (!m_discoverySocket || port == 0)
-        return;
-
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("room_announce");
-    msg[QStringLiteral("app")] = QStringLiteral("LanBoard");
-    msg[QStringLiteral("version")] = 1;
-    msg[QStringLiteral("roomUid")] = m_discoveryRoomUid;
-    msg[QStringLiteral("hostName")] = m_discoveryHostName.isEmpty()
-        ? QStringLiteral("host")
-        : m_discoveryHostName;
-    msg[QStringLiteral("hostIp")] = NetworkAddressUtils::localIpv4ForPeer(address);
-    msg[QStringLiteral("port")] = static_cast<int>(m_serverPort);
-    msg[QStringLiteral("playerCount")] = 1 + m_clients.size();
-    msg[QStringLiteral("roomCapacity")] = m_discoveryRoomCapacity;
-    msg[QStringLiteral("maxPlayers")] = m_discoveryMaxPlayers;
-    msg[QStringLiteral("gameId")] = m_discoveryGameId;
-    msg[QStringLiteral("gameName")] = m_discoveryGameName;
-    msg[QStringLiteral("inGame")] = m_discoveryGameInProgress;
-    msg[QStringLiteral("isFull")] = (1 + m_clients.size()) >= m_discoveryRoomCapacity;
-
-    const QByteArray payload = QJsonDocument(msg).toJson(QJsonDocument::Compact);
-    m_discoverySocket->writeDatagram(payload, address, port);
-}
-
-void NetworkManager::broadcastRoomAnnouncement()
-{
-    QUdpSocket socket;
-    socket.setProxy(QNetworkProxy::NoProxy);
-
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("room_announce");
-    msg[QStringLiteral("app")] = QStringLiteral("LanBoard");
-    msg[QStringLiteral("version")] = 1;
-    msg[QStringLiteral("roomUid")] = m_discoveryRoomUid;
-    msg[QStringLiteral("hostName")] = m_discoveryHostName.isEmpty()
-        ? QStringLiteral("host")
-        : m_discoveryHostName;
-    msg[QStringLiteral("port")] = static_cast<int>(m_serverPort);
-    msg[QStringLiteral("playerCount")] = 1 + m_clients.size();
-    msg[QStringLiteral("roomCapacity")] = m_discoveryRoomCapacity;
-    msg[QStringLiteral("maxPlayers")] = m_discoveryMaxPlayers;
-    msg[QStringLiteral("gameId")] = m_discoveryGameId;
-    msg[QStringLiteral("gameName")] = m_discoveryGameName;
-    msg[QStringLiteral("inGame")] = m_discoveryGameInProgress;
-    msg[QStringLiteral("isFull")] = (1 + m_clients.size()) >= m_discoveryRoomCapacity;
-
-    const QByteArray payload = QJsonDocument(msg).toJson(QJsonDocument::Compact);
-    bool sent = false;
-
-    for (const QNetworkInterface &iface : QNetworkInterface::allInterfaces()) {
-        const auto flags = iface.flags();
-        if (!(flags & QNetworkInterface::IsUp) || !(flags & QNetworkInterface::IsRunning)
-            || (flags & QNetworkInterface::IsLoopBack)) {
-            continue;
-        }
-
-        for (const QNetworkAddressEntry &entry : iface.addressEntries()) {
-            const QHostAddress ip = entry.ip();
-            if (!NetworkAddressUtils::isUsableIpv4(ip) || entry.broadcast().isNull())
-                continue;
-
-            QJsonObject scopedMsg = msg;
-            scopedMsg[QStringLiteral("hostIp")] = ip.toString();
-            const QByteArray scopedPayload = QJsonDocument(scopedMsg).toJson(QJsonDocument::Compact);
-            socket.writeDatagram(scopedPayload, entry.broadcast(), DiscoveryPort);
-            sent = true;
-        }
-    }
-
-    if (!sent) {
-        msg[QStringLiteral("hostIp")] = localIp();
-        socket.writeDatagram(QJsonDocument(msg).toJson(QJsonDocument::Compact),
-                             QHostAddress::Broadcast,
-                             DiscoveryPort);
-    }
-}
-
-void NetworkManager::upsertDiscoveredRoom(const QJsonObject &msg, const QHostAddress &senderAddress)
-{
-    const quint16 port = static_cast<quint16>(msg.value(QStringLiteral("port")).toInt());
-    if (port == 0)
-        return;
-
-    const QString announcedIp = msg.value(QStringLiteral("hostIp")).toString().trimmed();
-    const QHostAddress announcedAddress(announcedIp);
-    const QString roomIp = NetworkAddressUtils::isUsableIpv4(announcedAddress)
-        ? announcedAddress.toString()
-        : senderAddress.toString();
-
-    DiscoveredRoom room;
-    room.roomUid = msg.value(QStringLiteral("roomUid")).toString().trimmed();
-    room.hostName = msg.value(QStringLiteral("hostName")).toString().trimmed();
-    room.hostIp = roomIp;
-    room.port = port;
-    room.playerCount = msg.value(QStringLiteral("playerCount")).toInt();
-    room.roomCapacity = qMax(2, msg.value(QStringLiteral("roomCapacity")).toInt(room.playerCount));
-    room.maxPlayers = qMax(2, msg.value(QStringLiteral("maxPlayers")).toInt(2));
-    room.gameId = normalizedGameId(msg.value(QStringLiteral("gameId")).toString(QStringLiteral("gomoku")));
-    room.gameName = msg.value(QStringLiteral("gameName")).toString(defaultGameName(room.gameId));
-    room.inGame = msg.value(QStringLiteral("inGame")).toBool();
-    room.isFull = msg.value(QStringLiteral("isFull")).toBool(room.playerCount >= room.roomCapacity);
-    room.lastSeenMs = QDateTime::currentMSecsSinceEpoch();
-
-    if (room.hostIp == localIp() && room.port == m_serverPort)
-        return;
-
-    bool changed = false;
-    for (DiscoveredRoom &existing : m_discoveredRoomEntries) {
-        const bool sameRoomUid = !room.roomUid.isEmpty()
-            && !existing.roomUid.isEmpty()
-            && existing.roomUid == room.roomUid;
-        const bool sameLegacyEndpoint = existing.hostIp == room.hostIp
-            && existing.port == room.port;
-        if (!sameRoomUid && !sameLegacyEndpoint)
-            continue;
-
-        existing = room;
-        changed = true;
-        break;
-    }
-
-    if (!changed) {
-        m_discoveredRoomEntries.append(room);
-        changed = true;
-    }
-
-    if (changed)
-        rebuildDiscoveredRooms();
-}
-
-QVariantMap NetworkManager::discoveredRoomToVariant(const DiscoveredRoom &room) const
-{
-    QVariantMap map;
-    map[QStringLiteral("hostName")] = room.hostName;
-    map[QStringLiteral("hostIp")] = room.hostIp;
-    map[QStringLiteral("port")] = room.port;
-    map[QStringLiteral("playerCount")] = room.playerCount;
-    map[QStringLiteral("roomCapacity")] = room.roomCapacity;
-    map[QStringLiteral("maxPlayers")] = room.maxPlayers;
-    map[QStringLiteral("gameId")] = room.gameId;
-    map[QStringLiteral("gameName")] = room.gameName;
-    map[QStringLiteral("inGame")] = room.inGame;
-    map[QStringLiteral("isFull")] = room.isFull;
-    return map;
+    const bool activeHost = m_isHost && m_server && m_server->isListening();
+    m_roomDiscovery->setPublishedRoom(m_discoveryHostName,
+                                      m_serverPort,
+                                      activeHost ? 1 + m_clients.size() : 0,
+                                      m_discoveryRoomCapacity,
+                                      m_discoveryMaxPlayers,
+                                      m_discoveryGameId,
+                                      m_discoveryGameName,
+                                      m_discoveryGameInProgress,
+                                      activeHost);
 }
 
 void NetworkManager::applyOnlineRooms(const QJsonArray &rooms)
@@ -1045,24 +719,4 @@ void NetworkManager::applyOnlineRooms(const QJsonArray &rooms)
 
     m_onlineRooms = mappedRooms;
     emit onlineRoomsChanged();
-}
-
-void NetworkManager::rebuildDiscoveredRooms()
-{
-    std::sort(m_discoveredRoomEntries.begin(), m_discoveredRoomEntries.end(),
-              [](const DiscoveredRoom &lhs, const DiscoveredRoom &rhs) {
-        if (lhs.isFull != rhs.isFull)
-            return !lhs.isFull;
-        if (lhs.inGame != rhs.inGame)
-            return !lhs.inGame;
-        return lhs.lastSeenMs > rhs.lastSeenMs;
-    });
-
-    QVariantList rooms;
-    rooms.reserve(m_discoveredRoomEntries.size());
-    for (const DiscoveredRoom &room : m_discoveredRoomEntries)
-        rooms.append(discoveredRoomToVariant(room));
-
-    m_discoveredRooms = rooms;
-    emit discoveredRoomsChanged();
 }

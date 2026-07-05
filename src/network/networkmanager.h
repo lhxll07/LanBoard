@@ -3,8 +3,6 @@
 #include <QObject>
 #include <QTcpServer>
 #include <QTcpSocket>
-#include <QUdpSocket>
-#include <QTimer>
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -12,9 +10,7 @@
 #include <QByteArray>
 #include <QVariantList>
 
-#ifdef Q_OS_ANDROID
-#include <QJniObject>
-#endif
+class RoomDiscoveryService;
 
 class NetworkManager : public QObject
 {
@@ -67,7 +63,7 @@ public:
     QString connectedIp() const { return m_connectedIp; }
     quint16 connectedPort() const { return m_connectedPort; }
     QString localIp() const;
-    QVariantList discoveredRooms() const { return m_discoveredRooms; }
+    QVariantList discoveredRooms() const;
     QVariantList onlineRooms() const { return m_onlineRooms; }
 
     void setDiscoveryHostName(const QString &hostName);
@@ -122,32 +118,8 @@ private slots:
     void onOnlineLobbyReadyRead();
     void onOnlineLobbyDisconnected();
     void onOnlineLobbyError(QAbstractSocket::SocketError error);
-    void onDiscoveryReadyRead();
-    void pruneDiscoveredRooms();
-    void broadcastDiscoveryQuery();
-    void broadcastHostedRoomAnnouncement();
 
 private:
-    struct DiscoveredRoom
-    {
-        QString roomUid;
-        QString hostName;
-        QString hostIp;
-        quint16 port = 0;
-        int playerCount = 0;
-        int roomCapacity = 2;
-        int maxPlayers = 2;
-        QString gameId;
-        QString gameName;
-        bool inGame = false;
-        bool isFull = false;
-        qint64 lastSeenMs = 0;
-    };
-
-    static constexpr quint16 DiscoveryPort = 44568;
-    static constexpr int DiscoveryIntervalMs = 2500;
-    static constexpr int DiscoveryStaleMs = 7000;
-
     void sendJson(QTcpSocket *socket, const QJsonObject &obj);
     void broadcastJson(const QJsonObject &obj, QTcpSocket *exclude = nullptr);
     void processMessage(QTcpSocket *sender, const QJsonObject &msg);
@@ -155,26 +127,14 @@ private:
                              const QString &playerName, const QString &gameId,
                              const QString &action, const QString &roomId = QString(),
                              const QString &roomName = QString());
-    bool ensureDiscoverySocket();
-    void sendRoomAnnouncement(const QHostAddress &address, quint16 port);
-    void broadcastRoomAnnouncement();
-    void upsertDiscoveredRoom(const QJsonObject &msg, const QHostAddress &senderAddress);
-    QVariantMap discoveredRoomToVariant(const DiscoveredRoom &room) const;
-    void rebuildDiscoveredRooms();
     void applyOnlineRooms(const QJsonArray &rooms);
-#ifdef Q_OS_ANDROID
-    void acquireMulticastLock();
-    void releaseMulticastLock();
-#endif
+    void updateDiscoveryIdentity();
 
     QTcpServer *m_server = nullptr;
     QTcpSocket *m_socket = nullptr;       // client's connection to server
     QTcpSocket *m_onlineLobbySocket = nullptr;
     QList<QTcpSocket *> m_clients;        // server's connected clients
-    QUdpSocket *m_discoverySocket = nullptr;
-    QTimer m_discoveryTimer;
-    QTimer m_discoveryPruneTimer;
-    QTimer m_hostAnnouncementTimer;
+    RoomDiscoveryService *m_roomDiscovery = nullptr;
     bool m_isHost = false;
     bool m_discoveryGameInProgress = false;
     QString m_discoveryGameId = QStringLiteral("gomoku");
@@ -185,13 +145,7 @@ private:
     QString m_connectedIp;
     quint16 m_connectedPort = 0;
     QString m_discoveryHostName;
-    QString m_discoveryRoomUid;
-    QList<DiscoveredRoom> m_discoveredRoomEntries;
-    QVariantList m_discoveredRooms;
     QVariantList m_onlineRooms;
-#ifdef Q_OS_ANDROID
-    QJniObject m_multicastLock;
-#endif
 
     // Track which player ID corresponds to which socket
     int m_nextPlayerId = 1;

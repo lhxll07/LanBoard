@@ -37,6 +37,7 @@ if (LANBOARD_BUILD_APP)
         src/network/linejsonprotocol.cpp
         src/network/networkaddressutils.cpp
         src/network/networkmanager.cpp
+        src/network/roomdiscoveryservice.cpp
         src/game/gamecontroller.cpp
         src/game/doudizhucontroller.cpp
         src/game/flightchesscontroller.cpp
@@ -68,6 +69,7 @@ if (LANBOARD_BUILD_APP)
             src/network/linejsonprotocol.h
             src/network/networkaddressutils.h
             src/network/networkmanager.h
+            src/network/roomdiscoveryservice.h
             src/game/gamecontroller.h
             src/game/doudizhucontroller.h
             src/game/flightchesscontroller.h
