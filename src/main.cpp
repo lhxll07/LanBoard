@@ -59,17 +59,21 @@ void messageHandler(QtMsgType type, const QMessageLogContext &, const QString &m
 int main(int argc, char *argv[])
 {
     QSurfaceFormat format;
-    format.setRenderableType(QSurfaceFormat::OpenGL);
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
-    format.setSamples(
 #if defined(Q_OS_ANDROID)
-        4
+    // Android needs an ES-compatible surface format here. Forcing desktop OpenGL
+    // causes the scene graph to abort during QRhi/OpenGL context creation.
+    format.setRenderableType(QSurfaceFormat::OpenGLES);
+    format.setSamples(2);
 #else
-        8
+    format.setRenderableType(QSurfaceFormat::OpenGL);
+    format.setSamples(8);
 #endif
-    );
     QSurfaceFormat::setDefaultFormat(format);
+
+#if !defined(Q_OS_ANDROID)
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+#endif
 
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("LanBoard"));

@@ -18,6 +18,14 @@ Item {
     readonly property real backdropWidth: glassShell.width
     readonly property real backdropHeight: glassShell.height
 
+    MouseArea {
+        anchors.fill: parent
+        z: 1
+        preventStealing: true
+        onPressed: function(mouse) { mouse.accepted = true }
+        onClicked: {}
+    }
+
     Rectangle {
         anchors.horizontalCenter: glassShell.horizontalCenter
         anchors.verticalCenter: glassShell.verticalCenter
@@ -188,7 +196,7 @@ Item {
         id: navRow
         anchors.fill: glassShell
         spacing: 0
-        z: 2
+        z: 3
 
         Repeater {
             model: [
@@ -232,8 +240,10 @@ Item {
                     }
                 }
 
-                TapHandler {
-                    onTapped: root.tabSelected(index)
+                MouseArea {
+                    anchors.fill: parent
+                    preventStealing: true
+                    onClicked: root.tabSelected(index)
                 }
             }
         }
