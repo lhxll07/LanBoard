@@ -73,6 +73,11 @@ ApplicationWindow {
         stackView.push(Qt.resolvedUrl(route.url))
     }
 
+    function returnToShell() {
+        while (stackView.depth > 1)
+            stackView.pop()
+    }
+
     Connections {
         target: AppCtrl
         function onNavigationRequested(page) {
@@ -234,11 +239,20 @@ ApplicationWindow {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 20
+            visible: window.stackView.depth === 1
+            enabled: visible
             backdropSource: navBackdropSource
             currentIndex: window.currentTab
             onTabSelected: function(index) {
-                if (window.currentTab === index || window.pendingTab >= 0)
-                    return;
+                if (window.pendingTab >= 0)
+                    return
+
+                if (window.stackView.depth > 1)
+                    window.returnToShell()
+
+                if (window.currentTab === index)
+                    return
+
                 window.pendingTab = index;
                 fadeTransition.restart();
             }
