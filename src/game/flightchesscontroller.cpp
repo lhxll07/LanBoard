@@ -4,7 +4,7 @@
 #include <QVariantMap>
 
 FlightChessController::FlightChessController(QObject *parent)
-    : QObject(parent)
+    : GameControllerBase(parent)
 {
     reset();
 }

@@ -3,14 +3,14 @@
 #include <QByteArray>
 #include <QElapsedTimer>
 #include <QHash>
-#include <QObject>
 #include <QTimer>
 #include <QVariantList>
 #include <QVector2D>
 
+#include "src/common/gamecontrollerbase.h"
 #include "survivorworld.h"
 
-class SurvivorController : public QObject
+class SurvivorController : public GameControllerBase
 {
     Q_OBJECT
     Q_PROPERTY(bool running READ isRunning NOTIFY runningChanged)
@@ -61,7 +61,8 @@ public:
     explicit SurvivorController(QObject *parent = nullptr);
 
     bool isRunning() const { return m_matchState.running; }
-    bool isGameOver() const { return m_matchState.gameOver; }
+    bool isGameOver() const override { return m_matchState.gameOver; }
+    int winner() const override { return m_matchWinner; }
     bool isNetworkSession() const { return m_networkSession; }
     int hp() const { const PlayerState *player = localPlayerState(); return player ? player->hp : 0; }
     int maxHp() const { const PlayerState *player = localPlayerState(); return player ? player->maxHp : 0; }
@@ -97,6 +98,10 @@ public:
             && !m_matchState.chestPending;
     }
     const RenderSnapshot &renderSnapshot() const { return m_renderSnapshot; }
+
+    // ---- GameControllerBase ----
+    void startNewGame() override;
+    void reset() override;
 
     Q_INVOKABLE void startRun(bool networkSession = false);
     Q_INVOKABLE void stopRun();
@@ -237,6 +242,7 @@ private:
     int m_networkBroadcastAccumulatorMs = 0;
     int m_networkHudBroadcastAccumulatorMs = 0;
     int m_localPlayerId = 0;
+    int m_matchWinner = 0;
     quint64 m_networkStateSequence = 0;
     QVariantList m_sessionActivePlayers;
     RenderSnapshot m_renderSnapshot;

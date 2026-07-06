@@ -56,6 +56,119 @@ const BossSpawnTemplate kBossSpawnSchedule[] = {
 
 }  // namespace
 
+// ---- 武器升级数据表 ----
+// 每武器 8 级，index 0 = level 1。字段含义：
+// damage/cooldownMs/count/pierce/durationMs = level 1 为绝对值，>1 为增量
+// radiusMult/speedMult/angularSpeedDeg = 绝对值
+namespace {
+
+using LanBoard::Survivor::WeaponLevelInfo;
+using LanBoard::Survivor::WeaponCount;
+
+constexpr int kMaxWeaponLevel = 8;
+
+const WeaponLevelInfo kKnifeLevels[8] = {
+    {0}, // level 1 description unused; the data struct stat fields are placeholder
+    {0, 0, 0, 0, 0, 0, 0, 0, "飞刀数量 +1。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "飞刀伤害 +5，数量 +1。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "飞刀数量 +1，冷却缩短。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "飞刀穿透 +1。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "飞刀数量 +1，冷却缩短。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "飞刀伤害 +5，数量 +1。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "飞刀穿透 +1，冷却缩短。"},
+};
+
+const WeaponLevelInfo kOrbitLevels[8] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, "解锁秘典，按持续时间召唤 1 枚环刃。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "环刃数量 +1。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "环刃半径扩大，转速提升。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "环刃持续时间延长。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "环刃伤害提升，数量 +1。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "环刃半径扩大，转速提升。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "环刃持续时间再次延长。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "环刃伤害提升，数量 +1。"},
+};
+
+const WeaponLevelInfo kFireWandLevels[8] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, "解锁火焰魔杖，随机索敌发射高伤火弹。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "火焰魔杖伤害 +12。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "火焰魔杖弹速提升，冷却缩短。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "火焰魔杖伤害 +12。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "火焰魔杖弹速再次提升，冷却继续缩短。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "火焰魔杖伤害 +12。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "火焰魔杖弹速提升到更高档，冷却再次缩短。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "火焰魔杖伤害 +12。"},
+};
+
+const WeaponLevelInfo kGarlicLevels[8] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, "解锁大蒜，持续灼伤并轻微击退近身敌人。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "大蒜范围扩大，伤害 +1。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "大蒜伤害 +1，触发更快。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "大蒜范围继续扩大。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "大蒜伤害 +2。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "大蒜范围扩大，触发更快。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "大蒜伤害 +1。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "大蒜范围再次扩大。"},
+};
+
+const WeaponLevelInfo kCrossLevels[8] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, "解锁十字架，命中后回旋返程。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "十字架伤害提升。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "十字架体积扩大，飞行速度提升。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "十字架数量 +1。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "十字架伤害再次提升。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "十字架体积扩大，飞行速度提升。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "十字架数量 +1。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "十字架伤害再次提升。"},
+};
+
+const WeaponLevelInfo kSantaWaterLevels[8] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, "解锁圣水，在附近生成持续伤害水池。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "圣水数量 +1，水池半径小幅扩大。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "圣水持续时间延长，伤害提升。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "圣水数量 +1，水池半径扩大。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "圣水持续时间延长，伤害提升。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "圣水数量 +1，水池半径扩大。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "圣水持续时间延长，伤害提升。"},
+    {0, 0, 0, 0, 0, 0, 0, 0, "圣水半径小幅扩大，伤害提升。"},
+};
+
+const WeaponLevelInfo *kWeaponTables[WeaponCount] = {
+    kKnifeLevels, kOrbitLevels, kFireWandLevels,
+    kGarlicLevels, kCrossLevels, kSantaWaterLevels
+};
+
+}  // namespace
+
+namespace LanBoard::Survivor {
+
+const WeaponLevelInfo *weaponLevelTable(WeaponType type)
+{
+    if (type < 0 || type >= WeaponCount)
+        return nullptr;
+    return kWeaponTables[type];
+}
+
+int weaponIndexForId(const QString &upgradeId)
+{
+    for (int i = 0; i < WeaponCount; ++i) {
+        if (upgradeId == QString::fromLatin1(weaponUpgradePool()[i].id))
+            return i;
+    }
+    return -1;
+}
+
+int passiveIndexForId(const QString &upgradeId)
+{
+    for (int i = 0; i < PassiveCount; ++i) {
+        if (upgradeId == QString::fromLatin1(passiveUpgradePool()[i].id))
+            return i;
+    }
+    return -1;
+}
+
+}  // namespace LanBoard::Survivor
+
 namespace LanBoard::Survivor {
 
 QVector2D normalizedInput(const QVector2D &value)

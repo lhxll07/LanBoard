@@ -48,6 +48,7 @@ public:
     int firstGuestPlayerId() const;
     int activeGuestCount() const;
     bool isPlayerActive(int playerId) const;
+    LanBoard::RoomSnapshot snapshot() const;
 
 signals:
     void playerListChanged();
@@ -58,7 +59,6 @@ signals:
 
 private:
     int indexOfPlayerId(int playerId) const;
-    LanBoard::RoomSnapshot snapshot() const;
     void emitStateChanged();
 
     QVector<LanBoard::RoomPlayerState> m_players;

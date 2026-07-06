@@ -3,6 +3,28 @@ import QtQuick.Controls
 import LanBoard
 
 Page {
+    id: root
+
+    function replayEntryAnim() {
+        gameCard.opacity = 0
+        gameCardOffset.y = 20
+        douDiZhuCard.opacity = 0
+        douDiZhuCardOffset.y = 20
+        flightChessCard.opacity = 0
+        flightChessCardOffset.y = 20
+        survivorCard.opacity = 0
+        survivorCardOffset.y = 20
+        entryAnim.stop()
+        entryAnim.idx = 0
+        entryAnim.start()
+    }
+
+    Component.onCompleted: replayEntryAnim()
+    onVisibleChanged: {
+        if (visible)
+            replayEntryAnim()
+    }
+
     background: Rectangle {
         color: "transparent"
     }
@@ -12,7 +34,7 @@ Page {
         contentWidth: width
         contentHeight: contentColumn.height + AppTheme.pageBottomInset
         clip: true
-        boundsBehavior: Flickable.StopAtBounds
+        boundsBehavior: Flickable.DragAndOvershootBounds
 
         Column {
             id: contentColumn
@@ -20,21 +42,29 @@ Page {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: AppTheme.pageTopInset
-            spacing: 18
+            spacing: 20
 
             PageHeader {
+                eyebrowText: "本地入口"
                 titleText: "桌域"
-                subtitleText: "首页入口只启动本地游戏，联机开房和加入统一放在联机页。"
+                subtitleText: "先在本机快速开始，联机开房、加入房间和在线大厅统一放在联机页。"
+            }
+
+            Text {
+                width: parent.width
+                text: "本地桌游"
+                color: AppTheme.textMuted
+                font.pixelSize: AppTheme.fontSizeCaption
+                font.weight: Font.Medium
             }
 
             GameCard {
                 id: gameCard
-                width: parent.width
-                height: 182
+                width: parent.width; height: 168
                 gameType: "gomoku"
                 titleText: "五子棋"
-                subtitleText: "本地双人轮流落子，先在横、竖或斜线连成五枚的一方获胜。"
-                tagText: "本地游戏"
+                subtitleText: "双人轮流落子，五子连珠获胜。"
+                tagText: "本地双人"
                 opacity: 0
                 transform: Translate { id: gameCardOffset; y: 20 }
                 onClicked: AppCtrl.startLocalGame("gomoku")
@@ -42,13 +72,11 @@ Page {
 
             GameCard {
                 id: douDiZhuCard
-                width: parent.width
-                height: 182
+                width: parent.width; height: 168
                 gameType: "doudizhu"
-                dark: true
                 titleText: "斗地主"
-                subtitleText: "本地三人局，玩家默认地主。支持单张、对子、顺子、连对、三带、飞机、炸弹和王炸。"
-                tagText: "本地游戏"
+                subtitleText: "三人局，支持单张、对子、顺子、三带、飞机、炸弹。"
+                tagText: "本地三人"
                 opacity: 0
                 transform: Translate { id: douDiZhuCardOffset; y: 20 }
                 onClicked: AppCtrl.startLocalGame("doudizhu")
@@ -56,13 +84,11 @@ Page {
 
             GameCard {
                 id: flightChessCard
-                width: parent.width
-                height: 182
+                width: parent.width; height: 168
                 gameType: "flightchess"
-                dark: true
                 titleText: "飞行棋"
-                subtitleText: "同一设备双人轮流掷骰、起飞、跳格和撞回对手飞机，率先让四架飞机全部到达终点的一方获胜。"
-                tagText: "本地游戏"
+                subtitleText: "双人轮流掷骰起飞，四架飞机全部到达终点获胜。"
+                tagText: "本地双人"
                 opacity: 0
                 transform: Translate { id: flightChessCardOffset; y: 20 }
                 onClicked: AppCtrl.startLocalGame("flightchess")
@@ -70,58 +96,40 @@ Page {
 
             GameCard {
                 id: survivorCard
-                width: parent.width
-                height: 182
+                width: parent.width; height: 168
                 gameType: "survivor"
-                dark: true
-                titleText: "Survivor"
-                subtitleText: "MVP 阶段先复用房间页作为入口，支持单机原型体验，并预留局域网和在线房间模式。"
+                titleText: "生存原型"
+                subtitleText: "单机原型体验，预留局域网和在线房间模式。"
                 tagText: "MVP 原型"
                 opacity: 0
                 transform: Translate { id: survivorCardOffset; y: 20 }
                 onClicked: AppCtrl.openLobbyForGame("survivor")
-            }
-
-            SettingCard {
-                id: configCard
-                width: parent.width
-                height: 92
-                titleText: "当前配置"
-                valueText: "昵称: " + AppCtrl.nickname + "  ·  默认端口: " + AppCtrl.defaultPort
-                actionText: ""
-                opacity: 0
-                transform: Translate { id: configCardOffset; y: 20 }
             }
         }
     }
 
     SequentialAnimation {
         id: entryAnim
-        running: true
+        property var entries: [
+            { item: gameCard, offset: gameCardOffset },
+            { item: douDiZhuCard, offset: douDiZhuCardOffset },
+            { item: flightChessCard, offset: flightChessCardOffset },
+            { item: survivorCard, offset: survivorCardOffset }
+        ]
+        property int idx: 0
+        running: false
 
         ParallelAnimation {
-            NumberAnimation { target: gameCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: gameCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: entryAnim.entries[entryAnim.idx].item; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
+            NumberAnimation { target: entryAnim.entries[entryAnim.idx].offset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
         PauseAnimation { duration: 80 }
-        ParallelAnimation {
-            NumberAnimation { target: douDiZhuCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: douDiZhuCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 80 }
-        ParallelAnimation {
-            NumberAnimation { target: flightChessCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: flightChessCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 80 }
-        ParallelAnimation {
-            NumberAnimation { target: survivorCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: survivorCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 80 }
-        ParallelAnimation {
-            NumberAnimation { target: configCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: configCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
+        ScriptAction {
+            script: {
+                entryAnim.idx++
+                if (entryAnim.idx < entryAnim.entries.length)
+                    entryAnim.restart()
+            }
         }
     }
 }

@@ -74,19 +74,6 @@ struct RoomPlayerState {
         return obj;
     }
 
-    static RoomPlayerState fromVariantMap(const QVariantMap &map)
-    {
-        RoomPlayerState player;
-        player.playerId = map.value(QStringLiteral("playerId"), -1).toInt();
-        player.name = map.value(QStringLiteral("name")).toString();
-        player.isHost = map.value(QStringLiteral("isHost")).toBool();
-        player.isReady = map.value(QStringLiteral("isReady")).toBool();
-        const QString seatType = map.value(QStringLiteral("seatType")).toString();
-        player.seatKind = normalizedSeatKind(
-            seatType.isEmpty() ? QStringLiteral("active") : seatType);
-        return player;
-    }
-
     static RoomPlayerState fromJsonObject(const QJsonObject &obj)
     {
         RoomPlayerState player;
@@ -140,6 +127,26 @@ struct RoomSnapshot {
         return -1;
     }
 
+    bool localPlayerIsHost() const
+    {
+        for (const RoomPlayerState &player : players) {
+            if (player.playerId == localPlayerId)
+                return player.isHost;
+        }
+        return false;
+    }
+
+    QVector<RoomPlayerState> activePlayers() const
+    {
+        QVector<RoomPlayerState> active;
+        active.reserve(players.size());
+        for (const RoomPlayerState &player : players) {
+            if (player.isActive())
+                active.append(player);
+        }
+        return active;
+    }
+
     bool allActivePlayersReady() const
     {
         for (const RoomPlayerState &player : players) {
@@ -153,25 +160,14 @@ struct RoomSnapshot {
 
     bool canStartForLocalHost() const
     {
-        bool localPlayerIsHost = false;
-        for (const RoomPlayerState &player : players) {
-            if (player.playerId == localPlayerId) {
-                localPlayerIsHost = player.isHost;
-                break;
-            }
-        }
-        if (!localPlayerIsHost)
+        if (!localPlayerIsHost())
             return false;
 
-        const int activeCount = activePlayerCount();
-        if (normalizeGameId(gameId) == QStringLiteral("survivor")) {
-            if (activeCount < 1)
-                return false;
-        } else if (activeCount != maxPlayers) {
+        if (!hasEnoughActivePlayersToStart(gameId, activePlayerCount())) {
             return false;
         }
 
-        return allActivePlayersReady();
+        return !requiresReadyForStartForGame(gameId) || allActivePlayersReady();
     }
 
     QVariantList playerVariantList() const
@@ -179,6 +175,16 @@ struct RoomSnapshot {
         QVariantList list;
         list.reserve(players.size());
         for (const RoomPlayerState &player : players)
+            list.append(player.toVariantMap());
+        return list;
+    }
+
+    QVariantList activePlayerVariantList() const
+    {
+        QVariantList list;
+        const QVector<RoomPlayerState> active = activePlayers();
+        list.reserve(active.size());
+        for (const RoomPlayerState &player : active)
             list.append(player.toVariantMap());
         return list;
     }

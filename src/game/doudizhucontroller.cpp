@@ -25,7 +25,7 @@ QVector<int> sortedRanksFromCounts(const QMap<int, int> &counts)
 }
 
 DouDiZhuController::DouDiZhuController(QObject *parent)
-    : QObject(parent)
+    : GameControllerBase(parent)
 {
     startNewGame();
 }
@@ -891,12 +891,34 @@ void DouDiZhuController::passInternal(int player)
     m_currentPlayer = (player + 1) % 3;
 }
 
+void DouDiZhuController::reset()
+{
+    m_winner = -1;
+    m_gameOver = false;
+    m_currentPlayer = 0;
+    m_localPlayer = 0;
+    m_landlord = 0;
+    m_lastPlayer = -1;
+    m_passCount = 0;
+    m_aiTurnPending = false;
+    m_autoAi = true;
+    m_lastPlay = HandAnalysis();
+    m_statusText.clear();
+    for (auto &hand : m_hands)
+        hand.clear();
+    m_landlordCards.clear();
+    updateCardCounts();
+    emit stateChanged();
+}
+
 void DouDiZhuController::finishGame(int winner)
 {
     m_winner = winner;
     m_gameOver = true;
     m_currentPlayer = winner;
     m_statusText = resultText();
+    emit stateChanged();
+    emit gameOverChanged();
 }
 
 void DouDiZhuController::updateCardCounts()

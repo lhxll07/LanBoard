@@ -84,15 +84,27 @@ private:
     void broadcastRoomState(RoomState *room);
     void broadcastDouDiZhuStates(RoomState *room);
     void clearReadyStates(RoomState *room);
+    void startRoomGame(RoomState *room, const QList<PlayerSession *> &activePlayers);
+    void handlePlayerDisconnectInRoom(RoomState *room,
+                                      const PlayerSession &session,
+                                      int disconnectedPiece);
     void resetGame(RoomState *room);
     bool isGameFinished(const RoomState *room) const;
-    int firstPlayerForRoom(const RoomState *room) const;
-    QString missingPlayersError(const RoomState *room) const;
-    int initialPieceForGame(const QString &gameId, bool isHost) const;
     void concludeRoomGame(RoomState *room, int winner, bool broadcastRoomStateAfterward = true);
     void resetFinishedRoom(RoomState *room);
     void removeRoomIfEmpty(const QString &roomId);
     QJsonArray roomListPayload() const;
+    bool resolveSessionRoom(ENetPeer *peer, PlayerSession *&session, RoomState *&room);
+    bool ensureControllerKind(ENetPeer *peer,
+                              const RoomState *room,
+                              LanBoard::GameControllerKind expectedKind);
+    bool ensureActiveSeat(ENetPeer *peer,
+                          const PlayerSession *session,
+                          const char *errorKey = "spectator_cannot_move");
+    bool ensureGameStarted(ENetPeer *peer, const RoomState *room);
+    bool ensureSurvivorInteractionOwner(ENetPeer *peer,
+                                        const RoomState *room,
+                                        int playerId);
 
     PlayerSession *sessionForPeer(ENetPeer *peer);
     const PlayerSession *sessionForPeer(ENetPeer *peer) const;
@@ -109,12 +121,7 @@ private:
     QString createRoomId() const;
     int otherPiece(int piece) const;
     int roomCapacity() const;
-    int activeGuestLimit(const QString &gameId) const;
     void normalizeSeats(RoomState *room, bool fillMissingActiveSeats = true);
-    int maxPlayers(const QString &gameId) const;
-    bool isDouDiZhuRoom(const QString &gameId) const;
-    bool isFlightChessRoom(const QString &gameId) const;
-    bool isSurvivorRoom(const QString &gameId) const;
 
     ENetHost *m_host = nullptr;
     QTimer m_serviceTimer;

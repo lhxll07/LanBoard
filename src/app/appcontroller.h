@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QJsonArray>
 #include <QVariantList>
+
 #include "src/common/types.h"
 #include "src/game/doudizhucontroller.h"
 #include "src/game/flightchesscontroller.h"
@@ -74,6 +75,7 @@ public:
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
     Q_INVOKABLE bool updateOnlineServerEndpoint(const QString &host, int port);
+    Q_INVOKABLE bool copyText(const QString &text);
 
 signals:
     void modeChanged();
@@ -100,23 +102,27 @@ private slots:
 private:
     void loadSettings();
     void saveSettings() const;
+    LanBoard::RoomSnapshot currentRoomSnapshot() const;
     QJsonArray currentRoomState() const;
     QString currentGameId() const;
     int currentGamePage() const;
+    GameControllerBase *activeController() const;
     void setLobbyGameId(const QString &gameId);
     void setModeState(bool hostMode, bool clientMode, int playerId);
+    void syncActiveGuestPlayerId();
+    void applyReceivedGameOver(int winner);
+    void handleActiveGuestDisconnectInCurrentGame();
     void resetGameControllers();
     void resetRoomSession(const QString &gameId, int localPlayerId = -1);
     void startCurrentGameSession();
     void finishCurrentGameSession(int winner, bool resetOfflineRoom);
     void startCurrentGameRuntime(bool waitForRemoteState = false);
-    bool isDouDiZhuRoom() const;
-    bool isFlightChessRoom() const;
+    LanBoard::GameControllerKind currentControllerKind() const;
+    bool isCurrentGame(LanBoard::GameControllerKind kind) const;
     void navigateToCurrentGame();
     void configureRoomGame(const QString &gameId);
     void normalizeRoomSeatsForCurrentGame();
     int roomCapacity() const;
-    int activeGuestLimit() const;
 
     RoomManager *m_roomManager = nullptr;
     GameController *m_gameController = nullptr;
@@ -134,7 +140,7 @@ private:
     quint16 m_defaultPort = 44567;
     QString m_recentJoinIp;
     quint16 m_recentJoinPort = 44567;
-    QString m_onlineServerName = QStringLiteral("ECS 演示服务器");
+    QString m_onlineServerName = QStringLiteral("ECS \u6f14\u793a\u670d\u52a1\u5668");
     QString m_onlineServerHost = QStringLiteral("47.105.54.227");
     quint16 m_onlineServerPort = 44567;
     QString m_lobbyGameId = QStringLiteral("gomoku");

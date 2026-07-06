@@ -33,7 +33,9 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(enet)
 
 qt_standard_project_setup(REQUIRES 6.7)
-qt_policy(SET QTP0004 NEW)
+if (COMMAND qt_policy)
+    qt_policy(SET QTP0004 NEW)
+endif()
 
 if (LANBOARD_BUILD_APP)
     set_source_files_properties(qml/components/AppTheme.qml
@@ -42,6 +44,7 @@ if (LANBOARD_BUILD_APP)
 
     qt_add_executable(appLanBoard
         src/main.cpp
+        src/common/gamecontrollerbase.cpp
         src/app/appcontroller.cpp
         src/lobby/roommanager.cpp
         src/network/networkmanager.cpp
@@ -79,6 +82,7 @@ if (LANBOARD_BUILD_APP)
         SOURCES
             src/app/appcontroller.h
             src/common/types.h
+            src/common/gamecontrollerbase.h
             src/common/roomtypes.h
             src/network/enetutils.h
             src/game/survivornetcodec.h
@@ -121,6 +125,8 @@ if (LANBOARD_BUILD_SERVER)
         src/server/main.cpp
         src/server/serverapp.cpp
         src/server/serverapp.h
+        src/common/gamecontrollerbase.cpp
+        src/common/gamecontrollerbase.h
         src/common/roomtypes.h
         src/network/enetutils.cpp
         src/network/enetutils.h
@@ -149,6 +155,7 @@ if (LANBOARD_BUILD_SERVER)
                 enet
     )
     target_include_directories(lanboardServer PRIVATE ${enet_SOURCE_DIR}/include)
+    target_include_directories(lanboardServer PRIVATE ${CMAKE_SOURCE_DIR})
 endif()
 
 include(GNUInstallDirs)
