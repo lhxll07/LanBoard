@@ -4,6 +4,8 @@
 #include <QJsonDocument>
 #include <QSettings>
 
+#include "src/common/roomtypes.h"
+#include "src/network/protocolids.h"
 #include "src/game/doudizhucontroller.h"
 #include "src/game/flightchesscontroller.h"
 #include "src/game/gamecontroller.h"
@@ -44,6 +46,19 @@ AppController::AppController(QObject *parent)
         finishCurrentGameSession(m_flightChessController->winner(), false);
     });
 
+    connect(m_survivorController, &SurvivorController::gameOverChanged, this, [this]() {
+        if (!m_survivorController->isGameOver() || currentGameId() != QStringLiteral("survivor"))
+            return;
+
+        if (!m_isDedicatedServerRoom
+            && m_roomManager->isHost()
+            && (m_networkManager->isHost() || m_networkManager->isConnected())) {
+            m_networkManager->sendGameOverResult(0);
+        }
+        if (m_networkManager->isHost() || m_networkManager->isConnected())
+            finishCurrentGameSession(0, false);
+    });
+
     // Network signals
     connect(m_networkManager, &NetworkManager::joinRequested,
             this, &AppController::onJoinRequested);
@@ -57,6 +72,28 @@ AppController::AppController(QObject *parent)
             this, &AppController::onRemoteFlightMove);
     connect(m_networkManager, &NetworkManager::remoteSurrender,
             this, &AppController::onRemoteSurrender);
+    connect(m_networkManager, &NetworkManager::remoteSurvivorInput,
+            this, [this](int playerId, qreal horizontal, qreal vertical) {
+        if (currentGameId() != QStringLiteral("survivor") || !m_networkManager->isHost())
+            return;
+        m_survivorController->setRemoteMoveInput(playerId, horizontal, vertical);
+    });
+    connect(m_networkManager, &NetworkManager::remoteSurvivorChooseLevelUp,
+            this, [this](int playerId, const QString &upgradeId) {
+        if (currentGameId() != QStringLiteral("survivor") || !m_networkManager->isHost())
+            return;
+        if (m_survivorController->interactionPlayerId() != playerId)
+            return;
+        m_survivorController->chooseLevelUp(upgradeId);
+    });
+    connect(m_networkManager, &NetworkManager::remoteSurvivorCloseChest,
+            this, [this](int playerId) {
+        if (currentGameId() != QStringLiteral("survivor") || !m_networkManager->isHost())
+            return;
+        if (m_survivorController->interactionPlayerId() != playerId)
+            return;
+        m_survivorController->closeChestRewards();
+    });
     connect(m_networkManager, &NetworkManager::remoteSeatChanged,
             this, &AppController::onRemoteSeatChanged);
     connect(m_networkManager, &NetworkManager::remoteStartGame,
@@ -69,13 +106,70 @@ AppController::AppController(QObject *parent)
             this, [this](const QJsonObject &state) {
         m_douDiZhuController->applyNetworkState(state);
     });
+    connect(m_networkManager, &NetworkManager::survivorFastPacketReceived,
+            this, [this](const QByteArray &payload) {
+        if (currentGameId() != QStringLiteral("survivor"))
+            return;
+        m_survivorController->applyFastNetworkPacket(payload);
+    });
+    connect(m_networkManager, &NetworkManager::survivorHudPacketReceived,
+            this, [this](const QByteArray &payload) {
+        if (currentGameId() != QStringLiteral("survivor"))
+            return;
+        m_survivorController->applyHudNetworkPacket(payload);
+    });
     connect(m_networkManager, &NetworkManager::clientDisconnected,
             this, &AppController::onClientDisconnected);
+    connect(m_survivorController, &SurvivorController::localInputChanged,
+            this, [this](qreal horizontal, qreal vertical) {
+        if (currentGameId() != QStringLiteral("survivor"))
+            return;
+        if (!m_networkManager->isConnected() || m_networkManager->isHost())
+            return;
+        m_networkManager->sendSurvivorInput(horizontal, vertical);
+    });
+    connect(m_survivorController, &SurvivorController::levelUpChoiceRequested,
+            this, [this](const QString &upgradeId) {
+        if (currentGameId() != QStringLiteral("survivor") || !m_networkManager->isConnected())
+            return;
+        m_networkManager->sendSurvivorChooseLevelUp(upgradeId);
+    });
+    connect(m_survivorController, &SurvivorController::chestRewardsCloseRequested,
+            this, [this]() {
+        if (currentGameId() != QStringLiteral("survivor") || !m_networkManager->isConnected())
+            return;
+        m_networkManager->sendSurvivorCloseChest();
+    });
+    connect(m_survivorController, &SurvivorController::networkSyncRequested,
+            this, [this](bool includeHudDetails) {
+        if (currentGameId() != QStringLiteral("survivor") || !m_networkManager->isHost())
+            return;
+
+        const auto players = m_roomManager->playerList();
+        for (const QVariant &playerValue : players) {
+            const QVariantMap player = playerValue.toMap();
+            const int playerId = player.value(QStringLiteral("playerId"), -1).toInt();
+            const QString seatType = player.value(QStringLiteral("seatType"),
+                                                  QStringLiteral("active")).toString();
+            if (playerId < 0 || playerId == m_networkPlayerId || seatType != QStringLiteral("active"))
+                continue;
+
+            m_networkManager->sendSurvivorFastPacketToPlayer(
+                playerId,
+                m_survivorController->buildFastNetworkPacket(playerId));
+            if (includeHudDetails) {
+                m_networkManager->sendSurvivorHudPacketToPlayer(
+                    playerId,
+                    m_survivorController->buildHudNetworkPacket(playerId));
+            }
+        }
+    });
     connect(m_networkManager, &NetworkManager::connectionChanged,
             this, [this]() {
         if (!m_isClientMode || m_networkManager->isConnected())
             return;
 
+        m_isDedicatedServerRoom = false;
         m_roomManager->reset();
         m_roomManager->setLocalPlayerId(-1);
         setModeState(false, false, 0);
@@ -85,6 +179,10 @@ AppController::AppController(QObject *parent)
     connect(m_networkManager, &NetworkManager::gameOverReceived,
             this, [this](int winner) {
         // Client received game_over from host
+        if (currentGameId() == QStringLiteral("survivor")) {
+            finishCurrentGameSession(winner, false);
+            return;
+        }
         if (isFlightChessRoom()) {
             m_flightChessController->setGameOver(winner);
             return;
@@ -108,6 +206,8 @@ AppController::AppController(QObject *parent)
         // Client received room state from host
         if (state.contains(QStringLiteral("gameId")))
             m_roomManager->setGameId(state.value(QStringLiteral("gameId")).toString());
+        m_isDedicatedServerRoom = state.value(QStringLiteral("mode")).toString()
+            == QStringLiteral("dedicated_server");
 
         if (state.contains(QStringLiteral("yourPlayerId"))) {
             m_networkPlayerId = state.value(QStringLiteral("yourPlayerId")).toInt(-1);
@@ -119,13 +219,12 @@ AppController::AppController(QObject *parent)
         QJsonArray players = state.value(QStringLiteral("players")).toArray();
         m_roomManager->reset();
         for (const auto &p : players) {
-            QJsonObject obj = p.toObject();
-            m_roomManager->addPlayer(
-                obj.value(QStringLiteral("name")).toString(),
-                obj.value(QStringLiteral("isHost")).toBool(),
-                obj.value(QStringLiteral("isReady")).toBool(),
-                obj.value(QStringLiteral("playerId")).toInt(-1),
-                obj.value(QStringLiteral("seatType")).toString(QStringLiteral("active")));
+            const LanBoard::RoomPlayerState player = LanBoard::RoomPlayerState::fromJsonObject(p.toObject());
+            m_roomManager->addPlayer(player.name,
+                                     player.isHost,
+                                     player.isReady,
+                                     player.playerId,
+                                     player.seatType());
         }
         m_activeGuestPlayerId = m_roomManager->firstGuestPlayerId();
         emit roomReady();
@@ -135,6 +234,7 @@ AppController::AppController(QObject *parent)
 void AppController::startLocalGame(const QString &gameId)
 {
     m_networkManager->disconnectAll();
+    m_isDedicatedServerRoom = false;
     setModeState(false, false, 0);
     m_activeGuestPlayerId = -1;
     setLobbyGameId(gameId);
@@ -146,6 +246,7 @@ void AppController::startLocalGame(const QString &gameId)
 void AppController::startRoomAsHost(const QString &gameId)
 {
     m_networkManager->disconnectAll();
+    m_isDedicatedServerRoom = false;
     resetGameControllers();
     setLobbyGameId(gameId);
     configureRoomGame(gameId);
@@ -177,6 +278,7 @@ void AppController::joinRoom(const QString &ip, int port, const QString &playerN
     const QString normalizedGameId = LanBoard::normalizeGameId(gameId);
     setLobbyGameId(normalizedGameId);
     m_networkManager->disconnectAll();
+    m_isDedicatedServerRoom = false;
     resetRoomSession(normalizedGameId);
     setModeState(false, true, -1);
     m_activeGuestPlayerId = -1;
@@ -193,6 +295,7 @@ void AppController::joinRoom(const QString &ip, int port, const QString &playerN
 void AppController::leaveRoom()
 {
     m_networkManager->disconnectAll();
+    m_isDedicatedServerRoom = false;
     resetRoomSession(QStringLiteral("gomoku"));
     setModeState(false, false, 0);
     m_activeGuestPlayerId = -1;
@@ -260,6 +363,7 @@ void AppController::createOnlineRoom(const QString &gameId, const QString &roomN
     setLobbyGameId(normalizedGameId);
 
     m_networkManager->disconnectAll();
+    m_isDedicatedServerRoom = false;
     resetRoomSession(normalizedGameId);
     setModeState(false, true, -1);
     m_activeGuestPlayerId = -1;
@@ -276,6 +380,7 @@ void AppController::joinOnlineRoom(const QString &roomId)
         return;
 
     m_networkManager->disconnectAll();
+    m_isDedicatedServerRoom = false;
     resetRoomSession(currentGameId());
     setModeState(false, true, -1);
     m_activeGuestPlayerId = -1;
@@ -384,45 +489,36 @@ bool AppController::updateOnlineServerEndpoint(const QString &host, int port)
     return true;
 }
 
-void AppController::onJoinRequested(const QString &name, QTcpSocket *socket)
+void AppController::onJoinRequested(const QString &name, int playerId)
 {
     // Host side: a new player connected
-    int playerId = socket->property("playerId").toInt();
-
     if (m_roomManager->playerList().size() >= roomCapacity()
         || playerId >= roomCapacity()) {
-        QJsonObject errorMsg;
-        errorMsg[QStringLiteral("type")] = QStringLiteral("error");
-        errorMsg[QStringLiteral("message")] = QStringLiteral("房间已满");
-        QByteArray data = QJsonDocument(errorMsg).toJson(QJsonDocument::Compact);
-        data.append('\n');
-        socket->write(data);
-        socket->flush();
-        socket->disconnectFromHost();
+        m_networkManager->sendRoomStateToPlayer(playerId, QJsonObject {
+            {QStringLiteral("type"), LanBoard::Protocol::Error},
+            {QStringLiteral("message"), QStringLiteral("房间已满")}
+        });
         return;
     }
 
     // Add player to room
-    const QString seatType = m_roomManager->activeGuestCount() < activeGuestLimit()
-        ? QStringLiteral("active")
-        : QStringLiteral("spectator");
+    const QString seatType = LanBoard::seatTypeString(
+        m_roomManager->activeGuestCount() < activeGuestLimit()
+            ? LanBoard::SeatKind::Active
+            : LanBoard::SeatKind::Spectator);
     m_roomManager->addPlayer(name, false, false, playerId, seatType);
     m_activeGuestPlayerId = m_roomManager->firstGuestPlayerId();
 
     // Send current room state to the new player
     QJsonObject stateMsg;
-    stateMsg[QStringLiteral("type")] = QStringLiteral("room_state");
+    stateMsg[QStringLiteral("type")] = LanBoard::Protocol::RoomState;
     stateMsg[QStringLiteral("gameId")] = m_roomManager->gameId();
     stateMsg[QStringLiteral("gameName")] = m_roomManager->gameName();
     stateMsg[QStringLiteral("maxPlayers")] = m_roomManager->maxPlayers();
     stateMsg[QStringLiteral("roomCapacity")] = roomCapacity();
     stateMsg[QStringLiteral("players")] = currentRoomState();
     stateMsg[QStringLiteral("yourPlayerId")] = playerId;
-
-    QByteArray data = QJsonDocument(stateMsg).toJson(QJsonDocument::Compact);
-    data.append('\n');
-    socket->write(data);
-    socket->flush();
+    m_networkManager->sendRoomStateToPlayer(playerId, stateMsg);
 
     // Broadcast updated room state to all clients
     broadcastCurrentRoomState();
@@ -592,6 +688,7 @@ void AppController::resetGameControllers()
     m_douDiZhuController->startNewGame();
     m_douDiZhuController->setLocalPlayer(0);
     m_flightChessController->reset();
+    m_survivorController->configureNetworkSession({}, 0, false, true);
     m_survivorController->stopRun();
 }
 
@@ -652,7 +749,29 @@ void AppController::finishCurrentGameSession(int winner, bool resetOfflineRoom)
 void AppController::startCurrentGameRuntime(bool waitForRemoteState)
 {
     if (currentGameId() == QStringLiteral("survivor")) {
-        m_survivorController->startRun(m_networkManager->isConnected() || m_networkManager->isHost());
+        const bool networked = m_networkManager->isConnected() || m_networkManager->isHost();
+        const bool authoritative = !networked
+            || (m_roomManager->isHost() && !m_isDedicatedServerRoom);
+        QVariantList activePlayers;
+        if (networked) {
+            const auto players = m_roomManager->playerList();
+            for (const auto &playerValue : players) {
+                const QVariantMap player = playerValue.toMap();
+                const QString seatType = player.value(QStringLiteral("seatType")).toString().isEmpty()
+                    ? QStringLiteral("active")
+                    : player.value(QStringLiteral("seatType")).toString();
+                if (seatType != QStringLiteral("active")) {
+                    continue;
+                }
+                activePlayers.append(player);
+            }
+        }
+        const int localPlayerId = networked ? m_networkPlayerId : 0;
+        m_survivorController->configureNetworkSession(activePlayers,
+                                                     localPlayerId,
+                                                     networked,
+                                                     authoritative);
+        m_survivorController->startRun(networked);
         return;
     }
 
@@ -751,17 +870,7 @@ QJsonArray AppController::currentRoomState() const
     QJsonArray players;
     const auto list = m_roomManager->playerList();
     for (const auto &player : list) {
-        const QVariantMap map = player.toMap();
-        QJsonObject obj;
-        obj[QStringLiteral("playerId")] = map.value(QStringLiteral("playerId")).toInt();
-        obj[QStringLiteral("name")] = map.value(QStringLiteral("name")).toString();
-        obj[QStringLiteral("isHost")] = map.value(QStringLiteral("isHost")).toBool();
-        obj[QStringLiteral("isReady")] = map.value(QStringLiteral("isReady")).toBool();
-        const QString seatType = map.value(QStringLiteral("seatType")).toString().isEmpty()
-            ? QStringLiteral("active")
-            : map.value(QStringLiteral("seatType")).toString();
-        obj[QStringLiteral("seatType")] = seatType;
-        players.append(obj);
+        players.append(LanBoard::RoomPlayerState::fromVariantMap(player.toMap()).toJsonObject());
     }
     return players;
 }

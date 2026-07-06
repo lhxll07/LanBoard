@@ -1,15 +1,16 @@
 #pragma once
 
+#include <QByteArray>
 #include <QObject>
 #include <QHostAddress>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QList>
-#include <QTcpServer>
-#include <QTcpSocket>
 #include <QUdpSocket>
 #include <QTimer>
 #include <QVariantList>
+
+#include <enet/enet.h>
 
 #include "src/common/types.h"
 
@@ -32,6 +33,7 @@ class NetworkManager : public QObject
 
 public:
     explicit NetworkManager(QObject *parent = nullptr);
+    ~NetworkManager() override;
 
     void startServer(quint16 port = 44567);
     void connectToServer(const QString &ip, quint16 port = 44567,
@@ -44,7 +46,11 @@ public:
     Q_INVOKABLE void sendFlightRoll();
     Q_INVOKABLE void sendFlightMove(int planeIndex);
     Q_INVOKABLE void sendSurrender();
+    Q_INVOKABLE void sendSurvivorInput(qreal horizontal, qreal vertical);
+    Q_INVOKABLE void sendSurvivorChooseLevelUp(const QString &upgradeId);
+    Q_INVOKABLE void sendSurvivorCloseChest();
     void sendStartGame();
+    void sendGameOverResult(int winner);
     void sendDouDiZhuPlay(const QVariantList &cardIds);
     void sendDouDiZhuPass();
     void sendChangeSeat(const QString &seatType);
@@ -60,10 +66,13 @@ public:
     void joinOnlineRoom(const QString &host, quint16 port,
                         const QString &playerName, const QString &roomId);
     void sendSwitchRoomGame(const QString &gameId);
+    void sendRoomStateToPlayer(int playerId, const QJsonObject &state);
+    void sendSurvivorFastPacketToPlayer(int playerId, const QByteArray &payload);
+    void sendSurvivorHudPacketToPlayer(int playerId, const QByteArray &payload);
 
     bool isHost() const { return m_isHost; }
     bool isConnected() const;
-    int clientCount() const { return m_clients.size(); }
+    int clientCount() const { return m_peerClients.size(); }
     quint16 serverPort() const { return m_serverPort; }
     QString connectedIp() const { return m_connectedIp; }
     quint16 connectedPort() const { return m_connectedPort; }
@@ -81,11 +90,10 @@ signals:
     void clientCountChanged();
     void discoveredRoomsChanged();
     void onlineRoomsChanged();
-    void serverStarted(quint16 port);
     void errorOccurred(QString message);
 
     // Received from remote (for AppController to process)
-    void joinRequested(QString name, QTcpSocket *socket);
+    void joinRequested(QString name, int playerId);
     void remoteReadyChanged(int playerId, bool ready);
     void remoteMoveReceived(int playerId, int row, int col);
     void remoteFlightRoll(int playerId);
@@ -94,12 +102,17 @@ signals:
     void flightMoveReceived(int player, int planeIndex);
     void remoteSurrender(int playerId);
     void remoteSeatChanged(int playerId, QString seatType);
+    void remoteSurvivorInput(int playerId, qreal horizontal, qreal vertical);
+    void remoteSurvivorChooseLevelUp(int playerId, QString upgradeId);
+    void remoteSurvivorCloseChest(int playerId);
     void remoteStartGame(QString gameId);
     void remoteDouDiZhuPlay(int playerId, QJsonArray cardIds);
     void remoteDouDiZhuPass(int playerId);
     void douDiZhuStateReceived(QJsonObject state);
     void gameOverReceived(int winner);
     void roomStateReceived(QJsonObject state);
+    void survivorFastPacketReceived(QByteArray payload);
+    void survivorHudPacketReceived(QByteArray payload);
     void clientDisconnected(int playerId);
 
 public slots:
@@ -113,20 +126,11 @@ public slots:
     void sendDouDiZhuState(int playerId, const QJsonObject &state);
 
 private slots:
-    void onNewConnection();
-    void onReadyRead();
-    void onClientDisconnected();
-    void onConnected();
-    void onDisconnected();
-    void onError(QAbstractSocket::SocketError error);
-    void onOnlineLobbyConnected();
-    void onOnlineLobbyReadyRead();
-    void onOnlineLobbyDisconnected();
-    void onOnlineLobbyError(QAbstractSocket::SocketError error);
     void onDiscoveryReadyRead();
     void pruneDiscoveredRooms();
     void broadcastDiscoveryQuery();
     void broadcastHostedRoomAnnouncement();
+    void serviceEnet();
 
 private:
     struct DiscoveredRoom
@@ -149,13 +153,6 @@ private:
     static constexpr int DiscoveryIntervalMs = 2500;
     static constexpr int DiscoveryStaleMs = 7000;
 
-    void sendJson(QTcpSocket *socket, const QJsonObject &obj);
-    void broadcastJson(const QJsonObject &obj, QTcpSocket *exclude = nullptr);
-    void processMessage(QTcpSocket *sender, const QJsonObject &msg);
-    void connectClientSocket(const QString &ip, quint16 port,
-                             const QString &playerName, const QString &gameId,
-                             const QString &action, const QString &roomId = QString(),
-                             const QString &roomName = QString());
     bool ensureDiscoverySocket();
     QString localIpForPeer(const QHostAddress &peer) const;
     void sendRoomAnnouncement(const QHostAddress &address, quint16 port);
@@ -164,20 +161,43 @@ private:
     QVariantMap discoveredRoomToVariant(const DiscoveredRoom &room) const;
     void rebuildDiscoveredRooms();
     void applyOnlineRooms(const QJsonArray &rooms);
+    void connectDedicatedPeer(const QString &host, quint16 port,
+                              const QString &playerName, const QString &gameId,
+                              const QString &action, const QString &roomId = QString(),
+                              const QString &roomName = QString());
+    void disconnectEnetPeer(ENetPeer *&peer, ENetHost *&host, bool graceful);
+    void disconnectAllHostPeers();
+    void broadcastJson(const QJsonObject &obj, ENetPeer *exclude = nullptr);
+    void processHostPeerMessage(ENetPeer *peer, const QJsonObject &msg);
+    bool processHostPeerBinaryPacket(ENetPeer *peer, const QByteArray &payload);
+    void processDedicatedServerMessage(const QJsonObject &msg);
+    bool processDedicatedServerBinaryPacket(const QByteArray &payload);
+    void processOnlineLobbyMessage(const QJsonObject &msg);
+    void sendEnetJson(ENetPeer *peer, ENetHost *host, const QJsonObject &msg);
+    void sendEnetRaw(ENetPeer *peer, ENetHost *host,
+                     const QByteArray &payload, enet_uint8 channel, enet_uint32 flags);
+    int allocateHostPlayerId() const;
+    ENetPeer *peerForPlayerId(int playerId) const;
 #ifdef Q_OS_ANDROID
     void acquireMulticastLock();
     void releaseMulticastLock();
 #endif
 
-    QTcpServer *m_server = nullptr;
-    QTcpSocket *m_socket = nullptr;       // client's connection to server
-    QTcpSocket *m_onlineLobbySocket = nullptr;
-    QList<QTcpSocket *> m_clients;        // server's connected clients
+    struct EnetClientSession
+    {
+        ENetPeer *peer = nullptr;
+        int playerId = -1;
+        QString playerName;
+    };
+
+    ENetHost *m_hostServer = nullptr;
+    QList<EnetClientSession> m_peerClients;
     QUdpSocket *m_discoverySocket = nullptr;
     QTimer m_discoveryTimer;
     QTimer m_discoveryPruneTimer;
     QTimer m_hostAnnouncementTimer;
     bool m_isHost = false;
+    bool m_enetActiveConnection = false;
     bool m_discoveryGameInProgress = false;
     QString m_discoveryGameId = LanBoard::normalizeGameId(QStringLiteral("gomoku"));
     QString m_discoveryGameName = LanBoard::gameName(QStringLiteral("gomoku"));
@@ -191,10 +211,17 @@ private:
     QList<DiscoveredRoom> m_discoveredRoomEntries;
     QVariantList m_discoveredRooms;
     QVariantList m_onlineRooms;
+    QTimer m_enetServiceTimer;
+    ENetHost *m_clientHost = nullptr;
+    ENetPeer *m_serverPeer = nullptr;
+    ENetHost *m_lobbyHost = nullptr;
+    ENetPeer *m_lobbyPeer = nullptr;
+    QString m_pendingConnectAction;
+    QString m_pendingPlayerName;
+    QString m_pendingGameId;
+    QString m_pendingRoomId;
+    QString m_pendingRoomName;
 #ifdef Q_OS_ANDROID
     QJniObject m_multicastLock;
 #endif
-
-    // Track which player ID corresponds to which socket
-    int m_nextPlayerId = 1;
 };

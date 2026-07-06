@@ -9,6 +9,9 @@
 #include <qqml.h>
 #include <QtGlobal>
 #include <QQuickStyle>
+#include <QSurfaceFormat>
+#include <QQuickWindow>
+#include <QSGRendererInterface>
 
 #include "src/app/appcontroller.h"
 #include "src/game/survivorrenderitem.h"
@@ -55,6 +58,19 @@ void messageHandler(QtMsgType type, const QMessageLogContext &, const QString &m
 
 int main(int argc, char *argv[])
 {
+    QSurfaceFormat format;
+    format.setRenderableType(QSurfaceFormat::OpenGL);
+    format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+    format.setSamples(
+#if defined(Q_OS_ANDROID)
+        4
+#else
+        8
+#endif
+    );
+    QSurfaceFormat::setDefaultFormat(format);
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("LanBoard"));
     QCoreApplication::setApplicationName(QStringLiteral("LanBoard"));

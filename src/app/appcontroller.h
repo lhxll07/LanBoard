@@ -2,7 +2,6 @@
 
 #include <QObject>
 #include <QJsonArray>
-#include <QTcpSocket>
 #include <QVariantList>
 #include "src/common/types.h"
 #include "src/game/doudizhucontroller.h"
@@ -84,7 +83,7 @@ signals:
     void navigationRequested(int page);
 
 private slots:
-    void onJoinRequested(const QString &name, QTcpSocket *socket);
+    void onJoinRequested(const QString &name, int playerId);
     void onRemoteReadyChanged(int playerId, bool ready);
     void onRemoteMoveReceived(int playerId, int row, int col);
     void onRemoteFlightRoll(int playerId);
@@ -128,6 +127,7 @@ private:
 
     bool m_isHostMode = false;
     bool m_isClientMode = false;
+    bool m_isDedicatedServerRoom = false;
     int m_networkPlayerId = 0;
     int m_activeGuestPlayerId = -1;
     QString m_nickname;
