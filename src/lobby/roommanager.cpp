@@ -2,22 +2,6 @@
 
 #include "src/common/types.h"
 
-namespace {
-
-QString normalizedSeatTypeValue(const QString &seatType)
-{
-    return seatType == QStringLiteral("spectator")
-        ? QStringLiteral("spectator")
-        : QStringLiteral("active");
-}
-
-bool isActiveSeat(const QString &seatType)
-{
-    return seatType == QStringLiteral("active");
-}
-
-}
-
 RoomManager::RoomManager(QObject *parent)
     : QObject(parent)
 {
@@ -31,10 +15,17 @@ void RoomManager::addPlayer(const QString &name, bool host, bool ready, int play
     }
 
     const int existingIndex = indexOfPlayerId(playerId);
+    const LanBoard::RoomPlayerState player {
+        playerId,
+        name,
+        host,
+        ready,
+        LanBoard::normalizedSeatKind(seatType)
+    };
     if (existingIndex >= 0) {
-        m_players[existingIndex] = {playerId, name, host, ready, normalizedSeatTypeValue(seatType)};
+        m_players[existingIndex] = player;
     } else {
-        m_players.append({playerId, name, host, ready, normalizedSeatTypeValue(seatType)});
+        m_players.append(player);
     }
 
     emitStateChanged();
@@ -46,15 +37,15 @@ void RoomManager::addTestPlayer(const QString &name)
               false,
               activePlayerCount() < maxPlayers(),
               -1,
-              activePlayerCount() < maxPlayers()
-                  ? QStringLiteral("active")
-                  : QStringLiteral("spectator"));
+              LanBoard::seatTypeString(activePlayerCount() < maxPlayers()
+                  ? LanBoard::SeatKind::Active
+                  : LanBoard::SeatKind::Spectator));
 }
 
 void RoomManager::toggleReady()
 {
     const int index = localPlayerIndex();
-    if (index < 0 || !isActiveSeat(m_players[index].seatType))
+    if (index < 0 || !m_players[index].isActive())
         return;
     m_players[index].isReady = !m_players[index].isReady;
     emitStateChanged();
@@ -86,17 +77,7 @@ void RoomManager::setGameId(const QString &gameId)
 
 QVariantList RoomManager::playerList() const
 {
-    QVariantList list;
-    for (const auto &p : m_players) {
-        QVariantMap map;
-        map[QStringLiteral("playerId")] = p.playerId;
-        map[QStringLiteral("name")] = p.name;
-        map[QStringLiteral("isHost")] = p.isHost;
-        map[QStringLiteral("isReady")] = p.isReady;
-        map[QStringLiteral("seatType")] = p.seatType;
-        list.append(map);
-    }
-    return list;
+    return snapshot().playerVariantList();
 }
 
 bool RoomManager::isHost() const
@@ -107,17 +88,7 @@ bool RoomManager::isHost() const
 
 bool RoomManager::canStart() const
 {
-    if (activePlayerCount() != maxPlayers())
-        return false;
-    if (!isHost())
-        return false;
-    for (const auto &p : m_players) {
-        if (!isActiveSeat(p.seatType))
-            continue;
-        if (!p.isReady)
-            return false;
-    }
-    return true;
+    return snapshot().canStartForLocalHost();
 }
 
 int RoomManager::localPlayerIndex() const
@@ -137,12 +108,7 @@ int RoomManager::maxPlayers() const
 
 int RoomManager::activePlayerCount() const
 {
-    int count = 0;
-    for (const auto &player : m_players) {
-        if (isActiveSeat(player.seatType))
-            ++count;
-    }
-    return count;
+    return snapshot().activePlayerCount();
 }
 
 void RoomManager::setLocalPlayerId(int playerId)
@@ -159,7 +125,7 @@ bool RoomManager::setPlayerReadyById(int playerId, bool ready)
 {
     const int index = indexOfPlayerId(playerId);
     if (index < 0
-        || !isActiveSeat(m_players[index].seatType)
+        || !m_players[index].isActive()
         || m_players[index].isReady == ready) {
         return false;
     }
@@ -175,12 +141,12 @@ bool RoomManager::setPlayerSeatById(int playerId, const QString &seatType)
     if (index < 0)
         return false;
 
-    const QString normalizedSeatType = normalizedSeatTypeValue(seatType);
-    if (m_players[index].seatType == normalizedSeatType)
+    const LanBoard::SeatKind normalizedSeatKind = LanBoard::normalizedSeatKind(seatType);
+    if (m_players[index].seatKind == normalizedSeatKind)
         return false;
 
-    m_players[index].seatType = normalizedSeatType;
-    if (normalizedSeatType == QStringLiteral("spectator"))
+    m_players[index].seatKind = normalizedSeatKind;
+    if (!m_players[index].isActive())
         m_players[index].isReady = false;
     emitStateChanged();
     return true;
@@ -190,7 +156,7 @@ bool RoomManager::clearReadyStates()
 {
     bool changed = false;
     for (auto &player : m_players) {
-        if (!isActiveSeat(player.seatType) || !player.isReady)
+        if (!player.isActive() || !player.isReady)
             continue;
         player.isReady = false;
         changed = true;
@@ -215,27 +181,18 @@ bool RoomManager::removePlayerById(int playerId)
 
 int RoomManager::firstGuestPlayerId() const
 {
-    for (const auto &player : m_players) {
-        if (!player.isHost && isActiveSeat(player.seatType))
-            return player.playerId;
-    }
-    return -1;
+    return snapshot().firstGuestPlayerId();
 }
 
 int RoomManager::activeGuestCount() const
 {
-    int count = 0;
-    for (const auto &player : m_players) {
-        if (!player.isHost && isActiveSeat(player.seatType))
-            ++count;
-    }
-    return count;
+    return snapshot().activeGuestCount();
 }
 
 bool RoomManager::isPlayerActive(int playerId) const
 {
     const int index = indexOfPlayerId(playerId);
-    return index >= 0 && isActiveSeat(m_players[index].seatType);
+    return index >= 0 && m_players[index].isActive();
 }
 
 int RoomManager::indexOfPlayerId(int playerId) const
@@ -245,6 +202,18 @@ int RoomManager::indexOfPlayerId(int playerId) const
             return i;
     }
     return -1;
+}
+
+LanBoard::RoomSnapshot RoomManager::snapshot() const
+{
+    LanBoard::RoomSnapshot room;
+    room.gameId = m_gameId;
+    room.gameName = LanBoard::gameName(m_gameId);
+    room.maxPlayers = maxPlayers();
+    room.roomCapacity = roomCapacity();
+    room.localPlayerId = m_localPlayerId;
+    room.players = m_players;
+    return room;
 }
 
 void RoomManager::emitStateChanged()

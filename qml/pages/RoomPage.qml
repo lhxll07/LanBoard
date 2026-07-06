@@ -253,7 +253,7 @@ Page {
                         ? "当前已进入 ECS 在线演示房间。"
                         : "房间状态只在加入或创建房间后显示。")
                     : (root.isSurvivorLobby()
-                        ? "Survivor MVP 先复用房间页作为入口，本地原型可直接体验。"
+                        ? "Survivor 现在可以直接从这里创建或加入房间。"
                         : (root.lobbyMode === 0
                             ? "自动发现局域网房间，也可以手动输入地址加入。"
                             : "连接 ECS 演示服务器，直接进入在线联机大厅。"))
@@ -697,7 +697,7 @@ Page {
                             Text {
                                 Layout.fillWidth: true
                                 text: root.isSurvivorLobby()
-                                    ? "Survivor MVP 支持先用本地原型试玩，也支持先创建房间完成房间流转。"
+                                    ? "Survivor 支持直接建房、进房和开局。"
                                     : "先开房，再在房间里选择桌游并开始对局。"
                                 color: AppTheme.textSecondary
                                 font.pixelSize: AppTheme.fontSizeBody
@@ -1432,19 +1432,10 @@ Page {
 
                         ActionButton {
                             width: (parent.width - parent.spacing) / 2
-                            text: root.isSurvivorRoom() ? "MVP 开发中" : AppTheme.zhStartGame()
-                            enabled: AppCtrl.roomManager.canStart && !root.isSurvivorRoom()
+                            text: AppTheme.zhStartGame()
+                            enabled: AppCtrl.roomManager.canStart
                             onClicked: AppCtrl.roomManager.startGame()
                         }
-                    }
-
-                    Text {
-                        width: parent.width
-                        visible: root.isSurvivorRoom()
-                        text: "Survivor 当前已打通房间入口与本地原型页，实时联机同步下一步接入。"
-                        color: AppTheme.textMuted
-                        font.pixelSize: AppTheme.fontSizeCaption
-                        wrapMode: Text.WordWrap
                     }
 
                     ActionButton {

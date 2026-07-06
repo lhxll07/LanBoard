@@ -1,11 +1,12 @@
 #pragma once
 
 #include <QPointer>
-#include <QQuickPaintedItem>
+#include <QQuickItem>
 
 class SurvivorController;
+class QSGNode;
 
-class SurvivorRenderItem : public QQuickPaintedItem
+class SurvivorRenderItem : public QQuickItem
 {
     Q_OBJECT
     Q_PROPERTY(QObject *controller READ controller WRITE setController NOTIFY controllerChanged)
@@ -24,7 +25,7 @@ public:
     bool compactLayout() const { return m_compactLayout; }
     void setCompactLayout(bool value);
 
-    void paint(QPainter *painter) override;
+    QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data) override;
 
 signals:
     void controllerChanged();
@@ -33,8 +34,6 @@ signals:
 
 private:
     void attachControllerSignals();
-    void drawArena(QPainter *painter);
-    void drawRadar(QPainter *painter);
     qreal arenaScale() const;
 
     QPointer<SurvivorController> m_controller;

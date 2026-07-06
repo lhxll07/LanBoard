@@ -42,6 +42,7 @@ Makefile
 *.apk
 *.aab
 *.ipa
+lanboard_server*.tar.gz
 
 # Android signing / local machine config
 *.jks

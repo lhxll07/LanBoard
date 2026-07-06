@@ -4,6 +4,8 @@
 #include <QVariantList>
 #include <QVector>
 
+#include "src/common/roomtypes.h"
+
 class RoomManager : public QObject
 {
     Q_OBJECT
@@ -55,18 +57,11 @@ signals:
     void gameChanged();
 
 private:
-    struct Player {
-        int playerId = -1;
-        QString name;
-        bool isHost = false;
-        bool isReady = false;
-        QString seatType = QStringLiteral("active");
-    };
-
     int indexOfPlayerId(int playerId) const;
+    LanBoard::RoomSnapshot snapshot() const;
     void emitStateChanged();
 
-    QVector<Player> m_players;
+    QVector<LanBoard::RoomPlayerState> m_players;
     int m_localPlayerId = 0;
     int m_nextGeneratedPlayerId = 1000;
     QString m_gameId = QStringLiteral("gomoku");

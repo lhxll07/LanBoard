@@ -14,8 +14,9 @@ Page {
     property bool keyLeft: false
     property bool keyRight: false
     property bool compactLayout: width < 460
-    property real hudHeight: compactLayout ? 126 : 120
-    property real radarCardSize: compactLayout ? 72 : 78
+    property real arenaScale: Math.max(renderCanvas.width * (compactLayout ? 0.64 : 0.56), 220)
+    property real hudHeight: compactLayout ? 82 : 78
+    property real radarCardSize: compactLayout ? 76 : 82
     property var weaponModel: AppCtrl.survivorController.weaponSlots
     property var passiveModel: AppCtrl.survivorController.passiveSlots
 
@@ -89,12 +90,99 @@ Page {
         anchors.fill: parent
 
         SurvivorRenderItem {
+            id: renderCanvas
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.top: hudOverlay.bottom
+            anchors.top: parent.top
             anchors.bottom: parent.bottom
             controller: AppCtrl.survivorController
             compactLayout: root.compactLayout
+            layer.enabled: true
+            layer.smooth: true
+            layer.samples: 8
+        }
+
+        Item {
+            anchors.fill: renderCanvas
+            clip: true
+
+            Repeater {
+                model: AppCtrl.survivorController.damageNumbers
+
+                delegate: Item {
+                    required property var modelData
+
+                    readonly property real screenX: widthParent / 2
+                        + (modelData.x - AppCtrl.survivorController.playerX) * root.arenaScale
+                    readonly property real screenY: heightParent / 2
+                        + (modelData.y - AppCtrl.survivorController.playerY) * root.arenaScale
+                    readonly property real lifeRatio: Math.max(0, modelData.lifeMs / Math.max(1, modelData.totalLifeMs))
+                    readonly property real textAlpha: 0.35 + lifeRatio * 0.65
+                    readonly property real popScale: 0.96 + lifeRatio * 0.24
+                    readonly property real widthParent: renderCanvas.width
+                    readonly property real heightParent: renderCanvas.height
+
+                    x: screenX - damageText.width / 2
+                    y: screenY - damageText.height / 2 - (1.0 - lifeRatio) * 10
+                    width: damageText.width
+                    height: damageText.height
+                    scale: popScale
+                    transformOrigin: Item.Center
+                    visible: screenX >= -40 && screenX <= widthParent + 40
+                        && screenY >= -40 && screenY <= heightParent + 40
+
+                    Text {
+                        id: damageShadow
+                        anchors.centerIn: parent
+                        text: "-" + modelData.amount
+                        color: Qt.rgba(10 / 255, 12 / 255, 11 / 255, parent.textAlpha * 0.78)
+                        font.family: "STSong"
+                        font.pixelSize: modelData.elite ? 28 : 22
+                        font.weight: Font.Black
+                        x: 2
+                        y: 2
+                        renderType: Text.QtRendering
+                        renderTypeQuality: Text.HighRenderTypeQuality
+                    }
+
+                    Text {
+                        id: damageText
+                        anchors.centerIn: parent
+                        text: "-" + modelData.amount
+                        color: modelData.elite
+                            ? Qt.rgba(255 / 255, 232 / 255, 154 / 255, parent.textAlpha)
+                            : Qt.rgba(250 / 255, 214 / 255, 122 / 255, parent.textAlpha)
+                        font.family: "STSong"
+                        font.pixelSize: modelData.elite ? 28 : 22
+                        font.weight: Font.Black
+                        renderType: Text.QtRendering
+                        renderTypeQuality: Text.HighRenderTypeQuality
+                    }
+                }
+            }
+
+            Item {
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: parent.height * 0.5 + 22
+                width: 48
+                height: 8
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 4
+                    color: Qt.rgba(22 / 255, 30 / 255, 27 / 255, 0.86)
+                }
+
+                Rectangle {
+                    width: parent.width * (AppCtrl.survivorController.hp / Math.max(1, AppCtrl.survivorController.maxHp))
+                    height: parent.height
+                    radius: parent.radius
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: "#EC8576" }
+                        GradientStop { position: 1.0; color: "#C94D44" }
+                    }
+                }
+            }
         }
 
         Rectangle {
@@ -103,193 +191,207 @@ Page {
             anchors.right: parent.right
             anchors.top: parent.top
             height: root.hudHeight
-            color: "#0C130E"
-            opacity: 0.72
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Qt.rgba(8 / 255, 12 / 255, 10 / 255, 0.62) }
+                GradientStop { position: 1.0; color: Qt.rgba(12 / 255, 19 / 255, 16 / 255, 0.00) }
+            }
         }
 
-        Rectangle {
+        Item {
+            id: expTrackWrap
             anchors.left: parent.left
-            anchors.right: levelBadge.left
-            anchors.rightMargin: 10
+            anchors.right: parent.right
             anchors.top: parent.top
-            anchors.topMargin: 12
             anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            anchors.topMargin: 12
             height: 18
-            radius: 4
-            color: "#111612"
-            border.width: 2
-            border.color: "#E2B76A"
 
             Rectangle {
-                width: Math.max(4, (parent.width - 4) * (AppCtrl.survivorController.exp / Math.max(1, AppCtrl.survivorController.expToNext)))
+                anchors.fill: parent
+                radius: 9
+                color: "#101714"
+            }
+
+            Rectangle {
+                width: Math.max(6, (parent.width - 4) * (AppCtrl.survivorController.exp / Math.max(1, AppCtrl.survivorController.expToNext)))
                 height: parent.height - 4
-                radius: 3
+                radius: 7
                 anchors.left: parent.left
                 anchors.leftMargin: 2
                 anchors.verticalCenter: parent.verticalCenter
-                color: "#E0C15D"
-            }
-        }
-
-        Rectangle {
-            id: levelBadge
-            anchors.top: parent.top
-            anchors.topMargin: 12
-            anchors.right: radarFrame.left
-            anchors.rightMargin: 8
-            width: 44
-            height: 18
-            radius: 4
-            color: "#111612"
-            border.width: 2
-            border.color: "#E2B76A"
-
-            Text {
-                anchors.centerIn: parent
-                text: "Lv." + AppCtrl.survivorController.level
-                color: "#F7EFE0"
-                font.pixelSize: 10
-                font.weight: Font.DemiBold
-            }
-        }
-
-        Row {
-            anchors.left: parent.left
-            anchors.leftMargin: 10
-            anchors.top: parent.top
-            anchors.topMargin: 44
-            spacing: 3
-
-            Repeater {
-                model: 6
-
-                delegate: Rectangle {
-                    width: 24
-                    height: 24
-                    radius: 4
-                    property var slot: root.slotData(root.weaponModel, index)
-                    color: "#141915"
-                    border.width: slot.filled ? 1.5 : 1
-                    border.color: slot.filled ? slot.accent : "#54624E"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: root.slotShortLabel(parent.slot)
-                        color: parent.slot.filled ? "#F4EBD8" : "#708078"
-                        font.pixelSize: 8
-                        font.weight: Font.DemiBold
-                    }
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: "#F3D58D" }
+                    GradientStop { position: 1.0; color: "#C89A4A" }
                 }
             }
-        }
-
-        Row {
-            anchors.left: parent.left
-            anchors.leftMargin: 10
-            anchors.top: parent.top
-            anchors.topMargin: 72
-            spacing: 3
-
-            Repeater {
-                model: 6
-
-                delegate: Rectangle {
-                    width: 16
-                    height: 16
-                    radius: 3
-                    property var slot: root.slotData(root.passiveModel, index)
-                    color: "#141915"
-                    border.width: slot.filled ? 1.2 : 1
-                    border.color: slot.filled ? slot.accent : "#54624E"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: root.slotShortLabel(parent.slot)
-                        color: parent.slot.filled ? "#F4EBD8" : "#708078"
-                        font.pixelSize: 7
-                        font.weight: Font.DemiBold
-                    }
-                }
-            }
-        }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.leftMargin: 10
-            anchors.top: parent.top
-            anchors.topMargin: 98
-            width: compactLayout ? 112 : 124
-            height: 7
-            radius: 3.5
-            color: "#365349"
 
             Rectangle {
-                width: parent.width * (AppCtrl.survivorController.hp / Math.max(1, AppCtrl.survivorController.maxHp))
-                height: parent.height
-                radius: parent.radius
-                color: "#E16658"
+                anchors.right: parent.right
+                anchors.rightMargin: 4
+                anchors.verticalCenter: parent.verticalCenter
+                width: 44
+                height: 12
+                radius: 6
+                color: Qt.rgba(12 / 255, 18 / 255, 16 / 255, 0.72)
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Lv." + AppCtrl.survivorController.level
+                    color: "#F7EFE0"
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                    renderType: Text.QtRendering
+                    renderTypeQuality: Text.HighRenderTypeQuality
+                }
             }
         }
 
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
+        Item {
+            id: leftHudGroup
+            anchors.left: parent.left
             anchors.top: parent.top
-            anchors.topMargin: 38
-            text: Qt.formatTime(new Date(0, 0, 0, 0, 0, AppCtrl.survivorController.survivalTimeSec), "mm:ss")
-            color: "#FFFFFF"
-            font.pixelSize: compactLayout ? 24 : 26
-            font.weight: Font.Black
+            anchors.leftMargin: 12
+            anchors.topMargin: 42
+            width: compactLayout ? 158 : 174
+            height: compactLayout ? 54 : 58
+
+            Row {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.topMargin: 0
+                spacing: 4
+
+                Repeater {
+                    model: 6
+
+                    delegate: Rectangle {
+                        width: compactLayout ? 20 : 22
+                        height: compactLayout ? 20 : 22
+                        radius: 6
+                        property var slot: root.slotData(root.weaponModel, index)
+                        color: slot.filled ? Qt.rgba(16 / 255, 23 / 255, 21 / 255, 0.88) : Qt.rgba(16 / 255, 23 / 255, 21 / 255, 0.56)
+                        border.width: 0
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: root.slotShortLabel(parent.slot)
+                            color: parent.slot.filled ? "#EEDFC0" : "#6E7D77"
+                            font.pixelSize: compactLayout ? 10 : 11
+                            font.weight: Font.DemiBold
+                            renderType: Text.QtRendering
+                            renderTypeQuality: Text.HighRenderTypeQuality
+                        }
+                    }
+                }
+            }
+
+            Row {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.topMargin: compactLayout ? 28 : 30
+                spacing: 4
+
+                Repeater {
+                    model: 6
+
+                    delegate: Rectangle {
+                        width: compactLayout ? 20 : 22
+                        height: compactLayout ? 20 : 22
+                        radius: 6
+                        property var slot: root.slotData(root.passiveModel, index)
+                        color: slot.filled ? Qt.rgba(16 / 255, 23 / 255, 21 / 255, 0.82) : Qt.rgba(16 / 255, 23 / 255, 21 / 255, 0.46)
+                        border.width: 0
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: root.slotShortLabel(parent.slot)
+                            color: parent.slot.filled ? "#EEDFC0" : "#6E7D77"
+                            font.pixelSize: compactLayout ? 10 : 11
+                            font.weight: Font.DemiBold
+                            renderType: Text.QtRendering
+                            renderTypeQuality: Text.HighRenderTypeQuality
+                        }
+                    }
+                }
+            }
         }
 
-        Text {
+        Item {
+            id: centerHudGroup
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
-            anchors.topMargin: 62
-            text: AppCtrl.survivorController.waveLabel
-            color: "#C8D7CC"
-            font.pixelSize: 10
-        }
+            anchors.topMargin: 46
+            width: 176
+            height: 58
 
-        Column {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: 78
-            spacing: 1
-
-            Text {
+            Column {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "击杀 " + AppCtrl.survivorController.killCount
-                color: "#FFFFFF"
-                font.pixelSize: 11
-                font.weight: Font.DemiBold
-            }
+                anchors.top: parent.top
+                spacing: 1
 
-            Text {
-                text: AppCtrl.survivorController.networkPrototype ? "online" : "local"
-                color: "#BFD3C6"
-                font.pixelSize: 9
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: Qt.formatTime(new Date(0, 0, 0, 0, 0, AppCtrl.survivorController.survivalTimeSec), "mm:ss")
+                    color: "#F4EBDC"
+                    font.pixelSize: compactLayout ? 25 : 27
+                    font.weight: Font.Black
+                    renderType: Text.QtRendering
+                    renderTypeQuality: Text.HighRenderTypeQuality
+                }
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: centerHudGroup.width
+                    horizontalAlignment: Text.AlignHCenter
+                    text: AppCtrl.survivorController.waveLabel
+                    color: "#85988E"
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                    renderType: Text.QtRendering
+                    renderTypeQuality: Text.HighRenderTypeQuality
+                }
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: centerHudGroup.width
+                    horizontalAlignment: Text.AlignHCenter
+                    text: "击杀 " + AppCtrl.survivorController.killCount
+                        + " · "
+                        + (AppCtrl.survivorController.networkSession ? "online" : "local")
+                    color: "#708278"
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                    renderType: Text.QtRendering
+                    renderTypeQuality: Text.HighRenderTypeQuality
+                }
             }
         }
 
-        Rectangle {
+        Item {
             id: radarFrame
             anchors.top: parent.top
-            anchors.topMargin: 36
+            anchors.topMargin: 44
             anchors.right: parent.right
-            anchors.rightMargin: 10
+            anchors.rightMargin: 12
             width: root.radarCardSize
             height: root.radarCardSize
-            radius: compactLayout ? 14 : 16
-            color: "#213830"
-            border.width: 1.4
-            border.color: "#38594D"
+
+            Rectangle {
+                anchors.fill: parent
+                radius: width / 2
+                color: Qt.rgba(25 / 255, 37 / 255, 33 / 255, 0.72)
+            }
 
             SurvivorRenderItem {
                 anchors.fill: parent
-                anchors.margins: compactLayout ? 9 : 10
+                anchors.margins: compactLayout ? 8 : 9
                 controller: AppCtrl.survivorController
                 radarMode: true
                 compactLayout: root.compactLayout
+                layer.enabled: true
+                layer.smooth: true
+                layer.samples: 8
             }
         }
 
@@ -337,9 +439,28 @@ Page {
             width: compactLayout ? 88 : 96
             height: width
             radius: width / 2
-            color: "#20342D"
-            border.width: 2
-            border.color: "#335346"
+            color: Qt.rgba(23 / 255, 37 / 255, 32 / 255, 0.90)
+            border.width: 1.2
+            border.color: Qt.rgba(225 / 255, 210 / 255, 161 / 255, 0.20)
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.topMargin: 4
+                anchors.bottomMargin: -4
+                radius: parent.radius
+                color: Qt.rgba(0, 0, 0, 0.18)
+                z: -1
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 10
+                radius: width / 2
+                color: Qt.rgba(255, 255, 255, 0.03)
+            }
 
             property real anchorX: width / 2
             property real anchorY: height / 2
@@ -350,7 +471,12 @@ Page {
                 width: 34
                 height: 34
                 radius: 17
-                color: "#EAD7B0"
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: "#F4E3BF" }
+                    GradientStop { position: 1.0; color: "#D3B07A" }
+                }
+                border.width: 1
+                border.color: Qt.rgba(90 / 255, 66 / 255, 38 / 255, 0.36)
             }
 
             MouseArea {
@@ -536,6 +662,44 @@ Page {
                     width: parent.width
                     text: "继续"
                     onClicked: AppCtrl.survivorController.closeChestRewards()
+                }
+            }
+        }
+
+        Rectangle {
+            visible: AppCtrl.survivorController.waitingForOtherPlayer
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 44, 280)
+            height: 92
+            radius: 22
+            color: Qt.rgba(18 / 255, 28 / 255, 24 / 255, 0.88)
+            border.width: 1
+            border.color: Qt.rgba(238 / 255, 223 / 255, 192 / 255, 0.14)
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 6
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "队友结算中"
+                    color: "#F4EBDC"
+                    font.pixelSize: 18
+                    font.weight: Font.DemiBold
+                    renderType: Text.QtRendering
+                    renderTypeQuality: Text.HighRenderTypeQuality
+                }
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 224
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    text: AppCtrl.survivorController.statusText
+                    color: "#98AAA1"
+                    font.pixelSize: 11
+                    renderType: Text.QtRendering
+                    renderTypeQuality: Text.HighRenderTypeQuality
                 }
             }
         }
