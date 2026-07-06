@@ -8,6 +8,10 @@ Page {
     objectName: "doudizhuPage"
 
     property var selectedIds: []
+    property string lastSpokenAction: ""
+
+    Component.onCompleted: AppCtrl.startDouDiZhuMusic()
+    Component.onDestruction: AppCtrl.stopDouDiZhuMusic()
 
     function ddzPlayerName(player) {
         var players = AppCtrl.roomManager.playerList
@@ -64,6 +68,141 @@ Page {
             selectedIds = []
     }
 
+    function speechRank(rank) {
+        if (rank === 3)
+            return "小三"
+        if (rank === 4)
+            return "小四"
+        if (rank === 11)
+            return "J"
+        if (rank === 12)
+            return "Q"
+        if (rank === 13)
+            return "K"
+        if (rank === 14)
+            return "A"
+        if (rank === 15)
+            return "2"
+        if (rank === 16)
+            return "小王"
+        if (rank === 17)
+            return "大王"
+        return String(rank)
+    }
+
+    function randomItem(items) {
+        return items[Math.floor(Math.random() * items.length)]
+    }
+
+    function sortedRanks(cards) {
+        var ranks = []
+        for (var i = 0; i < cards.length; ++i)
+            ranks.push(cards[i].rank)
+        ranks.sort(function(a, b) { return a - b })
+        return ranks
+    }
+
+    function rankCounts(ranks) {
+        var counts = {}
+        for (var i = 0; i < ranks.length; ++i) {
+            var key = String(ranks[i])
+            counts[key] = (counts[key] || 0) + 1
+        }
+        return counts
+    }
+
+    function uniqueRanks(ranks) {
+        var result = []
+        for (var i = 0; i < ranks.length; ++i) {
+            if (result.length === 0 || result[result.length - 1] !== ranks[i])
+                result.push(ranks[i])
+        }
+        return result
+    }
+
+    function consecutive(ranks) {
+        if (ranks.length === 0)
+            return false
+        for (var i = 0; i < ranks.length; ++i) {
+            if (ranks[i] >= 15)
+                return false
+            if (i > 0 && ranks[i] !== ranks[i - 1] + 1)
+                return false
+        }
+        return true
+    }
+
+    function douDiZhuSpeechText(action, cards) {
+        if (action.indexOf("不要") >= 0)
+            return "不要"
+        if (action.indexOf("出了") < 0 || cards.length === 0)
+            return ""
+
+        var ranks = sortedRanks(cards)
+        var counts = rankCounts(ranks)
+        var unique = uniqueRanks(ranks)
+        var countValues = []
+        for (var key in counts)
+            countValues.push(counts[key])
+        countValues.sort(function(a, b) { return a - b })
+
+        if (cards.length === 1) {
+            var singleRank = speechRank(ranks[0])
+            return randomItem(["一张" + singleRank, singleRank + "一张", singleRank])
+        }
+
+        if (cards.length === 2) {
+            if (counts["16"] === 1 && counts["17"] === 1)
+                return "王炸"
+            if (unique.length === 1) {
+                var pairRank = speechRank(unique[0])
+                return randomItem(["一对" + pairRank, "对" + pairRank])
+            }
+        }
+
+        if (cards.length === 4 && unique.length === 1)
+            return Math.random() < 0.5 ? "炸弹" : "四个" + speechRank(unique[0])
+
+        if (cards.length === 4 && unique.length === 2) {
+            for (var tripleSingleKey in counts) {
+                if (counts[tripleSingleKey] === 3)
+                    return "三带一"
+            }
+        }
+
+        if (cards.length === 5 && unique.length === 2) {
+            var hasTriple = false
+            var hasPair = false
+            for (var triplePairKey in counts) {
+                if (counts[triplePairKey] === 3)
+                    hasTriple = true
+                else if (counts[triplePairKey] === 2)
+                    hasPair = true
+            }
+            if (hasTriple && hasPair)
+                return "三带二"
+        }
+
+        var allSingles = countValues.length === unique.length && countValues[0] === 1
+        if (cards.length >= 5 && allSingles && consecutive(unique))
+            return "顺子"
+
+        var allPairs = countValues.length === unique.length && countValues[0] === 2
+        if (cards.length >= 6 && allPairs && consecutive(unique))
+            return "连对"
+
+        var tripleRanks = []
+        for (var rankKey in counts) {
+            if (counts[rankKey] === 3)
+                tripleRanks.push(Number(rankKey))
+        }
+        tripleRanks.sort(function(a, b) { return a - b })
+        if (tripleRanks.length >= 2 && consecutive(tripleRanks))
+            return "飞机"
+
+        return action.substring(action.indexOf("出了") + 2)
+    }
+
     background: Rectangle {
         color: "transparent"
     }
@@ -72,6 +211,14 @@ Page {
         target: AppCtrl.douDiZhuController
         function onStateChanged() {
             root.selectedIds = []
+            var action = AppCtrl.douDiZhuController.statusText
+            var speech = root.douDiZhuSpeechText(action, AppCtrl.douDiZhuController.lastPlayedCards)
+            if ((action.indexOf("出了") >= 0 || action.indexOf("不要") >= 0)
+                    && speech.length > 0
+                    && speech !== root.lastSpokenAction) {
+                root.lastSpokenAction = speech
+                AppCtrl.speakDouDiZhuAction(speech)
+            }
         }
     }
 

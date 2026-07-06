@@ -1,5 +1,6 @@
 build/
 build-*/
+assets/audio/*.m4a
 cmake-build-*/
 
 CMakeFiles/

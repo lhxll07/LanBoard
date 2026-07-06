@@ -10,6 +10,8 @@
 #include "src/game/flightchesscontroller.h"
 #include "src/network/networkmanager.h"
 
+class QProcess;
+
 class AppController : public QObject
 {
     Q_OBJECT
@@ -65,6 +67,9 @@ public:
     Q_INVOKABLE bool playDouDiZhuCards(const QVariantList &cardIds);
     Q_INVOKABLE bool passDouDiZhuTurn();
     Q_INVOKABLE void restartDouDiZhuGame();
+    Q_INVOKABLE void startDouDiZhuMusic();
+    Q_INVOKABLE void stopDouDiZhuMusic();
+    Q_INVOKABLE void speakDouDiZhuAction(const QString &text);
     Q_INVOKABLE void joinOnlineServer(const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE void refreshOnlineRooms();
     Q_INVOKABLE void createOnlineRoom(const QString &gameId,
@@ -124,4 +129,5 @@ private:
     QString m_onlineServerName = QStringLiteral("ECS 演示服务器");
     QString m_onlineServerHost = QStringLiteral("47.105.54.227");
     quint16 m_onlineServerPort = 44567;
+    QProcess *m_douDiZhuMusicProcess = nullptr;
 };
