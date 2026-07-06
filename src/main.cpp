@@ -6,10 +6,12 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlError>
+#include <qqml.h>
 #include <QtGlobal>
 #include <QQuickStyle>
 
 #include "src/app/appcontroller.h"
+#include "src/game/survivorrenderitem.h"
 
 namespace {
 
@@ -64,6 +66,7 @@ int main(int argc, char *argv[])
     appendLogLine(QStringLiteral("App dir: %1").arg(QCoreApplication::applicationDirPath()));
 
     QQmlApplicationEngine engine;
+    qmlRegisterType<SurvivorRenderItem>("LanBoard", 1, 0, "SurvivorRenderItem");
 
     // Create and expose AppController to QML
     AppController appCtrl;

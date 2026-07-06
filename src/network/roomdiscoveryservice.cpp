@@ -1,6 +1,7 @@
 #include "roomdiscoveryservice.h"
 
 #include "networkaddressutils.h"
+#include "src/common/types.h"
 
 #include <QDateTime>
 #include <QJsonDocument>
@@ -17,28 +18,6 @@
 #include <QCoreApplication>
 #include <QtCore/qcoreapplication_platform.h>
 #endif
-
-namespace {
-
-QString normalizedGameId(const QString &gameId)
-{
-    if (gameId == QStringLiteral("doudizhu"))
-        return QStringLiteral("doudizhu");
-    if (gameId == QStringLiteral("flightchess"))
-        return QStringLiteral("flightchess");
-    return QStringLiteral("gomoku");
-}
-
-QString defaultGameName(const QString &gameId)
-{
-    if (gameId == QStringLiteral("doudizhu"))
-        return QStringLiteral("斗地主");
-    if (gameId == QStringLiteral("flightchess"))
-        return QStringLiteral("飞行棋");
-    return QStringLiteral("五子棋");
-}
-
-} // namespace
 
 RoomDiscoveryService::RoomDiscoveryService(QObject *parent)
     : QObject(parent)
@@ -71,8 +50,8 @@ void RoomDiscoveryService::setPublishedRoom(const QString &hostName,
     m_playerCount = qMax(0, playerCount);
     m_roomCapacity = qMax(2, roomCapacity);
     m_maxPlayers = qMax(2, maxPlayers);
-    m_gameId = normalizedGameId(gameId);
-    m_gameName = gameName.trimmed().isEmpty() ? defaultGameName(m_gameId) : gameName.trimmed();
+    m_gameId = LanBoard::normalizeGameId(gameId);
+    m_gameName = gameName.trimmed().isEmpty() ? LanBoard::gameName(m_gameId) : gameName.trimmed();
     m_inGame = inGame;
     m_active = active && m_port != 0;
 
@@ -352,8 +331,9 @@ void RoomDiscoveryService::upsertDiscoveredRoom(const QJsonObject &msg,
     room.playerCount = msg.value(QStringLiteral("playerCount")).toInt();
     room.roomCapacity = qMax(2, msg.value(QStringLiteral("roomCapacity")).toInt(room.playerCount));
     room.maxPlayers = qMax(2, msg.value(QStringLiteral("maxPlayers")).toInt(2));
-    room.gameId = normalizedGameId(msg.value(QStringLiteral("gameId")).toString(QStringLiteral("gomoku")));
-    room.gameName = msg.value(QStringLiteral("gameName")).toString(defaultGameName(room.gameId));
+    room.gameId = LanBoard::normalizeGameId(
+        msg.value(QStringLiteral("gameId")).toString(QStringLiteral("gomoku")));
+    room.gameName = msg.value(QStringLiteral("gameName")).toString(LanBoard::gameName(room.gameId));
     room.inGame = msg.value(QStringLiteral("inGame")).toBool();
     room.isFull = msg.value(QStringLiteral("isFull")).toBool(room.playerCount >= room.roomCapacity);
     room.lastSeenMs = QDateTime::currentMSecsSinceEpoch();

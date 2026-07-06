@@ -41,6 +41,8 @@ if (LANBOARD_BUILD_APP)
         src/game/gamecontroller.cpp
         src/game/doudizhucontroller.cpp
         src/game/flightchesscontroller.cpp
+        src/game/survivorcontroller.cpp
+        src/game/survivorrenderitem.cpp
     )
 
     qt_add_qml_module(appLanBoard
@@ -62,6 +64,7 @@ if (LANBOARD_BUILD_APP)
             qml/pages/GamePage.qml
             qml/pages/DouDiZhuPage.qml
             qml/pages/FlightChessPage.qml
+            qml/pages/SurvivorPage.qml
         SOURCES
             src/app/appcontroller.h
             src/common/types.h
@@ -73,6 +76,8 @@ if (LANBOARD_BUILD_APP)
             src/game/gamecontroller.h
             src/game/doudizhucontroller.h
             src/game/flightchesscontroller.h
+            src/game/survivorcontroller.h
+            src/game/survivorrenderitem.h
     )
 
     target_link_libraries(appLanBoard
