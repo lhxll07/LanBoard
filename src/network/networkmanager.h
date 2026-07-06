@@ -176,6 +176,10 @@ private:
     void sendEnetJson(ENetPeer *peer, ENetHost *host, const QJsonObject &msg);
     void sendEnetRaw(ENetPeer *peer, ENetHost *host,
                      const QByteArray &payload, enet_uint8 channel, enet_uint32 flags);
+    void sendServerJson(const QJsonObject &msg);
+    void sendServerRaw(const QByteArray &payload, enet_uint8 channel, enet_uint32 flags);
+    QJsonObject pendingConnectMessage(bool lobbyOnly) const;
+    QJsonObject roomAnnouncementMessage(const QString &hostIp = QString()) const;
     int allocateHostPlayerId() const;
     ENetPeer *peerForPlayerId(int playerId) const;
 #ifdef Q_OS_ANDROID
@@ -189,6 +193,9 @@ private:
         int playerId = -1;
         QString playerName;
     };
+
+    EnetClientSession *sessionForPeer(ENetPeer *peer);
+    const EnetClientSession *sessionForPeer(ENetPeer *peer) const;
 
     ENetHost *m_hostServer = nullptr;
     QList<EnetClientSession> m_peerClients;

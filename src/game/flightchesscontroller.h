@@ -1,10 +1,11 @@
 #pragma once
 
-#include <QObject>
 #include <QVariantList>
 #include <array>
 
-class FlightChessController : public QObject
+#include "src/common/gamecontrollerbase.h"
+
+class FlightChessController : public GameControllerBase
 {
     Q_OBJECT
     Q_PROPERTY(QVariantList planes READ planes NOTIFY boardChanged)
@@ -19,27 +20,28 @@ class FlightChessController : public QObject
 public:
     explicit FlightChessController(QObject *parent = nullptr);
 
-    Q_INVOKABLE void startNewGame();
-    Q_INVOKABLE void reset();
     Q_INVOKABLE int rollDice();
     Q_INVOKABLE bool setDiceValue(int value);
     Q_INVOKABLE bool movePlane(int planeIndex);
     Q_INVOKABLE void setGameOver(int winner);
+
+    // ---- GameControllerBase ----
+    void startNewGame() override;
+    void reset() override;
+    bool isGameOver() const override { return m_gameOver; }
+    int winner() const override { return m_winner; }
 
     QVariantList planes() const;
     QVariantList scores() const;
     int currentPlayer() const { return m_currentPlayer; }
     int diceValue() const { return m_diceValue; }
     bool hasRolled() const { return m_hasRolled; }
-    bool isGameOver() const { return m_gameOver; }
-    int winner() const { return m_winner; }
     QString statusText() const;
 
 signals:
     void boardChanged();
     void turnChanged();
     void diceChanged();
-    void gameOverChanged();
     void statusChanged();
 
 private:

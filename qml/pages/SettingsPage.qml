@@ -10,6 +10,7 @@ Page {
     property string portDraft: AppCtrl.defaultPort.toString()
     property string onlineHostDraft: AppCtrl.onlineServerHost
     property string onlinePortDraft: AppCtrl.onlineServerPort.toString()
+    property bool addressCopied: false
 
     function openNicknameDialog() {
         nicknameDraft = AppCtrl.nickname
@@ -27,6 +28,25 @@ Page {
         onlineServerDialog.open()
     }
 
+    function replayEntryAnim() {
+        nicknameCard.opacity = 0
+        nicknameCardOffset.y = 20
+        portCard.opacity = 0
+        portCardOffset.y = 20
+        addressCard.opacity = 0
+        addressCardOffset.y = 20
+        onlineServerCard.opacity = 0
+        onlineServerCardOffset.y = 20
+        entryAnim.stop()
+        entryAnim.start()
+    }
+
+    Component.onCompleted: replayEntryAnim()
+    onVisibleChanged: {
+        if (visible)
+            replayEntryAnim()
+    }
+
     background: Rectangle {
         color: "transparent"
     }
@@ -36,7 +56,7 @@ Page {
         contentWidth: width
         contentHeight: contentColumn.height + AppTheme.pageBottomInset
         clip: true
-        boundsBehavior: Flickable.StopAtBounds
+        boundsBehavior: Flickable.DragAndOvershootBounds
 
         Column {
             id: contentColumn
@@ -44,10 +64,20 @@ Page {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: AppTheme.pageTopInset
-            spacing: 18
+            spacing: 20
 
             PageHeader {
+                eyebrowText: "设备与联机"
                 titleText: AppTheme.zhSetting()
+                subtitleText: "统一维护本机身份、局域网端口和在线服务器配置。"
+            }
+
+            Text {
+                width: parent.width
+                text: "基础配置"
+                color: AppTheme.textMuted
+                font.pixelSize: AppTheme.fontSizeCaption
+                font.weight: Font.Medium
             }
 
             SettingCard {
@@ -57,7 +87,6 @@ Page {
                 titleText: AppTheme.zhNickname()
                 valueText: AppCtrl.nickname
                 actionText: AppTheme.zhEdit()
-                emphasized: true
                 clickable: true
                 onClicked: root.openNicknameDialog()
                 opacity: 0
@@ -82,16 +111,31 @@ Page {
                 width: parent.width
                 height: 84
                 titleText: "局域网地址"
-                valueText: AppCtrl.networkManager.localIp + " : " + AppCtrl.defaultPort
-                actionText: ""
+                valueText: AppCtrl.networkManager.localIp + " : " + AppCtrl.defaultPort.toString()
+                actionText: root.addressCopied ? "已复制" : "复制"
+                clickable: true
+                onClicked: {
+                    if (AppCtrl.copyText(valueText)) {
+                        root.addressCopied = true
+                        copyResetTimer.restart()
+                    }
+                }
                 opacity: 0
                 transform: Translate { id: addressCardOffset; y: 20 }
+            }
+
+            Text {
+                width: parent.width
+                text: "在线联机"
+                color: AppTheme.textMuted
+                font.pixelSize: AppTheme.fontSizeCaption
+                font.weight: Font.Medium
             }
 
             SettingCard {
                 id: onlineServerCard
                 width: parent.width
-                height: 84
+                height: 92
                 titleText: "在线服务器"
                 valueText: AppCtrl.onlineServerHost + " : " + AppCtrl.onlineServerPort
                 actionText: AppTheme.zhModify()
@@ -105,7 +149,7 @@ Page {
 
     SequentialAnimation {
         id: entryAnim
-        running: true
+        running: false
 
         ParallelAnimation {
             NumberAnimation { target: nicknameCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
@@ -126,6 +170,13 @@ Page {
             NumberAnimation { target: onlineServerCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: onlineServerCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
+    }
+
+    Timer {
+        id: copyResetTimer
+        interval: 1600
+        repeat: false
+        onTriggered: root.addressCopied = false
     }
 
     Dialog {

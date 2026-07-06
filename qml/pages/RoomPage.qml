@@ -9,11 +9,14 @@ Page {
     property int lobbyMode: 0
     property string onlineGameId: AppCtrl.lobbyGameId
     property bool roomGamePickerOpen: false
+    property bool manualJoinExpanded: false
 
     property bool networkRoom: AppCtrl.networkManager.isHost
                             || AppCtrl.networkManager.isConnected
     property bool inRoom: networkRoom
     property string joinErrorText: ""
+    property string joinIpDraft: AppCtrl.recentJoinIp
+    property string joinPortDraft: AppCtrl.recentJoinPort.toString()
     readonly property var availableGames: AppCtrl.availableGames
 
     function currentLobbyGame() {
@@ -48,8 +51,8 @@ Page {
     }
 
     function joinCurrentRoom() {
-        var ip = ipInput.text.trim()
-        var port = parseInt(portInput.text.trim(), 10)
+        var ip = joinIpDraft.trim()
+        var port = parseInt(joinPortDraft.trim(), 10)
 
         if (ip.length === 0) {
             joinErrorText = "请输入主机 IP 地址"
@@ -186,13 +189,36 @@ Page {
         }
     }
 
+    function replayJoinEntryAnim() {
+        if (root.inRoom)
+            return
+        discoverCard.opacity = 0
+        discoverCardOffset.y = 20
+        hostCard.opacity = 0
+        hostCardOffset.y = 20
+        onlineEntryCard.opacity = 0
+        onlineEntryCardOffset.y = 20
+        joinEntryAnim.stop()
+        joinEntryAnim.start()
+    }
+
     background: Rectangle {
         color: "transparent"
     }
 
-    Component.onCompleted: syncDiscoveryState()
-    onVisibleChanged: syncDiscoveryState()
-    onLobbyModeChanged: syncDiscoveryState()
+    Component.onCompleted: {
+        syncDiscoveryState()
+        replayJoinEntryAnim()
+    }
+    onVisibleChanged: {
+        syncDiscoveryState()
+        if (visible)
+            replayJoinEntryAnim()
+    }
+    onLobbyModeChanged: {
+        manualJoinExpanded = false
+        syncDiscoveryState()
+    }
     onAvailableGamesChanged: {
         if (root.onlineGameId.length === 0)
             root.onlineGameId = AppCtrl.lobbyGameId
@@ -207,6 +233,8 @@ Page {
     onInRoomChanged: {
         if (!inRoom)
             roomGamePickerOpen = false
+        if (!inRoom)
+            manualJoinExpanded = false
         if (inRoom) {
             AppCtrl.networkManager.stopRoomDiscovery()
             AppCtrl.networkManager.clearDiscoveredRooms()
@@ -236,7 +264,7 @@ Page {
         contentWidth: width
         contentHeight: contentColumn.height + AppTheme.pageBottomInset
         clip: true
-        boundsBehavior: Flickable.StopAtBounds
+        boundsBehavior: Flickable.DragAndOvershootBounds
 
         Column {
             id: contentColumn
@@ -244,9 +272,12 @@ Page {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: AppTheme.pageTopInset
-            spacing: 18
+            spacing: 20
 
             PageHeader {
+                eyebrowText: root.inRoom
+                    ? "房间内"
+                    : (root.lobbyMode === 0 ? "局域网联机" : "在线大厅")
                 titleText: root.inRoom ? "房间" : "联机游戏"
                 subtitleText: root.inRoom
                     ? (root.isOnlineServerConnection()
@@ -260,6 +291,15 @@ Page {
                 trailingText: root.inRoom
                     ? (AppCtrl.roomManager.playerList.length + " / " + AppCtrl.roomManager.roomCapacity)
                     : ""
+            }
+
+            Text {
+                width: parent.width
+                visible: !root.inRoom
+                text: root.lobbyMode === 0 ? "发现与加入" : "在线房间"
+                color: AppTheme.textMuted
+                font.pixelSize: AppTheme.fontSizeCaption
+                font.weight: Font.Medium
             }
 
             Rectangle {
@@ -332,7 +372,7 @@ Page {
                 Column {
                     id: joinStateColumn
                     width: parent.width
-                    spacing: 18
+                    spacing: 20
 
                     Rectangle {
                         id: discoverCard
@@ -506,121 +546,6 @@ Page {
                     }
 
                     Rectangle {
-                        id: joinCard
-                        width: parent.width
-                        implicitHeight: joinLayout.implicitHeight + 54
-                        radius: AppTheme.radiusCard + 4
-                        color: AppTheme.cardBackground
-                        border.width: 1
-                        border.color: AppTheme.cardBorder
-                        opacity: 0
-                        transform: Translate { id: joinCardOffset; y: 20 }
-                        visible: root.lobbyMode === 0
-
-                        Rectangle {
-                            x: 0
-                            y: 6
-                            width: parent.width - 2
-                            height: parent.height + 2
-                            radius: parent.radius
-                            color: AppTheme.shadowMedium
-                        }
-
-                        Rectangle {
-                            x: 0
-                            y: 3
-                            width: parent.width - 1
-                            height: parent.height + 1
-                            radius: parent.radius
-                            color: AppTheme.shadowLight
-                        }
-
-                        ColumnLayout {
-                            id: joinLayout
-                            anchors.fill: parent
-                            anchors.margins: 24
-                            spacing: 12
-
-                            Text {
-                                text: "加入房间"
-                                color: AppTheme.textPrimary
-                                font.pixelSize: AppTheme.fontSizeHeading
-                                font.weight: Font.DemiBold
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: "输入主机地址和端口，使用当前昵称加入。"
-                                color: AppTheme.textSecondary
-                                font.pixelSize: AppTheme.fontSizeBody
-                                wrapMode: Text.WordWrap
-                            }
-
-                            TextField {
-                                id: ipInput
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 46
-                                text: AppCtrl.recentJoinIp
-                                placeholderText: "输入主机 IP 地址"
-                                font.pixelSize: 15
-                                color: AppTheme.textPrimary
-                                leftPadding: 16
-                                verticalAlignment: TextInput.AlignVCenter
-                                background: Rectangle {
-                                    radius: 14
-                                    color: AppTheme.cardBackgroundSoft
-                                    border.width: 1
-                                    border.color: ipInput.activeFocus ? AppTheme.accent : AppTheme.cardBorder
-                                }
-                                onTextChanged: root.joinErrorText = ""
-                            }
-
-                            TextField {
-                                id: portInput
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 46
-                                text: AppCtrl.recentJoinPort.toString()
-                                placeholderText: "输入端口"
-                                font.pixelSize: 15
-                                color: AppTheme.textPrimary
-                                inputMethodHints: Qt.ImhDigitsOnly
-                                leftPadding: 16
-                                verticalAlignment: TextInput.AlignVCenter
-                                background: Rectangle {
-                                    radius: 14
-                                    color: AppTheme.cardBackgroundSoft
-                                    border.width: 1
-                                    border.color: portInput.activeFocus ? AppTheme.accent : AppTheme.cardBorder
-                                }
-                                onTextChanged: root.joinErrorText = ""
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: "昵称: " + AppCtrl.nickname
-                                color: AppTheme.textMuted
-                                font.pixelSize: AppTheme.fontSizeCaption
-                                elide: Text.ElideRight
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                visible: root.joinErrorText.length > 0
-                                text: root.joinErrorText
-                                color: "#B14E44"
-                                font.pixelSize: AppTheme.fontSizeCaption
-                                wrapMode: Text.WordWrap
-                            }
-
-                            ActionButton {
-                                Layout.fillWidth: true
-                                text: "加入房间"
-                                onClicked: root.joinCurrentRoom()
-                            }
-                        }
-                    }
-
-                    Rectangle {
                         id: hostCard
                         width: parent.width
                         implicitHeight: hostCardLayout.implicitHeight + 52
@@ -777,18 +702,117 @@ Page {
                                 text: "创建房间"
                                 onClicked: AppCtrl.startRoomAsHost(root.onlineGameId)
                             }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 42
+                                radius: 16
+                                color: AppTheme.cardBackgroundSoft
+                                border.width: 1
+                                border.color: root.manualJoinExpanded ? AppTheme.accent : AppTheme.cardBorder
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 16
+                                    anchors.rightMargin: 16
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: "手动输入地址加入"
+                                        color: root.manualJoinExpanded ? AppTheme.accent : AppTheme.textPrimary
+                                        font.pixelSize: AppTheme.fontSizeBody
+                                        font.weight: Font.Medium
+                                    }
+
+                                    Text {
+                                        text: root.manualJoinExpanded ? "收起" : "展开"
+                                        color: AppTheme.textMuted
+                                        font.pixelSize: AppTheme.fontSizeCaption
+                                        font.weight: Font.Medium
+                                    }
+                                }
+
+                                TapHandler {
+                                    onTapped: root.manualJoinExpanded = !root.manualJoinExpanded
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+                                visible: root.manualJoinExpanded
+
+                                TextField {
+                                    id: joinIpInput
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 46
+                                    text: root.joinIpDraft
+                                    placeholderText: "输入主机 IP 地址"
+                                    font.pixelSize: 15
+                                    color: AppTheme.textPrimary
+                                    leftPadding: 16
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    background: Rectangle {
+                                        radius: 14
+                                        color: AppTheme.cardBackgroundSoft
+                                        border.width: 1
+                                        border.color: joinIpInput.activeFocus ? AppTheme.accent : AppTheme.cardBorder
+                                    }
+                                    onTextChanged: {
+                                        root.joinIpDraft = text
+                                        root.joinErrorText = ""
+                                    }
+                                }
+
+                                TextField {
+                                    id: joinPortInput
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 46
+                                    text: root.joinPortDraft
+                                    placeholderText: "输入端口"
+                                    font.pixelSize: 15
+                                    color: AppTheme.textPrimary
+                                    inputMethodHints: Qt.ImhDigitsOnly
+                                    leftPadding: 16
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    background: Rectangle {
+                                        radius: 14
+                                        color: AppTheme.cardBackgroundSoft
+                                        border.width: 1
+                                        border.color: joinPortInput.activeFocus ? AppTheme.accent : AppTheme.cardBorder
+                                    }
+                                    onTextChanged: {
+                                        root.joinPortDraft = text
+                                        root.joinErrorText = ""
+                                    }
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "昵称: " + AppCtrl.nickname
+                                    color: AppTheme.textMuted
+                                    font.pixelSize: AppTheme.fontSizeCaption
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    visible: root.joinErrorText.length > 0
+                                    text: root.joinErrorText
+                                    color: "#B14E44"
+                                    font.pixelSize: AppTheme.fontSizeCaption
+                                    wrapMode: Text.WordWrap
+                                }
+
+                                ActionButton {
+                                    Layout.fillWidth: true
+                                    text: "加入房间"
+                                    secondary: true
+                                    onClicked: root.joinCurrentRoom()
+                                }
+                            }
                         }
                     }
-
-                    SettingCard {
-                        width: parent.width
-                        height: 84
-                        titleText: "默认端口"
-                        valueText: AppCtrl.defaultPort + "，可在设置页修改"
-                        actionText: ""
-                        visible: root.lobbyMode === 0
-                    }
-
                     Rectangle {
                         id: onlineEntryCard
                         width: parent.width
@@ -1070,7 +1094,15 @@ Page {
                 Column {
                     id: roomStateColumn
                     width: parent.width
-                    spacing: 18
+                    spacing: 20
+
+                    Text {
+                        width: parent.width
+                        text: "房间概览"
+                        color: AppTheme.textMuted
+                        font.pixelSize: AppTheme.fontSizeCaption
+                        font.weight: Font.Medium
+                    }
 
                     Rectangle {
                         width: parent.width
@@ -1363,6 +1395,14 @@ Page {
 
                     Text {
                         width: parent.width
+                        text: "成员"
+                        color: AppTheme.textMuted
+                        font.pixelSize: AppTheme.fontSizeCaption
+                        font.weight: Font.Medium
+                    }
+
+                    Text {
+                        width: parent.width
                         text: "游戏位"
                         color: AppTheme.textPrimary
                         font.pixelSize: 15
@@ -1408,6 +1448,14 @@ Page {
                             actionEnabled: true
                             onActionTriggered: root.toggleSeat(modelData)
                         }
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: "房间操作"
+                        color: AppTheme.textMuted
+                        font.pixelSize: AppTheme.fontSizeCaption
+                        font.weight: Font.Medium
                     }
 
                     Row {
@@ -1460,16 +1508,11 @@ Page {
 
     SequentialAnimation {
         id: joinEntryAnim
-        running: !root.inRoom
+        running: false
 
         ParallelAnimation {
             NumberAnimation { target: discoverCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
             NumberAnimation { target: discoverCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
-        }
-        PauseAnimation { duration: 70 }
-        ParallelAnimation {
-            NumberAnimation { target: joinCard; property: "opacity"; to: 1; duration: 300; easing.type: Easing.OutCubic }
-            NumberAnimation { target: joinCardOffset; property: "y"; to: 0; duration: 300; easing.type: Easing.OutCubic }
         }
         PauseAnimation { duration: 70 }
         ParallelAnimation {

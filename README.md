@@ -94,7 +94,6 @@ LanBoard/
 │   ├── lobby/     房间、玩家、准备状态、座位状态
 │   ├── network/   客户端 / 局域网 / 在线房间网络逻辑
 │   └── server/    独立在线服务端
-├── design/
 ├── CMakeLists.txt
 ├── CMakePresets.json
 ├── build-qt6103/

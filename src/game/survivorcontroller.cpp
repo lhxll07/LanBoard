@@ -42,6 +42,51 @@ using LanBoard::Survivor::circlesOverlap;
 using LanBoard::Survivor::lerpReal;
 using LanBoard::Survivor::lerpInt;
 
+void applyRemoteProgressionSnapshot(LanBoard::Survivor::PlayerState &target,
+                                    const LanBoard::Survivor::PlayerState &source)
+{
+    target.hp = source.hp;
+    target.maxHp = source.maxHp;
+    target.alive = source.alive;
+    target.colorIndex = source.colorIndex;
+    target.level = source.level;
+    target.exp = source.exp;
+    target.expToNext = source.expToNext;
+    target.attackDamage = source.attackDamage;
+    target.bladeWeaponLevel = source.bladeWeaponLevel;
+    target.projectileCount = source.projectileCount;
+    target.projectilePierce = source.projectilePierce;
+    target.orbitBladeLevel = source.orbitBladeLevel;
+    target.orbitBladeCount = source.orbitBladeCount;
+    target.orbitBladeDamage = source.orbitBladeDamage;
+    target.fireWandLevel = source.fireWandLevel;
+    target.fireWandDamage = source.fireWandDamage;
+    target.fireWandCooldownBaseMs = source.fireWandCooldownBaseMs;
+    target.fireWandProjectileSpeedMultiplier = source.fireWandProjectileSpeedMultiplier;
+    target.garlicLevel = source.garlicLevel;
+    target.garlicDamage = source.garlicDamage;
+    target.garlicCooldownBaseMs = source.garlicCooldownBaseMs;
+    target.crossLevel = source.crossLevel;
+    target.crossDamage = source.crossDamage;
+    target.crossAmount = source.crossAmount;
+    target.crossPierce = source.crossPierce;
+    target.santaWaterLevel = source.santaWaterLevel;
+    target.santaWaterDamage = source.santaWaterDamage;
+    target.santaWaterAmount = source.santaWaterAmount;
+    target.santaWaterDurationMs = source.santaWaterDurationMs;
+    target.santaWaterCooldownBaseMs = source.santaWaterCooldownBaseMs;
+    target.wingsPassiveLevel = source.wingsPassiveLevel;
+    target.emptyTomePassiveLevel = source.emptyTomePassiveLevel;
+    target.candelabradorPassiveLevel = source.candelabradorPassiveLevel;
+    target.attractorbPassiveLevel = source.attractorbPassiveLevel;
+    target.hollowHeartPassiveLevel = source.hollowHeartPassiveLevel;
+    target.spinachPassiveLevel = source.spinachPassiveLevel;
+    target.fireWandEvolved = source.fireWandEvolved;
+    target.santaWaterEvolved = source.santaWaterEvolved;
+    target.orbitBladeDurationMs = source.orbitBladeDurationMs;
+    target.orbitBladeCooldownBaseMs = source.orbitBladeCooldownBaseMs;
+}
+
 const UpgradeTemplate *kWeaponUpgradePool = LanBoard::Survivor::weaponUpgradePool();
 const int kWeaponUpgradePoolCount = LanBoard::Survivor::weaponUpgradePoolCount();
 const UpgradeTemplate *kPassiveUpgradePool = LanBoard::Survivor::passiveUpgradePool();
@@ -54,11 +99,23 @@ const int kBossSpawnScheduleCount = LanBoard::Survivor::bossSpawnScheduleCount()
 }
 
 SurvivorController::SurvivorController(QObject *parent)
-    : QObject(parent)
+    : GameControllerBase(parent)
 {
     m_tickTimer.setInterval(TickIntervalMs);
     m_tickTimer.setTimerType(Qt::PreciseTimer);
     connect(&m_tickTimer, &QTimer::timeout, this, &SurvivorController::tick);
+    resetState();
+}
+
+void SurvivorController::startNewGame()
+{
+    stopRun();
+    resetState();
+}
+
+void SurvivorController::reset()
+{
+    stopRun();
     resetState();
 }
 
@@ -530,6 +587,10 @@ void SurvivorController::applyFastNetworkPacket(const QByteArray &payload)
     m_matchState.pendingInteractionPlayerId = decoded.interactionPlayerId;
     m_networkAuraRadius = decoded.auraRadius;
 
+    QList<UpgradeChoice> preservedChoices;
+    QList<ChestReward> preservedRewards;
+    QString preservedChestTitle;
+
     if (decoded.hasLocalPlayer) {
         if (PlayerState *local = localPlayerState()) {
             const QVector2D preservedPosition = local->position;
@@ -544,9 +605,9 @@ void SurvivorController::applyFastNetworkPacket(const QByteArray &payload)
             const int preservedCrossCooldownMs = local->crossCooldownMs;
             const int preservedSantaWaterCooldownMs = local->santaWaterCooldownMs;
             const qreal preservedContactDamageCarry = local->contactDamageCarry;
-            const QList<UpgradeChoice> preservedChoices = local->levelUpChoices;
-            const QList<ChestReward> preservedRewards = local->chestRewardEntries;
-            const QString preservedChestTitle = local->chestTitle;
+            preservedChoices = local->levelUpChoices;
+            preservedRewards = local->chestRewardEntries;
+            preservedChestTitle = local->chestTitle;
 
             *local = decoded.localPlayer;
             local->position = preservedPosition;
@@ -564,6 +625,17 @@ void SurvivorController::applyFastNetworkPacket(const QByteArray &payload)
             local->levelUpChoices = preservedChoices;
             local->chestRewardEntries = preservedRewards;
             local->chestTitle = preservedChestTitle;
+        }
+
+        for (PlayerState &player : decoded.players) {
+            if (player.playerId != m_localPlayerId)
+                continue;
+            applyRemoteProgressionSnapshot(player, decoded.localPlayer);
+            player.levelUpChoices = preservedChoices;
+            player.chestRewardEntries = preservedRewards;
+            player.chestTitle = preservedChestTitle;
+            player.local = true;
+            break;
         }
     }
     m_cachedDamageNumbers.clear();
@@ -1219,8 +1291,12 @@ void SurvivorController::tick()
 
     if (m_matchState.gameOver)
         return;
-    if (m_matchState.pendingInteractionPlayerId >= 0)
+    if (m_matchState.pendingInteractionPlayerId >= 0) {
+        refreshFrameCache();
+        emitNetworkSyncIfNeeded();
+        emit frameChanged();
         return;
+    }
 
     const int previousHp = hp();
     const int previousMaxHp = maxHp();
@@ -1354,6 +1430,7 @@ void SurvivorController::simulateStep(int elapsedMs)
 
     if (!anyAlive) {
         m_matchState.gameOver = true;
+        m_matchWinner = 0;
         m_matchState.running = false;
         m_tickTimer.stop();
         updateStatusText();
@@ -2600,96 +2677,18 @@ QString SurvivorController::categoryForUpgrade(const QString &upgradeId) const
 
 QString SurvivorController::descriptionForUpgrade(const QString &upgradeId, int currentLevel) const
 {
+    using namespace LanBoard::Survivor;
     const int nextLevel = currentLevel + 1;
-    QString effectText;
+    if (nextLevel < 1 || nextLevel > 8)
+        return {};
 
-    if (upgradeId == QStringLiteral("knife_weapon")) {
-        switch (nextLevel) {
-        case 1: effectText = QStringLiteral("解锁飞刀，沿移动朝向发射定向投射物。"); break;
-        case 2: effectText = QStringLiteral("飞刀数量 +1。"); break;
-        case 3: effectText = QStringLiteral("飞刀伤害 +5，数量 +1。"); break;
-        case 4: effectText = QStringLiteral("飞刀数量 +1，冷却缩短。"); break;
-        case 5: effectText = QStringLiteral("飞刀穿透 +1。"); break;
-        case 6: effectText = QStringLiteral("飞刀数量 +1，冷却缩短。"); break;
-        case 7: effectText = QStringLiteral("飞刀伤害 +5，数量 +1。"); break;
-        case 8: effectText = QStringLiteral("飞刀穿透 +1，冷却缩短。"); break;
-        default: break;
-        }
-    } else if (upgradeId == QStringLiteral("orbit_weapon")) {
-        switch (nextLevel) {
-        case 1: effectText = QStringLiteral("解锁秘典，按持续时间召唤 1 枚环刃。"); break;
-        case 2: effectText = QStringLiteral("环刃数量 +1。"); break;
-        case 3: effectText = QStringLiteral("环刃半径扩大，转速提升。"); break;
-        case 4: effectText = QStringLiteral("环刃持续时间延长。"); break;
-        case 5: effectText = QStringLiteral("环刃伤害提升，数量 +1。"); break;
-        case 6: effectText = QStringLiteral("环刃半径扩大，转速提升。"); break;
-        case 7: effectText = QStringLiteral("环刃持续时间再次延长。"); break;
-        case 8: effectText = QStringLiteral("环刃伤害提升，数量 +1。"); break;
-        default: break;
-        }
-    } else if (upgradeId == QStringLiteral("firewand_weapon")) {
-        switch (nextLevel) {
-        case 1: effectText = QStringLiteral("解锁火焰魔杖，随机索敌发射高伤火弹。"); break;
-        case 2: effectText = QStringLiteral("火焰魔杖伤害 +12。"); break;
-        case 3: effectText = QStringLiteral("火焰魔杖弹速提升，冷却缩短。"); break;
-        case 4: effectText = QStringLiteral("火焰魔杖伤害 +12。"); break;
-        case 5: effectText = QStringLiteral("火焰魔杖弹速再次提升，冷却继续缩短。"); break;
-        case 6: effectText = QStringLiteral("火焰魔杖伤害 +12。"); break;
-        case 7: effectText = QStringLiteral("火焰魔杖弹速提升到更高档，冷却再次缩短。"); break;
-        case 8: effectText = QStringLiteral("火焰魔杖伤害 +12。"); break;
-        default: break;
-        }
-    } else if (upgradeId == QStringLiteral("garlic_weapon")) {
-        switch (nextLevel) {
-        case 1: effectText = QStringLiteral("解锁大蒜，持续灼伤并轻微击退近身敌人。"); break;
-        case 2: effectText = QStringLiteral("大蒜范围扩大，伤害 +1。"); break;
-        case 3: effectText = QStringLiteral("大蒜伤害 +1，触发更快。"); break;
-        case 4: effectText = QStringLiteral("大蒜范围继续扩大。"); break;
-        case 5: effectText = QStringLiteral("大蒜伤害 +2。"); break;
-        case 6: effectText = QStringLiteral("大蒜范围扩大，触发更快。"); break;
-        case 7: effectText = QStringLiteral("大蒜伤害 +1。"); break;
-        case 8: effectText = QStringLiteral("大蒜范围再次扩大。"); break;
-        default: break;
-        }
-    } else if (upgradeId == QStringLiteral("cross_weapon")) {
-        switch (nextLevel) {
-        case 1: effectText = QStringLiteral("解锁十字架，命中后回旋返程。"); break;
-        case 2: effectText = QStringLiteral("十字架伤害提升。"); break;
-        case 3: effectText = QStringLiteral("十字架体积扩大，飞行速度提升。"); break;
-        case 4: effectText = QStringLiteral("十字架数量 +1。"); break;
-        case 5: effectText = QStringLiteral("十字架伤害再次提升。"); break;
-        case 6: effectText = QStringLiteral("十字架体积扩大，飞行速度提升。"); break;
-        case 7: effectText = QStringLiteral("十字架数量 +1。"); break;
-        case 8: effectText = QStringLiteral("十字架伤害再次提升。"); break;
-        default: break;
-        }
-    } else if (upgradeId == QStringLiteral("santawater_weapon")) {
-        switch (nextLevel) {
-        case 1: effectText = QStringLiteral("解锁圣水，在附近生成持续伤害水池。"); break;
-        case 2: effectText = QStringLiteral("圣水数量 +1，水池半径小幅扩大。"); break;
-        case 3: effectText = QStringLiteral("圣水持续时间延长，伤害提升。"); break;
-        case 4: effectText = QStringLiteral("圣水数量 +1，水池半径扩大。"); break;
-        case 5: effectText = QStringLiteral("圣水持续时间延长，伤害提升。"); break;
-        case 6: effectText = QStringLiteral("圣水数量 +1，水池半径扩大。"); break;
-        case 7: effectText = QStringLiteral("圣水持续时间延长，伤害提升。"); break;
-        case 8: effectText = QStringLiteral("圣水半径小幅扩大，伤害提升。"); break;
-        default: break;
-        }
-    } else if (upgradeId == QStringLiteral("wings_passive")) {
-        effectText = QStringLiteral("移动速度 +10%。");
-    } else if (upgradeId == QStringLiteral("emptytome_passive")) {
-        effectText = QStringLiteral("全部武器冷却 -8%。");
-    } else if (upgradeId == QStringLiteral("candelabrador_passive")) {
-        effectText = QStringLiteral("范围类武器面积 +10%。");
-    } else if (upgradeId == QStringLiteral("attractorb_passive")) {
-        effectText = QStringLiteral("显著提升经验吸附范围。");
-    } else if (upgradeId == QStringLiteral("hollowheart_passive")) {
-        effectText = QStringLiteral("最大生命 +20%。");
-    } else if (upgradeId == QStringLiteral("spinach_passive")) {
-        effectText = QStringLiteral("全部武器伤害 +10%。");
+    const int weaponIdx = weaponIndexForId(upgradeId);
+    if (weaponIdx >= 0) {
+        const WeaponLevelInfo *table = weaponLevelTable(static_cast<WeaponType>(weaponIdx));
+        if (table)
+            return QString::fromUtf8(table[nextLevel - 1].description);
     }
-
-    return effectText;
+    return {};
 }
 
 void SurvivorController::addDamageNumber(const QVector2D &position, int amount, bool elite)
@@ -3013,9 +3012,6 @@ void SurvivorController::updateStatusText()
 
     m_statusText = QStringLiteral("大蒜先保命，后续再补飞刀和范围武器决定 build 走向。");
 }
-
-
-
 
 
 

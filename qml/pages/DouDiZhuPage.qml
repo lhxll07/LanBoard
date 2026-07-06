@@ -222,7 +222,7 @@ Page {
                         contentWidth: Math.max(width, lastPlayStack.width)
                         contentHeight: height
                         interactive: lastPlayStack.width > width
-                        boundsBehavior: Flickable.StopAtBounds
+                        boundsBehavior: Flickable.DragAndOvershootBounds
 
                         Item {
                             id: lastPlayStack
@@ -300,7 +300,7 @@ Page {
                     clip: true
                     contentWidth: Math.max(width, handStack.width)
                     contentHeight: height
-                    boundsBehavior: Flickable.StopAtBounds
+                    boundsBehavior: Flickable.DragAndOvershootBounds
 
                     Item {
                         id: handStack
