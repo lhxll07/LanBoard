@@ -23,14 +23,20 @@ using LanBoard::Survivor::BlueGemPickup;
 using LanBoard::Survivor::GreenGemPickup;
 using LanBoard::Survivor::RedGemPickup;
 using LanBoard::Survivor::ChestPickup;
+using LanBoard::Survivor::SpawnWeight;
 using LanBoard::Survivor::UpgradeTemplate;
+using LanBoard::Survivor::EvolutionTemplate;
 using LanBoard::Survivor::WaveTemplate;
 using LanBoard::Survivor::BossSpawnTemplate;
+using LanBoard::Survivor::WaveEventTemplate;
+using LanBoard::Survivor::WaveEventBatSwarm;
+using LanBoard::Survivor::WaveEventFlowerWall;
 using LanBoard::Survivor::SpawnDistanceMin;
 using LanBoard::Survivor::SpawnDistanceMax;
 using LanBoard::Survivor::ProjectileCleanupDistance;
 using LanBoard::Survivor::ProjectileCleanupDistanceSquared;
 using LanBoard::Survivor::EnemySeparationCellSize;
+using LanBoard::Survivor::SurvivorRunDurationSec;
 using LanBoard::Survivor::EvolutionChestStartSec;
 using LanBoard::Survivor::normalizedInput;
 using LanBoard::Survivor::rotatedVector;
@@ -47,6 +53,8 @@ void applyRemoteProgressionSnapshot(LanBoard::Survivor::PlayerState &target,
 {
     target.hp = source.hp;
     target.maxHp = source.maxHp;
+    target.soulEaterHealedHp = source.soulEaterHealedHp;
+    target.soulEaterBonusDamage = source.soulEaterBonusDamage;
     target.alive = source.alive;
     target.colorIndex = source.colorIndex;
     target.level = source.level;
@@ -59,17 +67,26 @@ void applyRemoteProgressionSnapshot(LanBoard::Survivor::PlayerState &target,
     target.orbitBladeLevel = source.orbitBladeLevel;
     target.orbitBladeCount = source.orbitBladeCount;
     target.orbitBladeDamage = source.orbitBladeDamage;
+    target.orbitBladeEvolved = source.orbitBladeEvolved;
     target.fireWandLevel = source.fireWandLevel;
     target.fireWandDamage = source.fireWandDamage;
+    target.fireWandAmount = source.fireWandAmount;
     target.fireWandCooldownBaseMs = source.fireWandCooldownBaseMs;
     target.fireWandProjectileSpeedMultiplier = source.fireWandProjectileSpeedMultiplier;
+    target.magicWandLevel = source.magicWandLevel;
+    target.magicWandDamage = source.magicWandDamage;
+    target.magicWandAmount = source.magicWandAmount;
+    target.magicWandCooldownBaseMs = source.magicWandCooldownBaseMs;
+    target.magicWandEvolved = source.magicWandEvolved;
     target.garlicLevel = source.garlicLevel;
     target.garlicDamage = source.garlicDamage;
     target.garlicCooldownBaseMs = source.garlicCooldownBaseMs;
+    target.garlicEvolved = source.garlicEvolved;
     target.crossLevel = source.crossLevel;
     target.crossDamage = source.crossDamage;
     target.crossAmount = source.crossAmount;
     target.crossPierce = source.crossPierce;
+    target.crossEvolved = source.crossEvolved;
     target.santaWaterLevel = source.santaWaterLevel;
     target.santaWaterDamage = source.santaWaterDamage;
     target.santaWaterAmount = source.santaWaterAmount;
@@ -81,10 +98,69 @@ void applyRemoteProgressionSnapshot(LanBoard::Survivor::PlayerState &target,
     target.attractorbPassiveLevel = source.attractorbPassiveLevel;
     target.hollowHeartPassiveLevel = source.hollowHeartPassiveLevel;
     target.spinachPassiveLevel = source.spinachPassiveLevel;
+    target.bracerPassiveLevel = source.bracerPassiveLevel;
+    target.spellbinderPassiveLevel = source.spellbinderPassiveLevel;
+    target.pummarolaPassiveLevel = source.pummarolaPassiveLevel;
+    target.cloverPassiveLevel = source.cloverPassiveLevel;
+    target.bladeWeaponEvolved = source.bladeWeaponEvolved;
     target.fireWandEvolved = source.fireWandEvolved;
     target.santaWaterEvolved = source.santaWaterEvolved;
     target.orbitBladeDurationMs = source.orbitBladeDurationMs;
     target.orbitBladeCooldownBaseMs = source.orbitBladeCooldownBaseMs;
+}
+
+int weaponLevelValue(const LanBoard::Survivor::PlayerState &player,
+                     LanBoard::Survivor::WeaponType type)
+{
+    switch (type) {
+    case LanBoard::Survivor::WeaponKnife:
+        return player.bladeWeaponLevel;
+    case LanBoard::Survivor::WeaponOrbitBlade:
+        return player.orbitBladeLevel;
+    case LanBoard::Survivor::WeaponFireWand:
+        return player.fireWandLevel;
+    case LanBoard::Survivor::WeaponMagicWand:
+        return player.magicWandLevel;
+    case LanBoard::Survivor::WeaponGarlic:
+        return player.garlicLevel;
+    case LanBoard::Survivor::WeaponCross:
+        return player.crossLevel;
+    case LanBoard::Survivor::WeaponSantaWater:
+        return player.santaWaterLevel;
+    case LanBoard::Survivor::WeaponCount:
+        break;
+    }
+    return 0;
+}
+
+int passiveLevelValue(const LanBoard::Survivor::PlayerState &player,
+                      LanBoard::Survivor::PassiveType type)
+{
+    switch (type) {
+    case LanBoard::Survivor::PassiveWings:
+        return player.wingsPassiveLevel;
+    case LanBoard::Survivor::PassiveEmptyTome:
+        return player.emptyTomePassiveLevel;
+    case LanBoard::Survivor::PassiveCandelabrador:
+        return player.candelabradorPassiveLevel;
+    case LanBoard::Survivor::PassiveAttractorb:
+        return player.attractorbPassiveLevel;
+    case LanBoard::Survivor::PassiveHollowHeart:
+        return player.hollowHeartPassiveLevel;
+    case LanBoard::Survivor::PassiveSpinach:
+        return player.spinachPassiveLevel;
+    case LanBoard::Survivor::PassiveBracer:
+        return player.bracerPassiveLevel;
+    case LanBoard::Survivor::PassiveSpellbinder:
+        return player.spellbinderPassiveLevel;
+    case LanBoard::Survivor::PassivePummarola:
+        return player.pummarolaPassiveLevel;
+    case LanBoard::Survivor::PassiveClover:
+        return player.cloverPassiveLevel;
+    case LanBoard::Survivor::PassiveCount:
+        break;
+    }
+    return 0;
 }
 
 const UpgradeTemplate *kWeaponUpgradePool = LanBoard::Survivor::weaponUpgradePool();
@@ -95,6 +171,8 @@ const WaveTemplate *kWaveTemplates = LanBoard::Survivor::waveTemplates();
 const int kWaveTemplateCount = LanBoard::Survivor::waveTemplateCount();
 const BossSpawnTemplate *kBossSpawnSchedule = LanBoard::Survivor::bossSpawnSchedule();
 const int kBossSpawnScheduleCount = LanBoard::Survivor::bossSpawnScheduleCount();
+const WaveEventTemplate *kWaveEventSchedule = LanBoard::Survivor::waveEventSchedule();
+const int kWaveEventScheduleCount = LanBoard::Survivor::waveEventScheduleCount();
 
 }
 
@@ -198,70 +276,93 @@ void SurvivorController::refreshWeaponSlotCache()
         return;
     }
 
-    appendWeapon(QStringLiteral("飞刀"),
-                 player->bladeWeaponLevel > 0
-                    ? QStringLiteral("Lv.%1/8 · 伤害 %2 / 数量 %3 / 穿透 %4")
-                          .arg(player->bladeWeaponLevel)
-                          .arg(qRound(player->attackDamage * currentDamageMultiplier(*player)))
-                          .arg(player->projectileCount)
-                          .arg(player->projectilePierce)
-                    : QStringLiteral("未解锁"),
-                 player->bladeWeaponLevel > 0,
-                 QStringLiteral("#F6D782"));
+    if (player->bladeWeaponLevel > 0) {
+        appendWeapon(player->bladeWeaponEvolved ? QStringLiteral("千刃") : QStringLiteral("飞刀"),
+                     QStringLiteral("%1Lv.%2/8 · 伤害 %3 / 数量 %4 / 穿透 %5")
+                         .arg(player->bladeWeaponEvolved ? QStringLiteral("已进化 · ") : QString())
+                         .arg(player->bladeWeaponLevel)
+                         .arg(qRound(player->attackDamage * currentDamageMultiplier(*player)))
+                         .arg(player->projectileCount)
+                         .arg(player->projectilePierce),
+                     true,
+                     QStringLiteral("#F6D782"));
+    }
 
-    appendWeapon(QStringLiteral("秘典"),
-                 player->orbitBladeLevel > 0
-                    ? QStringLiteral("Lv.%1/8 · 环刃 %2 / 伤害 %3")
-                          .arg(player->orbitBladeLevel)
-                          .arg(player->orbitBladeCount)
-                          .arg(qRound(player->orbitBladeDamage * currentDamageMultiplier(*player)))
-                    : QStringLiteral("未解锁"),
-                 player->orbitBladeLevel > 0,
-                 QStringLiteral("#B4E0D2"));
+    if (player->orbitBladeLevel > 0) {
+        appendWeapon(player->orbitBladeEvolved ? QStringLiteral("邪恶晚祷") : QStringLiteral("秘典"),
+                     QStringLiteral("%1Lv.%2/8 · 环刃 %3 / 伤害 %4")
+                         .arg(player->orbitBladeEvolved ? QStringLiteral("已进化 · ") : QString())
+                         .arg(player->orbitBladeLevel)
+                         .arg(player->orbitBladeCount)
+                         .arg(qRound(player->orbitBladeDamage * currentDamageMultiplier(*player))),
+                     true,
+                     QStringLiteral("#B4E0D2"));
+    }
 
-    appendWeapon(player->fireWandEvolved ? QStringLiteral("地狱火") : QStringLiteral("火杖"),
-                 player->fireWandLevel > 0
-                    ? QStringLiteral("%1Lv.%2/8 · 伤害 %3 / 冷却 %4s / 弹速 x%5")
-                          .arg(player->fireWandEvolved ? QStringLiteral("已进化 · ") : QString())
-                          .arg(player->fireWandLevel)
-                          .arg(qRound(player->fireWandDamage * currentDamageMultiplier(*player)))
-                          .arg(player->fireWandCooldownBaseMs * currentCooldownMultiplier(*player) / 1000.0, 0, 'f', 2)
-                          .arg(QString::number(player->fireWandProjectileSpeedMultiplier, 'f', 2))
-                    : QStringLiteral("未解锁"),
-                 player->fireWandLevel > 0,
-                 QStringLiteral("#E98B61"));
+    if (player->fireWandLevel > 0) {
+        appendWeapon(player->fireWandEvolved ? QStringLiteral("地狱火") : QStringLiteral("火杖"),
+                     QStringLiteral("%1Lv.%2/8 · 伤害 %3 / 数量 %4 / 冷却 %5s / 弹速 x%6")
+                         .arg(player->fireWandEvolved ? QStringLiteral("已进化 · ") : QString())
+                         .arg(player->fireWandLevel)
+                         .arg(qRound(player->fireWandDamage * currentDamageMultiplier(*player)))
+                         .arg(player->fireWandAmount)
+                         .arg(player->fireWandCooldownBaseMs * currentCooldownMultiplier(*player) / 1000.0, 0, 'f', 2)
+                         .arg(QString::number(player->fireWandProjectileSpeedMultiplier, 'f', 2)),
+                     true,
+                     QStringLiteral("#E98B61"));
+    }
 
-    appendWeapon(QStringLiteral("大蒜"),
-                 player->garlicLevel > 0
-                    ? QStringLiteral("Lv.%1/8 · 伤害 %2 / 半径 %3")
-                          .arg(player->garlicLevel)
-                          .arg(qRound(player->garlicDamage * currentDamageMultiplier(*player)))
-                          .arg(QString::number(m_matchState.worldRuntime.garlicRadius * currentAreaMultiplier(*player), 'f', 2))
-                    : QStringLiteral("未解锁"),
-                 player->garlicLevel > 0,
-                 QStringLiteral("#D8F0B5"));
+    if (player->magicWandLevel > 0) {
+        appendWeapon(player->magicWandEvolved ? QStringLiteral("圣魔杖") : QStringLiteral("魔杖"),
+                     QStringLiteral("%1Lv.%2/8 · 伤害 %3 / 数量 %4 / 冷却 %5s")
+                         .arg(player->magicWandEvolved ? QStringLiteral("已进化 · ") : QString())
+                         .arg(player->magicWandLevel)
+                         .arg(qRound(player->magicWandDamage * currentDamageMultiplier(*player)))
+                         .arg(player->magicWandAmount)
+                         .arg(player->magicWandCooldownBaseMs * currentCooldownMultiplier(*player) / 1000.0, 0, 'f', 2),
+                     true,
+                     QStringLiteral("#92A8F8"));
+    }
 
-    appendWeapon(QStringLiteral("十字架"),
-                 player->crossLevel > 0
-                    ? QStringLiteral("Lv.%1/8 · 伤害 %2 / 数量 %3")
-                          .arg(player->crossLevel)
-                          .arg(qRound(player->crossDamage * currentDamageMultiplier(*player)))
-                          .arg(player->crossAmount)
-                    : QStringLiteral("未解锁"),
-                 player->crossLevel > 0,
-                 QStringLiteral("#EFD7A6"));
+    if (player->garlicLevel > 0) {
+        appendWeapon(player->garlicEvolved ? QStringLiteral("噬魂者") : QStringLiteral("大蒜"),
+                     QStringLiteral("%1Lv.%2/8 · 伤害 %3 / 半径 %4%5")
+                         .arg(player->garlicEvolved ? QStringLiteral("已进化 · ") : QString())
+                         .arg(player->garlicLevel)
+                         .arg(qRound(player->garlicDamage * currentDamageMultiplier(*player)))
+                         .arg(QString::number(m_matchState.worldRuntime.garlicRadius * currentAreaMultiplier(*player), 'f', 2))
+                         .arg(player->garlicEvolved && player->soulEaterBonusDamage > 0
+                                  ? QStringLiteral(" / 成长 +%1").arg(player->soulEaterBonusDamage)
+                                  : QString()),
+                     true,
+                     QStringLiteral("#D8F0B5"));
+    }
 
-    appendWeapon(player->santaWaterEvolved ? QStringLiteral("黑波拉") : QStringLiteral("圣水"),
-                 player->santaWaterLevel > 0
-                    ? QStringLiteral("%1Lv.%2/8 · 伤害 %3 / 数量 %4 / 冷却 %5s")
-                          .arg(player->santaWaterEvolved ? QStringLiteral("已进化 · ") : QString())
-                          .arg(player->santaWaterLevel)
-                          .arg(qRound(player->santaWaterDamage * currentDamageMultiplier(*player)))
-                          .arg(player->santaWaterAmount)
-                          .arg(player->santaWaterCooldownBaseMs * currentCooldownMultiplier(*player) / 1000.0, 0, 'f', 2)
-                    : QStringLiteral("未解锁"),
-                 player->santaWaterLevel > 0,
-                 QStringLiteral("#86AAF6"));
+    if (player->crossLevel > 0) {
+        appendWeapon(player->crossEvolved ? QStringLiteral("天堂之剑") : QStringLiteral("十字架"),
+                     QStringLiteral("%1Lv.%2/8 · 伤害 %3 / 数量 %4%5")
+                         .arg(player->crossEvolved ? QStringLiteral("已进化 · ") : QString())
+                         .arg(player->crossLevel)
+                         .arg(qRound(player->crossDamage * currentDamageMultiplier(*player)))
+                         .arg(player->crossAmount)
+                         .arg(player->crossEvolved
+                                  ? QStringLiteral(" / 暴击 %1%").arg(qRound(heavenSwordCritChance(*player) * 100.0))
+                                  : QString()),
+                     true,
+                     QStringLiteral("#EFD7A6"));
+    }
+
+    if (player->santaWaterLevel > 0) {
+        appendWeapon(player->santaWaterEvolved ? QStringLiteral("黑波拉") : QStringLiteral("圣水"),
+                     QStringLiteral("%1Lv.%2/8 · 伤害 %3 / 数量 %4 / 冷却 %5s")
+                         .arg(player->santaWaterEvolved ? QStringLiteral("已进化 · ") : QString())
+                         .arg(player->santaWaterLevel)
+                         .arg(qRound(player->santaWaterDamage * currentDamageMultiplier(*player)))
+                         .arg(player->santaWaterAmount)
+                         .arg(player->santaWaterCooldownBaseMs * currentCooldownMultiplier(*player) / 1000.0, 0, 'f', 2),
+                     true,
+                     QStringLiteral("#86AAF6"));
+    }
 
     while (m_cachedWeaponSlots.size() < 6) {
         QVariantMap emptySlot;
@@ -331,6 +432,26 @@ void SurvivorController::refreshPassiveSlotCache()
                       QStringLiteral("Lv.%1/5 · 伤害 x%2").arg(player->spinachPassiveLevel).arg(QString::number(currentDamageMultiplier(*player), 'f', 2)),
                       QStringLiteral("#8ECF74"));
     }
+    if (player->bracerPassiveLevel > 0) {
+        appendPassive(QStringLiteral("护腕"),
+                      QStringLiteral("Lv.%1/5 · 弹速 x%2").arg(player->bracerPassiveLevel).arg(QString::number(currentProjectileSpeedMultiplier(*player), 'f', 2)),
+                      QStringLiteral("#E2C58D"));
+    }
+    if (player->spellbinderPassiveLevel > 0) {
+        appendPassive(QStringLiteral("咒缚"),
+                      QStringLiteral("Lv.%1/5 · 持续 x%2").arg(player->spellbinderPassiveLevel).arg(QString::number(currentDurationMultiplier(*player), 'f', 2)),
+                      QStringLiteral("#A5CBE7"));
+    }
+    if (player->pummarolaPassiveLevel > 0) {
+        appendPassive(QStringLiteral("番茄"),
+                      QStringLiteral("Lv.%1/5 · 回复 %2/s").arg(player->pummarolaPassiveLevel).arg(QString::number(currentRecoveryPerSecond(*player), 'f', 1)),
+                      QStringLiteral("#D9836B"));
+    }
+    if (player->cloverPassiveLevel > 0) {
+        appendPassive(QStringLiteral("四叶草"),
+                      QStringLiteral("Lv.%1/5 · 幸运 x%2").arg(player->cloverPassiveLevel).arg(QString::number(currentLuckMultiplier(*player), 'f', 2)),
+                      QStringLiteral("#A7D37A"));
+    }
 
     while (m_cachedPassiveSlots.size() < 6) {
         QVariantMap emptySlot;
@@ -388,6 +509,7 @@ void SurvivorController::stopRun()
     m_localPredictedPosition = QVector2D();
     m_localAuthoritativePosition = QVector2D();
     m_hasLocalPrediction = false;
+    m_networkHudDirty = true;
     refreshLevelUpChoiceCache();
     refreshChestRewardCache();
     updateStatusText();
@@ -448,6 +570,7 @@ void SurvivorController::chooseLevelUp(const QString &upgradeId)
         tryOpenQueuedChest();
     }
 
+    m_networkHudDirty = true;
     syncHudState();
     m_frameTimer.restart();
     refreshFrameCache();
@@ -478,6 +601,7 @@ void SurvivorController::closeChestRewards()
         tryOpenQueuedChest();
     }
 
+    m_networkHudDirty = true;
     syncHudState();
     emitNetworkSyncIfNeeded(true);
     emit stateChanged();
@@ -504,6 +628,7 @@ void SurvivorController::resetState()
     m_localPredictedPosition = QVector2D();
     m_localAuthoritativePosition = QVector2D();
     m_hasLocalPrediction = false;
+    m_networkHudDirty = true;
     m_frameTimer.invalidate();
     refreshDerivedStats();
     refreshWaveLabel();
@@ -602,6 +727,7 @@ void SurvivorController::applyFastNetworkPacket(const QByteArray &payload)
             const int preservedOrbitBladeCooldownMs = local->orbitBladeCooldownMs;
             const int preservedOrbitBladeActiveMs = local->orbitBladeActiveMs;
             const int preservedFireWandCooldownMs = local->fireWandCooldownMs;
+            const int preservedMagicWandCooldownMs = local->magicWandCooldownMs;
             const int preservedCrossCooldownMs = local->crossCooldownMs;
             const int preservedSantaWaterCooldownMs = local->santaWaterCooldownMs;
             const qreal preservedContactDamageCarry = local->contactDamageCarry;
@@ -619,6 +745,7 @@ void SurvivorController::applyFastNetworkPacket(const QByteArray &payload)
             local->orbitBladeCooldownMs = preservedOrbitBladeCooldownMs;
             local->orbitBladeActiveMs = preservedOrbitBladeActiveMs;
             local->fireWandCooldownMs = preservedFireWandCooldownMs;
+            local->magicWandCooldownMs = preservedMagicWandCooldownMs;
             local->crossCooldownMs = preservedCrossCooldownMs;
             local->santaWaterCooldownMs = preservedSantaWaterCooldownMs;
             local->contactDamageCarry = preservedContactDamageCarry;
@@ -643,6 +770,7 @@ void SurvivorController::applyFastNetworkPacket(const QByteArray &payload)
     const bool immediate = m_renderSnapshot.players.isEmpty();
     adoptRemoteSnapshot(decoded.players, decoded.snapshot, immediate);
     syncHudState();
+    m_cachedDamageNumbers = exportDamageNumberVariantList();
 
     if (previousRunning != m_matchState.running)
         emit runningChanged();
@@ -850,6 +978,8 @@ void SurvivorController::stepRemoteInterpolation(int elapsedMs)
         }
     }
 
+    m_cachedDamageNumbers = exportDamageNumberVariantList();
+
     if (PlayerState *local = localPlayerState()) {
         if (hasPreservedLocalState) {
             local->moveInput = preservedLocalInput;
@@ -997,6 +1127,12 @@ SurvivorController::RenderSnapshot SurvivorController::buildNetworkRenderSnapsho
             snapshot.zones.append(zone);
     }
 
+    snapshot.damageNumbers.reserve(m_renderSnapshot.damageNumbers.size());
+    for (const RenderDamageNumber &number : m_renderSnapshot.damageNumbers) {
+        if (insideRange(number.x, number.y, 0.04))
+            snapshot.damageNumbers.append(number);
+    }
+
     return snapshot;
 }
 
@@ -1102,6 +1238,21 @@ void SurvivorController::syncHudState()
 QVariantList SurvivorController::exportDamageNumberVariantList() const
 {
     QVariantList numbers;
+    if (m_networkSession && !m_networkAuthoritative) {
+        numbers.reserve(m_renderSnapshot.damageNumbers.size());
+        for (const RenderDamageNumber &number : m_renderSnapshot.damageNumbers) {
+            QVariantMap map;
+            map[QStringLiteral("x")] = number.x;
+            map[QStringLiteral("y")] = number.y;
+            map[QStringLiteral("amount")] = number.amount;
+            map[QStringLiteral("lifeMs")] = number.lifeMs;
+            map[QStringLiteral("totalLifeMs")] = number.totalLifeMs;
+            map[QStringLiteral("elite")] = number.elite;
+            numbers.append(map);
+        }
+        return numbers;
+    }
+
     numbers.reserve(m_matchState.damageNumbers.size());
     for (const DamageNumber &number : m_matchState.damageNumbers) {
         QVariantMap map;
@@ -1121,7 +1272,7 @@ void SurvivorController::emitNetworkSyncIfNeeded(bool force)
     if (!m_networkSession || !m_networkAuthoritative)
         return;
 
-    bool includeHudDetails = force || m_matchState.pendingInteractionPlayerId >= 0 || m_matchState.gameOver;
+    bool includeHudDetails = force || m_networkHudDirty || m_matchState.gameOver;
     if (!force) {
         m_networkBroadcastAccumulatorMs += TickIntervalMs;
         if (m_networkBroadcastAccumulatorMs < NetworkSnapshotIntervalMs)
@@ -1132,8 +1283,10 @@ void SurvivorController::emitNetworkSyncIfNeeded(bool force)
     }
 
     m_networkBroadcastAccumulatorMs = 0;
-    if (includeHudDetails)
+    if (includeHudDetails) {
         m_networkHudBroadcastAccumulatorMs = 0;
+        m_networkHudDirty = false;
+    }
     ++m_networkStateSequence;
     emit networkSyncRequested(includeHudDetails);
 }
@@ -1366,11 +1519,12 @@ void SurvivorController::simulateStep(int elapsedMs)
         player.orbitBladeCooldownMs = qMax(0, player.orbitBladeCooldownMs - elapsedMs);
         player.orbitBladeActiveMs = qMax(0, player.orbitBladeActiveMs - elapsedMs);
         player.fireWandCooldownMs = qMax(0, player.fireWandCooldownMs - elapsedMs);
+        player.magicWandCooldownMs = qMax(0, player.magicWandCooldownMs - elapsedMs);
         player.crossCooldownMs = qMax(0, player.crossCooldownMs - elapsedMs);
         player.santaWaterCooldownMs = qMax(0, player.santaWaterCooldownMs - elapsedMs);
     }
     refreshWaveLabel();
-    triggerWaveEvents();
+    processWaveEvents();
 
     for (int i = m_matchState.damageNumbers.size() - 1; i >= 0; --i) {
         DamageNumber &number = m_matchState.damageNumbers[i];
@@ -1424,6 +1578,16 @@ void SurvivorController::simulateStep(int elapsedMs)
             player.contactDamageCarry -= appliedContactDamage;
             player.hp = qMax(0, player.hp - appliedContactDamage);
         }
+        if (player.hp > 0 && player.hp < player.maxHp) {
+            player.recoveryCarry += currentRecoveryPerSecond(player) * deltaSec;
+            const int recoveredHp = static_cast<int>(player.recoveryCarry);
+            if (recoveredHp > 0) {
+                player.recoveryCarry -= recoveredHp;
+                healPlayer(player, recoveredHp);
+            }
+        } else {
+            player.recoveryCarry = 0.0f;
+        }
         player.alive = player.hp > 0;
         anyAlive = anyAlive || player.alive;
     }
@@ -1463,15 +1627,16 @@ void SurvivorController::simulateStep(int elapsedMs)
     const int eliteSpawnIntervalMs = currentEliteSpawnIntervalMs();
     if (eliteSpawnIntervalMs > 0 && m_matchState.eliteSpawnAccumulatorMs >= eliteSpawnIntervalMs) {
         m_matchState.eliteSpawnAccumulatorMs = 0;
-        const int eliteCount = m_matchState.enemies.size() > currentEnemyCap() * 4 / 3 ? 1 : currentSpawnBurstCount();
+        const int eliteCount = m_matchState.enemies.size() > currentEnemyCap() * 4 / 3 ? 1 : currentEliteSpawnBurstCount();
         for (int i = 0; i < eliteCount; ++i)
             spawnEnemy(true, currentEliteKind(), false);
     }
 
-    if (m_matchState.spawnedBossCount < kBossSpawnScheduleCount
-        && survivalTimeSec() >= kBossSpawnSchedule[m_matchState.spawnedBossCount].second) {
-        spawnEnemy(true, kBossSpawnSchedule[m_matchState.spawnedBossCount].kind, true);
-        ++m_matchState.spawnedBossCount;
+    while (m_matchState.nextBossSpawnIndex < kBossSpawnScheduleCount
+           && survivalTimeSec() >= kBossSpawnSchedule[m_matchState.nextBossSpawnIndex].second
+           && !hasLivingBoss()) {
+        spawnEnemy(true, kBossSpawnSchedule[m_matchState.nextBossSpawnIndex].kind, true);
+        ++m_matchState.nextBossSpawnIndex;
     }
 
     applyAutoAttack();
@@ -1480,6 +1645,14 @@ void SurvivorController::simulateStep(int elapsedMs)
     updateProjectiles(deltaSec, elapsedMs);
     updateZones(deltaSec, elapsedMs);
     collectPickups(deltaSec);
+
+    if (survivalTimeSec() >= SurvivorRunDurationSec) {
+        m_matchState.gameOver = true;
+        m_matchWinner = 1;
+        m_matchState.running = false;
+        m_tickTimer.stop();
+        updateStatusText();
+    }
 }
 void SurvivorController::applyAutoAttack()
 {
@@ -1494,7 +1667,15 @@ void SurvivorController::applyAutoAttack()
         PlayerState &player = m_matchState.players[playerIndex];
         const qreal damageMultiplier = currentDamageMultiplier(player);
         const qreal cooldownMultiplier = currentCooldownMultiplier(player);
-        const qreal projectileSpeedMultiplier = currentProjectileSpeedMultiplier();
+        const qreal projectileSpeedMultiplier = currentProjectileSpeedMultiplier(player);
+        const auto &knifeProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileKnife);
+        const auto &fireWandProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileFireWand);
+        const auto &hellfireProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileHellfire);
+        const auto &magicWandProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileMagicWand);
+        const auto &holyWandProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileHolyWand);
+        const auto &crossProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileCross);
+        const auto &santaWaterProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileSantaWater);
+        const auto &laBorraProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileLaBorra);
 
         if (player.bladeWeaponLevel > 0 && player.attackCooldownMs <= 0) {
             player.attackCooldownMs = qMax(120, qRound(player.attackCooldownBaseMs * cooldownMultiplier));
@@ -1514,10 +1695,10 @@ void SurvivorController::applyAutoAttack()
                 projectile.damage = knifeDamage;
                 projectile.hitIntervalMs = 1000000;
                 projectile.remainingHits = player.projectilePierce;
-                projectile.lifeMs = 1680 + (player.projectilePierce - 1) * 180;
-                projectile.radius = 0.012f + qMin<qreal>(0.006f, 0.0015f * player.projectilePierce);
-                projectile.knockback = 0.040f;
-                projectile.damageVariance = 0.18f;
+                projectile.lifeMs = knifeProfile.lifeMs + (player.projectilePierce - 1) * 180;
+                projectile.radius = knifeProfile.radius + qMin<qreal>(0.006f, 0.0015f * player.projectilePierce);
+                projectile.knockback = knifeProfile.knockback;
+                projectile.damageVariance = knifeProfile.damageVariance;
                 m_matchState.projectiles.append(projectile);
             }
         }
@@ -1541,22 +1722,77 @@ void SurvivorController::applyAutoAttack()
                 fireDirection = QVector2D(1.0f, 0.0f);
             fireDirection.normalize();
 
-            Projectile projectile;
-            projectile.kind = player.fireWandEvolved ? 3 : 1;
-            projectile.sourceId = m_matchState.nextSourceId++;
-            projectile.position = player.position + fireDirection * 0.024f;
-            projectile.velocity = fireDirection * static_cast<float>(m_matchState.worldRuntime.projectileSpeed
-                                                                      * (player.fireWandEvolved ? 1.12f : 0.92f)
-                                                                      * projectileSpeedMultiplier
-                                                                      * player.fireWandProjectileSpeedMultiplier);
-            projectile.damage = qMax(1, qRound(player.fireWandDamage * damageMultiplier * (player.fireWandEvolved ? 1.30f : 1.0f)));
-            projectile.hitIntervalMs = 1000000;
-            projectile.remainingHits = player.fireWandEvolved ? 999 : 1;
-            projectile.lifeMs = player.fireWandEvolved ? 3400 : 2400;
-            projectile.radius = player.fireWandEvolved ? 0.021f : 0.017f;
-            projectile.knockback = player.fireWandEvolved ? 0.072f : 0.048f;
-            projectile.damageVariance = player.fireWandEvolved ? 0.10f : 0.16f;
-            m_matchState.projectiles.append(projectile);
+            const auto &profile = player.fireWandEvolved ? hellfireProfile : fireWandProfile;
+            const qreal centerOffset = (player.fireWandAmount - 1) / 2.0;
+            for (int i = 0; i < player.fireWandAmount; ++i) {
+                const qreal spreadDegrees = (static_cast<qreal>(i) - centerOffset) * 6.5;
+                Projectile projectile;
+                projectile.kind = player.fireWandEvolved ? 3 : 1;
+                projectile.sourceId = m_matchState.nextSourceId++;
+                projectile.position = player.position + fireDirection * 0.024f;
+                projectile.velocity = rotatedVector(fireDirection, spreadDegrees)
+                    * static_cast<float>(m_matchState.worldRuntime.projectileSpeed
+                                         * profile.speedMultiplier
+                                         * projectileSpeedMultiplier
+                                         * player.fireWandProjectileSpeedMultiplier);
+                projectile.damage = qMax(1, qRound(player.fireWandDamage * damageMultiplier * profile.damageMultiplier));
+                projectile.hitIntervalMs = 1000000;
+                projectile.remainingHits = profile.remainingHits;
+                projectile.lifeMs = profile.lifeMs;
+                projectile.radius = profile.radius;
+                projectile.knockback = profile.knockback;
+                projectile.damageVariance = profile.damageVariance;
+                m_matchState.projectiles.append(projectile);
+            }
+        }
+
+        if (player.magicWandLevel > 0 && player.magicWandCooldownMs <= 0) {
+            player.magicWandCooldownMs = qMax(120, qRound(player.magicWandCooldownBaseMs * cooldownMultiplier));
+            const auto &profile = player.magicWandEvolved ? holyWandProfile : magicWandProfile;
+            const int wandDamage = qMax(1, qRound(player.magicWandDamage * damageMultiplier * profile.damageMultiplier));
+
+            QVector<int> targetIndices;
+            QVector<qreal> targetDistances;
+            targetIndices.reserve(player.magicWandAmount);
+            targetDistances.reserve(player.magicWandAmount);
+            for (int i = 0; i < m_matchState.enemies.size(); ++i) {
+                const qreal distanceSquared = (m_matchState.enemies.at(i).position - player.position).lengthSquared();
+                int insertIndex = 0;
+                while (insertIndex < targetDistances.size() && targetDistances.at(insertIndex) <= distanceSquared)
+                    ++insertIndex;
+                if (insertIndex >= player.magicWandAmount)
+                    continue;
+                targetDistances.insert(insertIndex, distanceSquared);
+                targetIndices.insert(insertIndex, i);
+                if (targetIndices.size() > player.magicWandAmount) {
+                    targetIndices.removeLast();
+                    targetDistances.removeLast();
+                }
+            }
+
+            for (int i = 0; i < targetIndices.size(); ++i) {
+                QVector2D castDirection = m_matchState.enemies.at(targetIndices.at(i)).position - player.position;
+                if (castDirection.lengthSquared() <= 0.0001f)
+                    castDirection = rotatedVector(QVector2D(1.0f, 0.0f), i * 18.0);
+                castDirection.normalize();
+
+                Projectile projectile;
+                projectile.kind = player.magicWandEvolved ? 5 : 4;
+                projectile.sourceId = m_matchState.nextSourceId++;
+                projectile.position = player.position + castDirection * 0.022f;
+                projectile.velocity = rotatedVector(castDirection, (i - (player.magicWandAmount - 1) / 2.0) * 4.0)
+                    * static_cast<float>(m_matchState.worldRuntime.projectileSpeed
+                                         * projectileSpeedMultiplier
+                                         * profile.speedMultiplier);
+                projectile.damage = wandDamage;
+                projectile.hitIntervalMs = 1000000;
+                projectile.remainingHits = profile.remainingHits;
+                projectile.lifeMs = profile.lifeMs;
+                projectile.radius = profile.radius;
+                projectile.knockback = profile.knockback;
+                projectile.damageVariance = profile.damageVariance;
+                m_matchState.projectiles.append(projectile);
+            }
         }
 
         if (player.crossLevel > 0 && player.crossCooldownMs <= 0) {
@@ -1591,42 +1827,63 @@ void SurvivorController::applyAutoAttack()
                 crossProjectile.kind = 2;
                 crossProjectile.sourceId = m_matchState.nextSourceId++;
                 crossProjectile.position = player.position + crossDirection * 0.024f;
-                crossProjectile.velocity = crossDirection * static_cast<float>(m_matchState.worldRuntime.crossSpeed);
-                crossProjectile.damage = crossDamage;
+                const bool critical = player.crossEvolved
+                    && QRandomGenerator::global()->generateDouble() < heavenSwordCritChance(player);
+                crossProjectile.velocity = crossDirection
+                    * static_cast<float>(m_matchState.worldRuntime.crossSpeed * (player.crossEvolved ? 1.10f : 1.0f));
+                crossProjectile.damage = critical ? qMax(1, qRound(crossDamage * 2.5)) : crossDamage;
                 crossProjectile.hitIntervalMs = 1000000;
                 crossProjectile.remainingHits = player.crossPierce;
-                crossProjectile.lifeMs = 1620;
+                crossProjectile.lifeMs = player.crossEvolved ? crossProfile.lifeMs + 960 : crossProfile.lifeMs;
                 crossProjectile.radius = m_matchState.worldRuntime.crossRadius * currentAreaMultiplier(player);
                 crossProjectile.returning = false;
-                crossProjectile.knockback = 0.060f;
-                crossProjectile.damageVariance = 0.12f;
+                crossProjectile.knockback = crossProfile.knockback;
+                crossProjectile.damageVariance = crossProfile.damageVariance;
                 m_matchState.projectiles.append(crossProjectile);
             }
         }
 
         if (player.santaWaterLevel > 0 && player.santaWaterCooldownMs <= 0) {
             player.santaWaterCooldownMs = qMax(620, qRound(player.santaWaterCooldownBaseMs * cooldownMultiplier));
-            const int zoneDamage = qMax(1, qRound(player.santaWaterDamage * damageMultiplier * (player.santaWaterEvolved ? 1.18f : 1.0f)));
+            const auto &profile = player.santaWaterEvolved ? laBorraProfile : santaWaterProfile;
+            const int zoneDamage = qMax(1, qRound(player.santaWaterDamage * damageMultiplier * profile.damageMultiplier));
             const qreal zoneRadius = m_matchState.worldRuntime.santaWaterRadius
                 * currentAreaMultiplier(player)
-                * (player.santaWaterEvolved ? 1.06f : 1.0f);
+                * profile.areaMultiplier;
+            QVector2D targetCenter = player.position;
+            if (!player.santaWaterEvolved) {
+                int nearestIndex = -1;
+                qreal nearestDistance = std::numeric_limits<qreal>::max();
+                for (int enemyIndex = 0; enemyIndex < m_matchState.enemies.size(); ++enemyIndex) {
+                    const qreal distanceSquared =
+                        (m_matchState.enemies.at(enemyIndex).position - player.position).lengthSquared();
+                    if (distanceSquared >= nearestDistance)
+                        continue;
+                    nearestDistance = distanceSquared;
+                    nearestIndex = enemyIndex;
+                }
+                if (nearestIndex >= 0)
+                    targetCenter = m_matchState.enemies.at(nearestIndex).position;
+            }
             for (int i = 0; i < player.santaWaterAmount; ++i) {
-                const qreal angle = QRandomGenerator::global()->generateDouble() * 360.0;
+                const qreal angle = player.santaWaterEvolved
+                    ? (360.0 / qMax(1, player.santaWaterAmount)) * i
+                    : QRandomGenerator::global()->generateDouble() * 360.0;
                 const qreal distance = player.santaWaterEvolved
-                    ? 0.32 + QRandomGenerator::global()->generateDouble() * 0.42
-                    : 0.16 + QRandomGenerator::global()->generateDouble() * 0.30;
+                    ? 0.30 + 0.09 * (i % 2)
+                    : 0.06 + QRandomGenerator::global()->generateDouble() * 0.16;
                 Zone zone;
                 zone.kind = player.santaWaterEvolved ? 1 : 0;
                 zone.sourceId = m_matchState.nextSourceId++;
-                zone.position = player.position + rotatedVector(QVector2D(distance, 0.0f), angle);
+                zone.position = targetCenter + rotatedVector(QVector2D(distance, 0.0f), angle);
                 zone.radius = zoneRadius;
                 zone.damage = zoneDamage;
-                zone.totalLifeMs = qRound(player.santaWaterDurationMs * currentDurationMultiplier() * (player.santaWaterEvolved ? 1.08f : 1.0f));
+                zone.totalLifeMs = qRound(player.santaWaterDurationMs * currentDurationMultiplier(player) * profile.durationMultiplier);
                 zone.lifeMs = zone.totalLifeMs;
-                zone.tickIntervalMs = qMax(170, qRound((player.santaWaterEvolved ? 280 : 320) * cooldownMultiplier));
+                zone.tickIntervalMs = qMax(170, qRound(profile.tickIntervalMs * cooldownMultiplier));
                 zone.tickCooldownMs = 0;
-                zone.knockback = player.santaWaterEvolved ? 0.026f : 0.018f;
-                zone.damageVariance = player.santaWaterEvolved ? 0.06f : 0.10f;
+                zone.knockback = profile.knockback;
+                zone.damageVariance = profile.damageVariance;
                 m_matchState.zones.append(zone);
             }
         }
@@ -1635,7 +1892,7 @@ void SurvivorController::applyAutoAttack()
             && player.orbitBladeCount > 0
             && player.orbitBladeActiveMs <= 0
             && player.orbitBladeCooldownMs <= 0) {
-            player.orbitBladeActiveMs = qRound(player.orbitBladeDurationMs * currentDurationMultiplier());
+            player.orbitBladeActiveMs = qRound(player.orbitBladeDurationMs * currentDurationMultiplier(player));
             player.orbitBladeCooldownMs = qMax(450, qRound(player.orbitBladeCooldownBaseMs * cooldownMultiplier));
         }
     }
@@ -1645,11 +1902,13 @@ void SurvivorController::updateGarlicAura()
     if (m_matchState.enemies.isEmpty())
         return;
 
+    const auto &garlicProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileGarlic);
     for (const PlayerState &player : std::as_const(m_matchState.players)) {
         if (!player.alive || player.garlicLevel <= 0)
             continue;
         const qreal auraRadius = m_matchState.worldRuntime.garlicRadius * currentAreaMultiplier(player);
-        const int auraDamage = qMax(1, qRound(player.garlicDamage * currentDamageMultiplier(player)));
+        const int auraDamage = qMax(1, qRound((player.garlicDamage + player.soulEaterBonusDamage)
+                                              * currentDamageMultiplier(player)));
         const int auraCooldownMs = qMax(650, qRound(player.garlicCooldownBaseMs * currentCooldownMultiplier(player)));
         for (int enemyIndex = m_matchState.enemies.size() - 1; enemyIndex >= 0; --enemyIndex) {
             Enemy &enemy = m_matchState.enemies[enemyIndex];
@@ -1660,8 +1919,8 @@ void SurvivorController::updateGarlicAura()
                         1000 + player.playerId,
                         auraCooldownMs,
                         auraDamage,
-                        0.10f,
-                        enemy.elite ? 0.022f : 0.040f,
+                        garlicProfile.damageVariance,
+                        enemy.elite ? 0.022f : garlicProfile.knockback,
                         true);
         }
     }
@@ -1746,6 +2005,7 @@ void SurvivorController::updateOrbitals(qreal deltaSec, int elapsedMs)
         m_matchState.worldRuntime.orbitAngleDeg -= 360.0f;
 
     Q_UNUSED(elapsedMs)
+    const auto &orbitProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileOrbitBlade);
     for (const PlayerState &player : std::as_const(m_matchState.players)) {
         if (!player.alive
             || player.orbitBladeCount <= 0
@@ -1770,10 +2030,10 @@ void SurvivorController::updateOrbitals(qreal deltaSec, int elapsedMs)
                 tryApplyHit(enemyIndex,
                             orbitalPos,
                             2000 + player.playerId * 100 + orbitalIndex,
-                            1700,
+                            orbitProfile.tickIntervalMs,
                             orbitalDamage,
-                            0.08f,
-                            0.028f);
+                            orbitProfile.damageVariance,
+                            orbitProfile.knockback);
             }
         }
     }
@@ -1794,7 +2054,8 @@ void SurvivorController::updateProjectiles(qreal deltaSec, int elapsedMs)
                     QVector2D toPlayer = m_matchState.players.at(targetIndex).position - projectile.position;
                     if (toPlayer.lengthSquared() > 0.0001f)
                         projectile.velocity = toPlayer.normalized()
-                            * static_cast<float>(m_matchState.worldRuntime.crossSpeed * 1.05f);
+                            * static_cast<float>(m_matchState.worldRuntime.crossSpeed
+                                                 * LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileCross).returnSpeedMultiplier);
                 }
             }
         }
@@ -1858,7 +2119,8 @@ void SurvivorController::updateZones(qreal deltaSec, int elapsedMs)
         if (zone.kind == 1) {
             QVector2D toPlayer = playerAnchor() - zone.position;
             if (toPlayer.lengthSquared() > 0.0001f)
-                zone.position += toPlayer.normalized() * static_cast<float>(0.16f * deltaSec);
+                zone.position += toPlayer.normalized()
+                    * static_cast<float>(LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileLaBorra).driftSpeed * deltaSec);
         }
         zone.lifeMs -= elapsedMs;
         zone.tickCooldownMs = qMax(0, zone.tickCooldownMs - elapsedMs);
@@ -1941,10 +2203,14 @@ void SurvivorController::defeatEnemy(int index)
     Pickup pickup;
     pickup.position = enemy.position;
     if (enemy.chestCarrier) {
+        const int nearestPlayerIndex = nearestLivingPlayerIndex(enemy.position);
+        const PlayerState *rewardPlayer = nearestPlayerIndex >= 0
+            ? &m_matchState.players.at(nearestPlayerIndex)
+            : nullptr;
         pickup.kind = ChestPickup;
         pickup.exp = 0;
         pickup.radius = 0.028f;
-        pickup.rewardCount = rollChestRewardCount();
+        pickup.rewardCount = rollChestRewardCount(rewardPlayer);
         pickup.canEvolve = survivalTimeSec() >= EvolutionChestStartSec;
     } else {
         pickup.exp = enemy.expReward;
@@ -1989,6 +2255,22 @@ void SurvivorController::prepareLevelUpChoices(PlayerState &player)
             const int maxLevel = maxLevelForUpgrade(id);
             if (currentLevel >= maxLevel)
                 continue;
+            if (currentLevel <= 0) {
+                int usedSlots = 0;
+                if (isWeaponUpgrade(id)) {
+                    for (int weaponIndex = 0; weaponIndex < LanBoard::Survivor::WeaponCount; ++weaponIndex) {
+                        if (weaponLevelValue(player, static_cast<LanBoard::Survivor::WeaponType>(weaponIndex)) > 0)
+                            ++usedSlots;
+                    }
+                } else {
+                    for (int passiveIndex = 0; passiveIndex < LanBoard::Survivor::PassiveCount; ++passiveIndex) {
+                        if (passiveLevelValue(player, static_cast<LanBoard::Survivor::PassiveType>(passiveIndex)) > 0)
+                            ++usedSlots;
+                    }
+                }
+                if (usedSlots >= 6)
+                    continue;
+            }
             if (currentLevel > 0)
                 ownedPool.append(id);
             else
@@ -2029,6 +2311,7 @@ void SurvivorController::prepareLevelUpChoices(PlayerState &player)
             m_matchState.pendingInteractionPlayerId = -1;
         if (m_matchState.pendingInteractionPlayerId < 0)
             m_matchState.pendingInteractionElapsedMs = 0;
+        m_networkHudDirty = true;
         syncHudState();
         emitNetworkSyncIfNeeded(true);
         return;
@@ -2036,6 +2319,7 @@ void SurvivorController::prepareLevelUpChoices(PlayerState &player)
 
     m_matchState.pendingInteractionPlayerId = player.playerId;
     m_matchState.pendingInteractionElapsedMs = 0;
+    m_networkHudDirty = true;
     syncHudState();
     emitNetworkSyncIfNeeded(true);
 }
@@ -2065,12 +2349,13 @@ void SurvivorController::tryOpenQueuedChest()
     }
 }
 
-int SurvivorController::rollChestRewardCount() const
+int SurvivorController::rollChestRewardCount(const PlayerState *player) const
 {
+    const qreal luck = player ? currentLuckMultiplier(*player) : 1.0;
     const int roll = QRandomGenerator::global()->bounded(100);
-    if (roll < 5)
+    if (roll < qRound(5 * luck))
         return 5;
-    if (roll < 25)
+    if (roll < qRound(25 * luck))
         return 3;
     return 1;
 }
@@ -2096,44 +2381,45 @@ QList<QString> SurvivorController::currentChestUpgradeCandidates(const PlayerSta
 
 bool SurvivorController::canEvolveWeapon(const PlayerState &player, const QString &weaponId) const
 {
-    if (weaponId == QStringLiteral("firewand_weapon")) {
-        return !player.fireWandEvolved
-            && player.fireWandLevel >= 8
-            && player.spinachPassiveLevel > 0;
-    }
-    if (weaponId == QStringLiteral("santawater_weapon")) {
-        return !player.santaWaterEvolved
-            && player.santaWaterLevel >= 8
-            && player.attractorbPassiveLevel > 0;
-    }
-    return false;
+    const EvolutionTemplate *templateInfo = LanBoard::Survivor::evolutionTemplateForWeaponId(weaponId);
+    if (!templateInfo)
+        return false;
+
+    const int weaponIndex = LanBoard::Survivor::weaponIndexForId(weaponId);
+    const int passiveIndex = LanBoard::Survivor::passiveIndexForId(QString::fromLatin1(templateInfo->requiredPassiveId));
+    if (weaponIndex < 0 || passiveIndex < 0)
+        return false;
+
+    const auto weaponType = static_cast<LanBoard::Survivor::WeaponType>(weaponIndex);
+    const auto passiveType = static_cast<LanBoard::Survivor::PassiveType>(passiveIndex);
+    return !isWeaponEvolved(player, weaponType)
+        && weaponLevelValue(player, weaponType) >= templateInfo->requiredWeaponLevel
+        && passiveLevelValue(player, passiveType) >= templateInfo->requiredPassiveLevel;
 }
 
 QList<QString> SurvivorController::currentEvolutionCandidates(const PlayerState &player) const
 {
     QList<QString> ids;
-    if (canEvolveWeapon(player, QStringLiteral("firewand_weapon")))
-        ids.append(QStringLiteral("firewand_weapon"));
-    if (canEvolveWeapon(player, QStringLiteral("santawater_weapon")))
-        ids.append(QStringLiteral("santawater_weapon"));
+    for (int weaponIndex = 0; weaponIndex < LanBoard::Survivor::WeaponCount; ++weaponIndex) {
+        const UpgradeTemplate &entry = kWeaponUpgradePool[weaponIndex];
+        const QString weaponId = QString::fromLatin1(entry.id);
+        if (canEvolveWeapon(player, weaponId))
+            ids.append(weaponId);
+    }
     return ids;
 }
 
 QString SurvivorController::evolvedTitleForWeapon(const QString &weaponId) const
 {
-    if (weaponId == QStringLiteral("firewand_weapon"))
-        return QStringLiteral("地狱火");
-    if (weaponId == QStringLiteral("santawater_weapon"))
-        return QStringLiteral("黑波拉");
+    if (const EvolutionTemplate *templateInfo = LanBoard::Survivor::evolutionTemplateForWeaponId(weaponId))
+        return QString::fromUtf8(templateInfo->evolvedTitle);
     return titleForUpgrade(weaponId);
 }
 
 QString SurvivorController::evolvedDescriptionForWeapon(const QString &weaponId) const
 {
-    if (weaponId == QStringLiteral("firewand_weapon"))
-        return QStringLiteral("火杖进化完成，火球穿透全部敌人并造成更高爆发伤害。");
-    if (weaponId == QStringLiteral("santawater_weapon"))
-        return QStringLiteral("圣水进化完成，生成会向玩家汇聚的持续伤害圣池。");
+    if (const EvolutionTemplate *templateInfo = LanBoard::Survivor::evolutionTemplateForWeaponId(weaponId))
+        return QString::fromUtf8(templateInfo->evolvedDescription);
     return QStringLiteral("武器进化完成。");
 }
 
@@ -2142,17 +2428,50 @@ bool SurvivorController::applyEvolution(PlayerState &player, const QString &weap
     if (!canEvolveWeapon(player, weaponId))
         return false;
 
-    if (weaponId == QStringLiteral("firewand_weapon")) {
+    if (weaponId == QStringLiteral("knife_weapon")) {
+        player.bladeWeaponEvolved = true;
+        player.attackDamage = qMax(player.attackDamage, 22);
+        player.attackCooldownBaseMs = qMin(player.attackCooldownBaseMs, 240);
+        player.projectileCount = qMax(player.projectileCount, 5);
+        player.projectilePierce = qMax(player.projectilePierce, 3);
+        m_matchState.worldRuntime.projectileSpeed = qMax<qreal>(m_matchState.worldRuntime.projectileSpeed, 1.45f);
+    } else if (weaponId == QStringLiteral("orbit_weapon")) {
+        player.orbitBladeEvolved = true;
+        player.orbitBladeDamage = qMax(player.orbitBladeDamage, 28);
+        player.orbitBladeCount = qMax(player.orbitBladeCount, 4);
+        player.orbitBladeDurationMs = qMax(player.orbitBladeDurationMs, 3000);
+        player.orbitBladeCooldownBaseMs = qMin(player.orbitBladeCooldownBaseMs, 3000);
+        m_matchState.worldRuntime.orbitBladeRadius = qMax<qreal>(m_matchState.worldRuntime.orbitBladeRadius, 0.20f);
+        m_matchState.worldRuntime.orbitBladeAngularSpeedDeg = qMax<qreal>(m_matchState.worldRuntime.orbitBladeAngularSpeedDeg, 210.0f);
+    } else if (weaponId == QStringLiteral("firewand_weapon")) {
         player.fireWandEvolved = true;
-        player.fireWandDamage = qMax(player.fireWandDamage, 76);
-        player.fireWandCooldownBaseMs = qMin(player.fireWandCooldownBaseMs, 1320);
-        player.fireWandProjectileSpeedMultiplier = qMax<qreal>(player.fireWandProjectileSpeedMultiplier, 1.85f);
+        player.fireWandDamage = qMax(player.fireWandDamage, 90);
+        player.fireWandCooldownBaseMs = qMin(player.fireWandCooldownBaseMs, 3000);
+        player.fireWandAmount = qMax(player.fireWandAmount, 3);
+        player.fireWandProjectileSpeedMultiplier = qMax<qreal>(player.fireWandProjectileSpeedMultiplier, 1.30f);
+    } else if (weaponId == QStringLiteral("magicwand_weapon")) {
+        player.magicWandEvolved = true;
+        player.magicWandDamage = qMax(player.magicWandDamage, 24);
+        player.magicWandAmount = qMax(player.magicWandAmount, 4);
+        player.magicWandCooldownBaseMs = qMin(player.magicWandCooldownBaseMs, 180);
+    } else if (weaponId == QStringLiteral("garlic_weapon")) {
+        player.garlicEvolved = true;
+        player.garlicDamage = qMax(player.garlicDamage, 18);
+        player.garlicCooldownBaseMs = qMin(player.garlicCooldownBaseMs, 680);
+        m_matchState.worldRuntime.garlicRadius = qMax<qreal>(m_matchState.worldRuntime.garlicRadius, 0.22f);
+    } else if (weaponId == QStringLiteral("cross_weapon")) {
+        player.crossEvolved = true;
+        player.crossDamage = qMax(player.crossDamage, 42);
+        player.crossAmount = qMax(player.crossAmount, 3);
+        player.crossCooldownBaseMs = qMin(player.crossCooldownBaseMs, 1700);
+        m_matchState.worldRuntime.crossRadius = qMax<qreal>(m_matchState.worldRuntime.crossRadius, 0.024f);
+        m_matchState.worldRuntime.crossSpeed = qMax<qreal>(m_matchState.worldRuntime.crossSpeed, 1.46f);
     } else if (weaponId == QStringLiteral("santawater_weapon")) {
         player.santaWaterEvolved = true;
-        player.santaWaterDamage = qMax(player.santaWaterDamage, 28);
-        player.santaWaterDurationMs = qMax(player.santaWaterDurationMs, 2800);
-        m_matchState.worldRuntime.santaWaterRadius = qMax<qreal>(m_matchState.worldRuntime.santaWaterRadius, 0.128f);
-        player.santaWaterCooldownBaseMs = qMax(player.santaWaterCooldownBaseMs, 1780);
+        player.santaWaterDamage = qMax(player.santaWaterDamage, 50);
+        player.santaWaterDurationMs = qMax(player.santaWaterDurationMs, 3500);
+        m_matchState.worldRuntime.santaWaterRadius = qMax<qreal>(m_matchState.worldRuntime.santaWaterRadius, 0.132f);
+        player.santaWaterCooldownBaseMs = qMin(player.santaWaterCooldownBaseMs, 4500);
     } else {
         return false;
     }
@@ -2226,6 +2545,7 @@ void SurvivorController::openChest(PlayerState &player, const Pickup &pickup)
                    : QStringLiteral("宝箱开启"));
     m_matchState.pendingInteractionPlayerId = player.playerId;
     m_matchState.pendingInteractionElapsedMs = 0;
+    m_networkHudDirty = true;
     syncHudState();
     emitNetworkSyncIfNeeded(true);
 }
@@ -2238,244 +2558,183 @@ void SurvivorController::applyUpgrade(PlayerState &player, const QString &upgrad
         return;
 
     const int newLevel = currentLevel + 1;
-    if (upgradeId == QStringLiteral("knife_weapon")) {
-        player.bladeWeaponLevel = newLevel;
-        switch (newLevel) {
-        case 1:
-            player.attackDamage = 7;
-            player.projectileCount = 1;
-            player.projectilePierce = 1;
-            player.attackCooldownBaseMs = 1000;
-            m_matchState.worldRuntime.projectileSpeed = 1.00f;
-            break;
-        case 2:
-            player.projectileCount = qMin(6, player.projectileCount + 1);
-            break;
-        case 3:
-            player.attackDamage += 5;
-            player.projectileCount = qMin(6, player.projectileCount + 1);
-            break;
-        case 4:
-            player.projectileCount = qMin(6, player.projectileCount + 1);
-            player.attackCooldownBaseMs = 930;
-            break;
-        case 5:
-            player.projectilePierce = qMin(3, player.projectilePierce + 1);
-            break;
-        case 6:
-            player.projectileCount = qMin(6, player.projectileCount + 1);
-            player.attackCooldownBaseMs = 860;
-            break;
-        case 7:
-            player.attackDamage += 5;
-            player.projectileCount = qMin(6, player.projectileCount + 1);
-            break;
-        case 8:
-            player.projectilePierce = qMin(3, player.projectilePierce + 1);
-            player.attackCooldownBaseMs = 790;
-            break;
-        default:
-            break;
+    const int weaponIndex = LanBoard::Survivor::weaponIndexForId(upgradeId);
+    if (weaponIndex >= 0) {
+        applyWeaponUpgradeLevel(player,
+                                static_cast<LanBoard::Survivor::WeaponType>(weaponIndex),
+                                newLevel);
+    } else {
+        const int passiveIndex = LanBoard::Survivor::passiveIndexForId(upgradeId);
+        if (passiveIndex >= 0) {
+            applyPassiveUpgradeLevel(player,
+                                     static_cast<LanBoard::Survivor::PassiveType>(passiveIndex),
+                                     newLevel);
         }
-    } else if (upgradeId == QStringLiteral("orbit_weapon")) {
-        player.orbitBladeLevel = newLevel;
-        switch (newLevel) {
-        case 1:
-            player.orbitBladeCount = 1;
-            player.orbitBladeDamage = 8;
-            m_matchState.worldRuntime.orbitBladeRadius = 0.14f;
-            m_matchState.worldRuntime.orbitBladeAngularSpeedDeg = 140.0f;
-            player.orbitBladeCooldownBaseMs = 3200;
-            player.orbitBladeDurationMs = 3100;
-            break;
-        case 2:
-            player.orbitBladeCount = qMin(4, player.orbitBladeCount + 1);
-            break;
-        case 3:
-            m_matchState.worldRuntime.orbitBladeRadius = qMin<qreal>(0.16f, m_matchState.worldRuntime.orbitBladeRadius + 0.020f);
-            m_matchState.worldRuntime.orbitBladeAngularSpeedDeg = qMin<qreal>(180.0f, m_matchState.worldRuntime.orbitBladeAngularSpeedDeg + 20.0f);
-            break;
-        case 4:
-            player.orbitBladeDurationMs += 500;
-            break;
-        case 5:
-            player.orbitBladeDamage += 4;
-            player.orbitBladeCount = qMin(4, player.orbitBladeCount + 1);
-            break;
-        case 6:
-            m_matchState.worldRuntime.orbitBladeRadius = qMin<qreal>(0.18f, m_matchState.worldRuntime.orbitBladeRadius + 0.020f);
-            m_matchState.worldRuntime.orbitBladeAngularSpeedDeg = qMin<qreal>(210.0f, m_matchState.worldRuntime.orbitBladeAngularSpeedDeg + 24.0f);
-            break;
-        case 7:
-            player.orbitBladeDurationMs += 500;
-            break;
-        case 8:
-            player.orbitBladeDamage += 4;
-            player.orbitBladeCount = qMin(4, player.orbitBladeCount + 1);
-            break;
-        default:
-            break;
-        }
-    } else if (upgradeId == QStringLiteral("firewand_weapon")) {
-        player.fireWandLevel = newLevel;
-        switch (newLevel) {
-        case 1:
-            player.fireWandDamage = 24;
-            player.fireWandCooldownBaseMs = 1720;
-            player.fireWandProjectileSpeedMultiplier = 1.0f;
-            break;
-        case 2:
-            player.fireWandDamage += 12;
-            break;
-        case 3:
-            player.fireWandProjectileSpeedMultiplier = 1.20f;
-            player.fireWandCooldownBaseMs = 1620;
-            break;
-        case 4:
-            player.fireWandDamage += 12;
-            break;
-        case 5:
-            player.fireWandProjectileSpeedMultiplier = 1.40f;
-            player.fireWandCooldownBaseMs = 1520;
-            break;
-        case 6:
-            player.fireWandDamage += 12;
-            break;
-        case 7:
-            player.fireWandProjectileSpeedMultiplier = 1.60f;
-            player.fireWandCooldownBaseMs = 1420;
-            break;
-        case 8:
-            player.fireWandDamage += 12;
-            break;
-        default:
-            break;
-        }
-    } else if (upgradeId == QStringLiteral("garlic_weapon")) {
-        player.garlicLevel = newLevel;
-        switch (newLevel) {
-        case 1:
-            player.garlicDamage = 4;
-            m_matchState.worldRuntime.garlicRadius = 0.10f;
-            player.garlicCooldownBaseMs = 1300;
-            break;
-        case 2:
-            m_matchState.worldRuntime.garlicRadius = qMin<qreal>(0.12f, m_matchState.worldRuntime.garlicRadius + 0.020f);
-            player.garlicDamage += 1;
-            break;
-        case 3:
-            player.garlicDamage += 1;
-            player.garlicCooldownBaseMs = 1200;
-            break;
-        case 4:
-            m_matchState.worldRuntime.garlicRadius = qMin<qreal>(0.14f, m_matchState.worldRuntime.garlicRadius + 0.020f);
-            break;
-        case 5:
-            player.garlicDamage += 2;
-            break;
-        case 6:
-            m_matchState.worldRuntime.garlicRadius = qMin<qreal>(0.16f, m_matchState.worldRuntime.garlicRadius + 0.020f);
-            player.garlicCooldownBaseMs = 1080;
-            break;
-        case 7:
-            ++player.garlicDamage;
-            break;
-        case 8:
-            m_matchState.worldRuntime.garlicRadius = qMin<qreal>(0.18f, m_matchState.worldRuntime.garlicRadius + 0.020f);
-            break;
-        default:
-            break;
-        }
-    } else if (upgradeId == QStringLiteral("cross_weapon")) {
-        player.crossLevel = newLevel;
-        switch (newLevel) {
-        case 1:
-            player.crossDamage = 12;
-            player.crossAmount = 1;
-            m_matchState.worldRuntime.crossSpeed = 0.82f;
-            break;
-        case 2:
-            player.crossDamage += 8;
-            break;
-        case 3:
-            m_matchState.worldRuntime.crossRadius = qMin<qreal>(0.020f, m_matchState.worldRuntime.crossRadius + 0.002f);
-            m_matchState.worldRuntime.crossSpeed = qMin<qreal>(0.92f, m_matchState.worldRuntime.crossSpeed + 0.10f);
-            break;
-        case 4:
-            player.crossAmount = qMin(3, player.crossAmount + 1);
-            break;
-        case 5:
-            player.crossDamage += 8;
-            break;
-        case 6:
-            m_matchState.worldRuntime.crossRadius = qMin<qreal>(0.022f, m_matchState.worldRuntime.crossRadius + 0.002f);
-            m_matchState.worldRuntime.crossSpeed = qMin<qreal>(1.04f, m_matchState.worldRuntime.crossSpeed + 0.12f);
-            break;
-        case 7:
-            player.crossAmount = qMin(3, player.crossAmount + 1);
-            break;
-        case 8:
-            player.crossDamage += 8;
-            break;
-        default:
-            break;
-        }
-    } else if (upgradeId == QStringLiteral("santawater_weapon")) {
-        player.santaWaterLevel = newLevel;
-        switch (newLevel) {
-        case 1:
-            player.santaWaterDamage = 10;
-            player.santaWaterAmount = 1;
-            player.santaWaterDurationMs = 1800;
-            player.santaWaterCooldownBaseMs = 1800;
-            break;
-        case 2:
-            player.santaWaterAmount = qMin(3, player.santaWaterAmount + 1);
-            m_matchState.worldRuntime.santaWaterRadius = qMin<qreal>(0.090f, m_matchState.worldRuntime.santaWaterRadius + 0.010f);
-            break;
-        case 3:
-            player.santaWaterDurationMs += 350;
-            player.santaWaterDamage += 5;
-            break;
-        case 4:
-            player.santaWaterAmount = qMin(4, player.santaWaterAmount + 1);
-            m_matchState.worldRuntime.santaWaterRadius = qMin<qreal>(0.100f, m_matchState.worldRuntime.santaWaterRadius + 0.010f);
-            break;
-        case 5:
-            player.santaWaterDurationMs += 250;
-            player.santaWaterDamage += 5;
-            break;
-        case 6:
-            player.santaWaterAmount = qMin(4, player.santaWaterAmount + 1);
-            m_matchState.worldRuntime.santaWaterRadius = qMin<qreal>(0.112f, m_matchState.worldRuntime.santaWaterRadius + 0.012f);
-            break;
-        case 7:
-            player.santaWaterDurationMs += 250;
-            player.santaWaterDamage += 5;
-            break;
-        case 8:
-            m_matchState.worldRuntime.santaWaterRadius = qMin<qreal>(0.122f, m_matchState.worldRuntime.santaWaterRadius + 0.010f);
-            player.santaWaterDamage += 5;
-            break;
-        default:
-            break;
-        }
-    } else if (upgradeId == QStringLiteral("wings_passive")) {
-        player.wingsPassiveLevel = newLevel;
-    } else if (upgradeId == QStringLiteral("emptytome_passive")) {
-        player.emptyTomePassiveLevel = newLevel;
-    } else if (upgradeId == QStringLiteral("candelabrador_passive")) {
-        player.candelabradorPassiveLevel = newLevel;
-    } else if (upgradeId == QStringLiteral("attractorb_passive")) {
-        player.attractorbPassiveLevel = newLevel;
-    } else if (upgradeId == QStringLiteral("hollowheart_passive")) {
-        player.hollowHeartPassiveLevel = newLevel;
-    } else if (upgradeId == QStringLiteral("spinach_passive")) {
-        player.spinachPassiveLevel = newLevel;
     }
 
     refreshDerivedStats();
     syncHudState();
+}
+
+void SurvivorController::applyWeaponUpgradeLevel(PlayerState &player,
+                                                 LanBoard::Survivor::WeaponType type,
+                                                 int newLevel)
+{
+    using namespace LanBoard::Survivor;
+
+    const WeaponLevelInfo *table = weaponLevelTable(type);
+    if (!table || newLevel < 1 || newLevel > 8)
+        return;
+
+    const WeaponLevelInfo &info = table[newLevel - 1];
+    switch (type) {
+    case WeaponKnife:
+        player.bladeWeaponLevel = newLevel;
+        if (newLevel == 1) {
+            player.attackDamage = info.damage;
+            player.projectileCount = info.count;
+            player.projectilePierce = info.pierce;
+        } else {
+            player.attackDamage += info.damage;
+            player.projectileCount = qMin(6, player.projectileCount + info.count);
+            player.projectilePierce = qMin(3, player.projectilePierce + info.pierce);
+        }
+        if (info.cooldownMs > 0)
+            player.attackCooldownBaseMs = info.cooldownMs;
+        if (info.speed > 0.0f)
+            m_matchState.worldRuntime.projectileSpeed = info.speed;
+        break;
+    case WeaponOrbitBlade:
+        player.orbitBladeLevel = newLevel;
+        if (newLevel == 1) {
+            player.orbitBladeCount = info.count;
+            player.orbitBladeDamage = info.damage;
+            player.orbitBladeDurationMs = info.durationMs;
+        } else {
+            player.orbitBladeCount = qMin(4, player.orbitBladeCount + info.count);
+            player.orbitBladeDamage += info.damage;
+            player.orbitBladeDurationMs += info.durationMs;
+        }
+        if (info.cooldownMs > 0)
+            player.orbitBladeCooldownBaseMs = info.cooldownMs;
+        if (info.radius > 0.0f)
+            m_matchState.worldRuntime.orbitBladeRadius = info.radius;
+        if (info.angularSpeedDeg > 0.0f)
+            m_matchState.worldRuntime.orbitBladeAngularSpeedDeg = info.angularSpeedDeg;
+        break;
+    case WeaponFireWand:
+        player.fireWandLevel = newLevel;
+        if (newLevel == 1) {
+            player.fireWandDamage = info.damage;
+            player.fireWandAmount = info.count;
+        } else {
+            player.fireWandDamage += info.damage;
+        }
+        if (info.cooldownMs > 0)
+            player.fireWandCooldownBaseMs = info.cooldownMs;
+        if (info.speed > 0.0f)
+            player.fireWandProjectileSpeedMultiplier = info.speed;
+        break;
+    case WeaponMagicWand:
+        player.magicWandLevel = newLevel;
+        if (newLevel == 1) {
+            player.magicWandDamage = info.damage;
+            player.magicWandAmount = info.count;
+        } else {
+            player.magicWandDamage += info.damage;
+            player.magicWandAmount = qMin(4, player.magicWandAmount + info.count);
+        }
+        if (info.cooldownMs > 0)
+            player.magicWandCooldownBaseMs = info.cooldownMs;
+        break;
+    case WeaponGarlic:
+        player.garlicLevel = newLevel;
+        if (newLevel == 1)
+            player.garlicDamage = info.damage;
+        else
+            player.garlicDamage += info.damage;
+        if (info.cooldownMs > 0)
+            player.garlicCooldownBaseMs = info.cooldownMs;
+        if (info.radius > 0.0f)
+            m_matchState.worldRuntime.garlicRadius = info.radius;
+        break;
+    case WeaponCross:
+        player.crossLevel = newLevel;
+        if (newLevel == 1) {
+            player.crossDamage = info.damage;
+            player.crossAmount = info.count;
+        } else {
+            player.crossDamage += info.damage;
+            player.crossAmount = qMin(3, player.crossAmount + info.count);
+        }
+        if (info.cooldownMs > 0)
+            player.crossCooldownBaseMs = info.cooldownMs;
+        if (info.radius > 0.0f)
+            m_matchState.worldRuntime.crossRadius = info.radius;
+        if (info.speed > 0.0f)
+            m_matchState.worldRuntime.crossSpeed = info.speed;
+        break;
+    case WeaponSantaWater:
+        player.santaWaterLevel = newLevel;
+        if (newLevel == 1) {
+            player.santaWaterDamage = info.damage;
+            player.santaWaterAmount = info.count;
+            player.santaWaterDurationMs = info.durationMs;
+        } else {
+            player.santaWaterDamage += info.damage;
+            player.santaWaterAmount = qMin(4, player.santaWaterAmount + info.count);
+            player.santaWaterDurationMs += info.durationMs;
+        }
+        if (info.cooldownMs > 0)
+            player.santaWaterCooldownBaseMs = info.cooldownMs;
+        if (info.radius > 0.0f)
+            m_matchState.worldRuntime.santaWaterRadius = info.radius;
+        break;
+    case WeaponCount:
+        break;
+    }
+}
+
+void SurvivorController::applyPassiveUpgradeLevel(PlayerState &player,
+                                                  LanBoard::Survivor::PassiveType type,
+                                                  int newLevel)
+{
+    using namespace LanBoard::Survivor;
+
+    switch (type) {
+    case PassiveWings:
+        player.wingsPassiveLevel = newLevel;
+        break;
+    case PassiveEmptyTome:
+        player.emptyTomePassiveLevel = newLevel;
+        break;
+    case PassiveCandelabrador:
+        player.candelabradorPassiveLevel = newLevel;
+        break;
+    case PassiveAttractorb:
+        player.attractorbPassiveLevel = newLevel;
+        break;
+    case PassiveHollowHeart:
+        player.hollowHeartPassiveLevel = newLevel;
+        break;
+    case PassiveSpinach:
+        player.spinachPassiveLevel = newLevel;
+        break;
+    case PassiveBracer:
+        player.bracerPassiveLevel = newLevel;
+        break;
+    case PassiveSpellbinder:
+        player.spellbinderPassiveLevel = newLevel;
+        break;
+    case PassivePummarola:
+        player.pummarolaPassiveLevel = newLevel;
+        break;
+    case PassiveClover:
+        player.cloverPassiveLevel = newLevel;
+        break;
+    case PassiveCount:
+        break;
+    }
 }
 
 void SurvivorController::refreshDerivedStats()
@@ -2512,7 +2771,19 @@ bool SurvivorController::tryApplyHit(int enemyIndex,
         enemy.knockbackBonus = qMin<qreal>(1.0, enemy.knockbackBonus + 0.30f);
 
     applyKnockbackToEnemy(enemy, sourcePosition, knockback);
-    damageEnemy(enemyIndex, rollDamage(baseDamage, damageVariance));
+    const int appliedDamage = rollDamage(baseDamage, damageVariance);
+    const bool defeatedByThisHit = enemy.hp <= appliedDamage;
+    damageEnemy(enemyIndex, appliedDamage);
+
+    if (defeatedByThisHit && sourceId >= 1000 && sourceId < 2000) {
+        if (PlayerState *owner = playerStateById(sourceId - 1000)) {
+            if (owner->garlicEvolved) {
+                const qreal restoreChance = qMin<qreal>(0.65, appliedDamage / 140.0);
+                if (QRandomGenerator::global()->generateDouble() < restoreChance)
+                    healPlayer(*owner, 1);
+            }
+        }
+    }
     return true;
 }
 
@@ -2557,62 +2828,31 @@ int SurvivorController::rollDamage(int baseDamage, qreal damageVariance) const
 
 int SurvivorController::levelForUpgrade(const PlayerState &player, const QString &upgradeId) const
 {
-    if (upgradeId == QStringLiteral("knife_weapon"))
-        return player.bladeWeaponLevel;
-    if (upgradeId == QStringLiteral("orbit_weapon"))
-        return player.orbitBladeLevel;
-    if (upgradeId == QStringLiteral("firewand_weapon"))
-        return player.fireWandLevel;
-    if (upgradeId == QStringLiteral("garlic_weapon"))
-        return player.garlicLevel;
-    if (upgradeId == QStringLiteral("cross_weapon"))
-        return player.crossLevel;
-    if (upgradeId == QStringLiteral("santawater_weapon"))
-        return player.santaWaterLevel;
-    if (upgradeId == QStringLiteral("wings_passive"))
-        return player.wingsPassiveLevel;
-    if (upgradeId == QStringLiteral("emptytome_passive"))
-        return player.emptyTomePassiveLevel;
-    if (upgradeId == QStringLiteral("candelabrador_passive"))
-        return player.candelabradorPassiveLevel;
-    if (upgradeId == QStringLiteral("attractorb_passive"))
-        return player.attractorbPassiveLevel;
-    if (upgradeId == QStringLiteral("hollowheart_passive"))
-        return player.hollowHeartPassiveLevel;
-    if (upgradeId == QStringLiteral("spinach_passive"))
-        return player.spinachPassiveLevel;
+    const int weaponIndex = LanBoard::Survivor::weaponIndexForId(upgradeId);
+    if (weaponIndex >= 0) {
+        return weaponLevelValue(player,
+                                static_cast<LanBoard::Survivor::WeaponType>(weaponIndex));
+    }
+
+    const int passiveIndex = LanBoard::Survivor::passiveIndexForId(upgradeId);
+    if (passiveIndex >= 0) {
+        return passiveLevelValue(player,
+                                 static_cast<LanBoard::Survivor::PassiveType>(passiveIndex));
+    }
+
     return 0;
 }
 
 int SurvivorController::maxLevelForUpgrade(const QString &upgradeId) const
 {
-    if (upgradeId == QStringLiteral("knife_weapon")
-        || upgradeId == QStringLiteral("orbit_weapon")
-        || upgradeId == QStringLiteral("firewand_weapon")
-        || upgradeId == QStringLiteral("garlic_weapon")
-        || upgradeId == QStringLiteral("cross_weapon")
-        || upgradeId == QStringLiteral("santawater_weapon")) {
-        return 8;
-    }
-    if (upgradeId == QStringLiteral("wings_passive")
-        || upgradeId == QStringLiteral("emptytome_passive")
-        || upgradeId == QStringLiteral("candelabrador_passive")
-        || upgradeId == QStringLiteral("attractorb_passive")
-        || upgradeId == QStringLiteral("hollowheart_passive")
-        || upgradeId == QStringLiteral("spinach_passive")) {
-        return 5;
-    }
-    return 0;
+    if (const UpgradeTemplate *templateInfo = LanBoard::Survivor::upgradeTemplateForId(upgradeId))
+        return templateInfo->maxLevel;
+    return {};
 }
 
 bool SurvivorController::isWeaponUpgrade(const QString &upgradeId) const
 {
-    return upgradeId == QStringLiteral("knife_weapon")
-        || upgradeId == QStringLiteral("orbit_weapon")
-        || upgradeId == QStringLiteral("firewand_weapon")
-        || upgradeId == QStringLiteral("garlic_weapon")
-        || upgradeId == QStringLiteral("cross_weapon")
-        || upgradeId == QStringLiteral("santawater_weapon");
+    return LanBoard::Survivor::isWeaponUpgradeId(upgradeId);
 }
 
 qreal SurvivorController::currentDamageMultiplier(const PlayerState &player) const
@@ -2630,14 +2870,14 @@ qreal SurvivorController::currentCooldownMultiplier(const PlayerState &player) c
     return LanBoard::Survivor::Runtime::currentCooldownMultiplier(player);
 }
 
-qreal SurvivorController::currentDurationMultiplier() const
+qreal SurvivorController::currentDurationMultiplier(const PlayerState &player) const
 {
-    return LanBoard::Survivor::Runtime::currentDurationMultiplier();
+    return LanBoard::Survivor::Runtime::currentDurationMultiplier(player);
 }
 
-qreal SurvivorController::currentProjectileSpeedMultiplier() const
+qreal SurvivorController::currentProjectileSpeedMultiplier(const PlayerState &player) const
 {
-    return LanBoard::Survivor::Runtime::currentProjectileSpeedMultiplier();
+    return LanBoard::Survivor::Runtime::currentProjectileSpeedMultiplier(player);
 }
 
 qreal SurvivorController::currentMoveSpeed(const PlayerState &player) const
@@ -2655,39 +2895,82 @@ int SurvivorController::currentMaxHpValue(const PlayerState &player) const
     return LanBoard::Survivor::Runtime::currentMaxHpValue(player);
 }
 
+qreal SurvivorController::currentRecoveryPerSecond(const PlayerState &player) const
+{
+    return LanBoard::Survivor::Runtime::currentRecoveryPerSecond(player);
+}
+
+qreal SurvivorController::currentLuckMultiplier(const PlayerState &player) const
+{
+    return LanBoard::Survivor::Runtime::currentLuckMultiplier(player);
+}
+
+bool SurvivorController::isWeaponEvolved(const PlayerState &player,
+                                         LanBoard::Survivor::WeaponType type) const
+{
+    switch (type) {
+    case LanBoard::Survivor::WeaponKnife:
+        return player.bladeWeaponEvolved;
+    case LanBoard::Survivor::WeaponOrbitBlade:
+        return player.orbitBladeEvolved;
+    case LanBoard::Survivor::WeaponFireWand:
+        return player.fireWandEvolved;
+    case LanBoard::Survivor::WeaponMagicWand:
+        return player.magicWandEvolved;
+    case LanBoard::Survivor::WeaponGarlic:
+        return player.garlicEvolved;
+    case LanBoard::Survivor::WeaponCross:
+        return player.crossEvolved;
+    case LanBoard::Survivor::WeaponSantaWater:
+        return player.santaWaterEvolved;
+    case LanBoard::Survivor::WeaponCount:
+        break;
+    }
+    return false;
+}
+
+qreal SurvivorController::heavenSwordCritChance(const PlayerState &player) const
+{
+    return qMin<qreal>(0.45, 0.10 * currentLuckMultiplier(player));
+}
+
 QString SurvivorController::titleForUpgrade(const QString &upgradeId) const
 {
-    for (int i = 0; i < kWeaponUpgradePoolCount; ++i) {
-        const UpgradeTemplate &entry = kWeaponUpgradePool[i];
-        if (upgradeId == QString::fromLatin1(entry.id))
-            return QString::fromUtf8(entry.title);
-    }
-    for (int i = 0; i < kPassiveUpgradePoolCount; ++i) {
-        const UpgradeTemplate &entry = kPassiveUpgradePool[i];
-        if (upgradeId == QString::fromLatin1(entry.id))
-            return QString::fromUtf8(entry.title);
-    }
+    if (const UpgradeTemplate *templateInfo = LanBoard::Survivor::upgradeTemplateForId(upgradeId))
+        return QString::fromUtf8(templateInfo->title);
     return QStringLiteral("未知强化");
 }
 
 QString SurvivorController::categoryForUpgrade(const QString &upgradeId) const
 {
-    return isWeaponUpgrade(upgradeId) ? QStringLiteral("武器") : QStringLiteral("被动");
+    if (const UpgradeTemplate *templateInfo = LanBoard::Survivor::upgradeTemplateForId(upgradeId))
+        return QString::fromUtf8(templateInfo->category);
+    return QStringLiteral("强化");
 }
 
 QString SurvivorController::descriptionForUpgrade(const QString &upgradeId, int currentLevel) const
 {
     using namespace LanBoard::Survivor;
-    const int nextLevel = currentLevel + 1;
-    if (nextLevel < 1 || nextLevel > 8)
-        return {};
-
     const int weaponIdx = weaponIndexForId(upgradeId);
     if (weaponIdx >= 0) {
+        const int nextLevel = currentLevel + 1;
+        if (nextLevel < 1 || nextLevel > 8)
+            return {};
         const WeaponLevelInfo *table = weaponLevelTable(static_cast<WeaponType>(weaponIdx));
         if (table)
             return QString::fromUtf8(table[nextLevel - 1].description);
     }
+
+    const int passiveIdx = passiveIndexForId(upgradeId);
+    if (passiveIdx >= 0) {
+        const int nextLevel = currentLevel + 1;
+        if (nextLevel < 1 || nextLevel > 5)
+            return {};
+        const PassiveLevelInfo *table = passiveLevelTable(static_cast<PassiveType>(passiveIdx));
+        if (table)
+            return QString::fromUtf8(table[nextLevel - 1].description);
+    }
+
     return {};
 }
 
@@ -2706,6 +2989,18 @@ void SurvivorController::addDamageNumber(const QVector2D &position, int amount, 
 
     while (m_matchState.damageNumbers.size() > 72)
         m_matchState.damageNumbers.removeFirst();
+}
+
+int SurvivorController::healPlayer(PlayerState &player, int amount)
+{
+    if (amount <= 0 || player.hp <= 0 || player.hp >= player.maxHp)
+        return 0;
+
+    const int healed = qMin(amount, player.maxHp - player.hp);
+    player.hp += healed;
+    player.soulEaterHealedHp += healed;
+    player.soulEaterBonusDamage = qMin(60, player.soulEaterHealedHp / 60);
+    return healed;
 }
 
 void SurvivorController::damageEnemy(int enemyIndex, int damage)
@@ -2729,21 +3024,60 @@ void SurvivorController::refreshUpgradeSummary()
         m_upgradeSummary.clear();
         return;
     }
-    m_upgradeSummary = QStringLiteral("武器：飞刀 %1/8 · 秘典 %2/8 · %3 %4/8 · 大蒜 %5/8 · 十字架 %6/8 · %7 %8/8\n被动：翅膀 %9/5 · 空白之书 %10/5 · 烛台 %11/5 · 磁力珠 %12/5 · 空心心脏 %13/5 · 菠菜 %14/5")
-        .arg(player->bladeWeaponLevel)
-        .arg(player->orbitBladeLevel)
-        .arg(player->fireWandEvolved ? QStringLiteral("地狱火") : QStringLiteral("火杖"))
-        .arg(player->fireWandLevel)
-        .arg(player->garlicLevel)
-        .arg(player->crossLevel)
-        .arg(player->santaWaterEvolved ? QStringLiteral("黑波拉") : QStringLiteral("圣水"))
-        .arg(player->santaWaterLevel)
-        .arg(player->wingsPassiveLevel)
-        .arg(player->emptyTomePassiveLevel)
-        .arg(player->candelabradorPassiveLevel)
-        .arg(player->attractorbPassiveLevel)
-        .arg(player->hollowHeartPassiveLevel)
-        .arg(player->spinachPassiveLevel);
+
+    QStringList weaponParts;
+    auto appendWeapon = [&weaponParts](int level,
+                                       const QString &title,
+                                       bool evolved = false) {
+        if (level <= 0)
+            return;
+        weaponParts.append(QStringLiteral("%1%2 %3/8")
+                               .arg(title)
+                               .arg(evolved ? QStringLiteral("·超武") : QString())
+                               .arg(level));
+    };
+    appendWeapon(player->garlicLevel,
+                 player->garlicEvolved ? QStringLiteral("噬魂者") : QStringLiteral("大蒜"),
+                 player->garlicEvolved);
+    appendWeapon(player->bladeWeaponLevel,
+                 player->bladeWeaponEvolved ? QStringLiteral("千刃") : QStringLiteral("飞刀"),
+                 player->bladeWeaponEvolved);
+    appendWeapon(player->orbitBladeLevel,
+                 player->orbitBladeEvolved ? QStringLiteral("邪恶晚祷") : QStringLiteral("秘典"),
+                 player->orbitBladeEvolved);
+    appendWeapon(player->fireWandLevel,
+                 player->fireWandEvolved ? QStringLiteral("地狱火") : QStringLiteral("火杖"),
+                 player->fireWandEvolved);
+    appendWeapon(player->magicWandLevel,
+                 player->magicWandEvolved ? QStringLiteral("圣魔杖") : QStringLiteral("魔杖"),
+                 player->magicWandEvolved);
+    appendWeapon(player->crossLevel,
+                 player->crossEvolved ? QStringLiteral("天堂之剑") : QStringLiteral("十字架"),
+                 player->crossEvolved);
+    appendWeapon(player->santaWaterLevel,
+                 player->santaWaterEvolved ? QStringLiteral("黑波拉") : QStringLiteral("圣水"),
+                 player->santaWaterEvolved);
+
+    QStringList passiveParts;
+    auto appendPassive = [&passiveParts](int level, const QString &title) {
+        if (level <= 0)
+            return;
+        passiveParts.append(QStringLiteral("%1 %2/5").arg(title).arg(level));
+    };
+    appendPassive(player->wingsPassiveLevel, QStringLiteral("翅膀"));
+    appendPassive(player->emptyTomePassiveLevel, QStringLiteral("空书"));
+    appendPassive(player->candelabradorPassiveLevel, QStringLiteral("烛台"));
+    appendPassive(player->attractorbPassiveLevel, QStringLiteral("磁力珠"));
+    appendPassive(player->hollowHeartPassiveLevel, QStringLiteral("空心心脏"));
+    appendPassive(player->spinachPassiveLevel, QStringLiteral("菠菜"));
+    appendPassive(player->bracerPassiveLevel, QStringLiteral("护腕"));
+    appendPassive(player->spellbinderPassiveLevel, QStringLiteral("咒缚"));
+    appendPassive(player->pummarolaPassiveLevel, QStringLiteral("番茄"));
+    appendPassive(player->cloverPassiveLevel, QStringLiteral("四叶草"));
+
+    m_upgradeSummary = QStringLiteral("武器：%1\n被动：%2")
+        .arg(weaponParts.isEmpty() ? QStringLiteral("当前仅大蒜开局") : weaponParts.join(QStringLiteral(" · ")))
+        .arg(passiveParts.isEmpty() ? QStringLiteral("暂未持有") : passiveParts.join(QStringLiteral(" · ")));
 }
 
 void SurvivorController::refreshWaveLabel()
@@ -2755,51 +3089,60 @@ void SurvivorController::refreshWaveLabel()
     m_matchState.lastWaveIndex = newWaveIndex;
     const int waveStartSec = newWaveIndex * 60;
     const int waveEndSec = waveStartSec + 59;
-    m_matchState.waveLabel = QString::fromUtf8(kWaveTemplates[newWaveIndex].label)
+    m_matchState.waveLabel = QString::fromUtf8(currentWaveTemplate().label)
         + QStringLiteral(" · %1-%2s")
               .arg(waveStartSec)
               .arg(waveEndSec);
 }
 
-void SurvivorController::triggerWaveEvents()
+const WaveTemplate &SurvivorController::currentWaveTemplate() const
 {
-    const int sec = survivalTimeSec();
-    if (m_matchState.triggeredEventSeconds.contains(sec))
-        return;
+    return kWaveTemplates[currentWaveIndex()];
+}
 
-    bool triggered = true;
-    switch (sec) {
-    case 120:
-        spawnBatSwarm(28, 1.10f);
-        break;
-    case 150:
-        spawnBatSwarm(32, 1.14f);
-        break;
-    case 300:
-        spawnFlowerWall(24, 1.00f, 0.060f, 80);
-        break;
-    case 360:
-        spawnBatSwarm(42, 1.22f);
-        break;
-    case 420:
-        spawnFlowerWall(32, 1.15f, 0.072f, 120);
-        break;
-    case 480:
-        spawnBatSwarm(52, 1.28f);
-        break;
-    case 540:
-        spawnBatSwarm(64, 1.36f);
-        break;
-    case 570:
-        spawnFlowerWall(40, 1.28f, 0.082f, 160);
-        break;
-    default:
-        triggered = false;
-        break;
+int SurvivorController::rollSpawnKind(const SpawnWeight *weights, int count) const
+{
+    if (!weights || count <= 0)
+        return BatEnemy;
+
+    int totalWeight = 0;
+    for (int i = 0; i < count; ++i)
+        totalWeight += qMax(0, weights[i].weight);
+    if (totalWeight <= 0)
+        return weights[0].kind;
+
+    int roll = QRandomGenerator::global()->bounded(totalWeight);
+    for (int i = 0; i < count; ++i) {
+        roll -= qMax(0, weights[i].weight);
+        if (roll < 0)
+            return weights[i].kind;
     }
+    return weights[count - 1].kind;
+}
 
-    if (triggered)
-        m_matchState.triggeredEventSeconds.insert(sec);
+void SurvivorController::processWaveEvents()
+{
+    while (m_matchState.nextWaveEventIndex < kWaveEventScheduleCount) {
+        const WaveEventTemplate &event = kWaveEventSchedule[m_matchState.nextWaveEventIndex];
+        if (survivalTimeSec() < event.second)
+            break;
+
+        switch (event.type) {
+        case WaveEventBatSwarm:
+            spawnBatSwarm(event.count, event.primaryValue);
+            break;
+        case WaveEventFlowerWall:
+            spawnFlowerWall(event.count,
+                            event.primaryValue,
+                            event.secondaryValue,
+                            event.tertiaryValue);
+            break;
+        default:
+            break;
+        }
+
+        ++m_matchState.nextWaveEventIndex;
+    }
 }
 
 void SurvivorController::spawnBatSwarm(int count, qreal speedMultiplier)
@@ -2844,24 +3187,27 @@ void SurvivorController::spawnFlowerWall(int count, qreal ringRadius, qreal inwa
 
 int SurvivorController::currentSpawnIntervalMs() const
 {
-    return kWaveTemplates[currentWaveIndex()].spawnIntervalMs;
+    return currentWaveTemplate().spawnIntervalMs;
 }
 
 int SurvivorController::currentSpawnBurstCount() const
 {
-    return kWaveTemplates[currentWaveIndex()].spawnBurst;
+    return currentWaveTemplate().spawnBurst;
 }
 
 int SurvivorController::currentEnemyCap() const
 {
-    return kWaveTemplates[currentWaveIndex()].enemyCap;
+    return currentWaveTemplate().enemyCap;
 }
 
 int SurvivorController::currentEliteSpawnIntervalMs() const
 {
-    if (survivalTimeSec() < 240)
-        return 0;
-    return kWaveTemplates[currentWaveIndex()].eliteIntervalMs;
+    return currentWaveTemplate().eliteIntervalMs;
+}
+
+int SurvivorController::currentEliteSpawnBurstCount() const
+{
+    return currentWaveTemplate().eliteBurst;
 }
 
 int SurvivorController::currentWaveIndex() const
@@ -2872,52 +3218,14 @@ int SurvivorController::currentWaveIndex() const
 
 int SurvivorController::currentEnemyKind() const
 {
-    const int sec = survivalTimeSec();
-    const int roll = QRandomGenerator::global()->bounded(100);
-    if (sec < 60)
-        return BatEnemy;
-    if (sec < 120)
-        return roll < 72 ? ZombieEnemy : BatEnemy;
-    if (sec < 180)
-        return roll < 82 ? BatEnemy : ZombieEnemy;
-    if (sec < 240)
-        return roll < 70 ? SkeletonEnemy : (roll < 90 ? BatEnemy : ZombieEnemy);
-    if (sec < 300)
-        return roll < 65 ? SkeletonEnemy : WerewolfEnemy;
-    if (sec < 360)
-        return roll < 58 ? FlowerEnemy : (roll < 82 ? ZombieEnemy : SkeletonEnemy);
-    if (sec < 420)
-        return roll < 60 ? BatEnemy : (roll < 84 ? ZombieEnemy : SkeletonEnemy);
-    if (sec < 480)
-        return roll < 48 ? WerewolfEnemy : (roll < 76 ? OgreEnemy : SkeletonEnemy);
-    if (sec < 540)
-        return roll < 42 ? GiantBatEnemy : (roll < 72 ? OgreEnemy : WerewolfEnemy);
-    return roll < 45 ? GiantBatEnemy : (roll < 70 ? OgreEnemy : BatEnemy);
+    return rollSpawnKind(currentWaveTemplate().spawnWeights,
+                         currentWaveTemplate().spawnWeightCount);
 }
 
 int SurvivorController::currentEliteKind() const
 {
-    const int sec = survivalTimeSec();
-    const int roll = QRandomGenerator::global()->bounded(100);
-    if (sec < 360)
-        return roll < 68 ? WerewolfEnemy : FlowerEnemy;
-    if (sec < 480)
-        return roll < 55 ? FlowerEnemy : OgreEnemy;
-    if (sec < 540)
-        return roll < 60 ? GiantBatEnemy : OgreEnemy;
-    return roll < 45 ? GiantBatEnemy : OgreEnemy;
-}
-
-int SurvivorController::currentBossKind() const
-{
-    const int sec = survivalTimeSec();
-    if (sec < 180)
-        return GiantBatEnemy;
-    if (sec < 300)
-        return GiantBatEnemy;
-    if (sec < 420)
-        return OgreEnemy;
-    return sec < 540 ? GiantBatEnemy : OgreEnemy;
+    return rollSpawnKind(currentWaveTemplate().eliteWeights,
+                         currentWaveTemplate().eliteWeightCount);
 }
 
 bool SurvivorController::hasLivingBoss() const
@@ -2950,7 +3258,9 @@ void SurvivorController::updateStatusText()
 {
     const PlayerState *player = hudPlayerState();
     if (m_matchState.gameOver) {
-        m_statusText = QStringLiteral("本局结束，返回房间后可以继续迭代 Survivor MVP。");
+        m_statusText = survivalTimeSec() >= SurvivorRunDurationSec
+            ? QStringLiteral("你撑到了 15:00。按原版前段节奏改造的这局已经收束，返回房间后可以继续再开一把。")
+            : QStringLiteral("本局结束，返回房间后可以继续迭代 Survivor MVP。");
         return;
     }
 
@@ -3012,6 +3322,3 @@ void SurvivorController::updateStatusText()
 
     m_statusText = QStringLiteral("大蒜先保命，后续再补飞刀和范围武器决定 build 走向。");
 }
-
-
-

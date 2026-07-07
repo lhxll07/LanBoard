@@ -15,6 +15,11 @@ ApplicationWindow {
     property int currentTab: 0
     property int pendingTab: -1
     property alias stackView: shellStack
+    readonly property bool showingFullscreenGamePage: !!(stackView.currentItem
+        && (stackView.currentItem.objectName === "gamePage"
+            || stackView.currentItem.objectName === "doudizhuPage"
+            || stackView.currentItem.objectName === "flightChessPage"
+            || stackView.currentItem.objectName === "survivorPage"))
 
     // 页面路由表
     readonly property var pageRoutes: [
@@ -239,7 +244,7 @@ ApplicationWindow {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 20
-            visible: window.stackView.depth === 1
+            visible: window.stackView.depth === 1 && !window.showingFullscreenGamePage
             enabled: visible
             backdropSource: navBackdropSource
             currentIndex: window.currentTab

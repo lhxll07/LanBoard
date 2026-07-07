@@ -129,43 +129,52 @@ QVector2D playerAnchor(const MatchState &state, int localPlayerId)
 
 qreal currentDamageMultiplier(const PlayerState &player)
 {
-    return 1.0 + player.spinachPassiveLevel * 0.10;
+    return damageMultiplierForLevel(player.spinachPassiveLevel);
 }
 
 qreal currentAreaMultiplier(const PlayerState &player)
 {
-    return 1.0 + player.candelabradorPassiveLevel * 0.10;
+    return areaMultiplierForLevel(player.candelabradorPassiveLevel);
 }
 
 qreal currentCooldownMultiplier(const PlayerState &player)
 {
-    return qMax<qreal>(0.60, 1.0 - player.emptyTomePassiveLevel * 0.08);
+    return cooldownMultiplierForLevel(player.emptyTomePassiveLevel);
 }
 
-qreal currentDurationMultiplier()
+qreal currentDurationMultiplier(const PlayerState &player)
 {
-    return 1.0;
+    return durationMultiplierForLevel(player.spellbinderPassiveLevel);
 }
 
-qreal currentProjectileSpeedMultiplier()
+qreal currentProjectileSpeedMultiplier(const PlayerState &player)
 {
-    return 1.0;
+    return projectileSpeedMultiplierForLevel(player.bracerPassiveLevel);
 }
 
 qreal currentMoveSpeed(const PlayerState &player)
 {
-    return 0.34 * (1.0 + player.wingsPassiveLevel * 0.10);
+    return BasePlayerMoveSpeed * moveSpeedMultiplierForLevel(player.wingsPassiveLevel);
 }
 
 qreal currentMagnetRange(const PlayerState &player)
 {
-    static const qreal kMagnetRangeSteps[] = {0.12f, 0.18f, 0.24f, 0.30f, 0.39f, 0.52f};
-    return kMagnetRangeSteps[qBound(0, player.attractorbPassiveLevel, 5)];
+    return magnetRangeForLevel(player.attractorbPassiveLevel);
 }
 
 int currentMaxHpValue(const PlayerState &player)
 {
-    return qRound(100 * (1.0 + player.hollowHeartPassiveLevel * 0.20));
+    return maxHpValueForLevel(player.hollowHeartPassiveLevel);
+}
+
+qreal currentRecoveryPerSecond(const PlayerState &player)
+{
+    return recoveryPerSecondForLevel(player.pummarolaPassiveLevel);
+}
+
+qreal currentLuckMultiplier(const PlayerState &player)
+{
+    return luckMultiplierForLevel(player.cloverPassiveLevel);
 }
 
 void syncPlayerMaxHp(MatchState &state)
