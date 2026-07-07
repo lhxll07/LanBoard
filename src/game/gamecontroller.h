@@ -1,9 +1,10 @@
 #pragma once
 
-#include <QObject>
 #include <QVariantList>
 
-class GameController : public QObject
+#include "src/common/gamecontrollerbase.h"
+
+class GameController : public GameControllerBase
 {
     Q_OBJECT
     Q_PROPERTY(QVariantList board READ board NOTIFY boardChanged)
@@ -17,18 +18,19 @@ public:
     Q_INVOKABLE bool placePiece(int row, int col, int player = 0);
     Q_INVOKABLE bool surrender(int player = 0);
     Q_INVOKABLE void setGameOver(int winner);
-    Q_INVOKABLE void startNewGame();
-    Q_INVOKABLE void reset();
+
+    // ---- GameControllerBase ----
+    void startNewGame() override;
+    void reset() override;
+    bool isGameOver() const override { return m_gameOver; }
+    int winner() const override { return m_winner; }
 
     QVariantList board() const;
     int currentPlayer() const { return m_currentPlayer; }
-    int winner() const { return m_winner; }
-    bool isGameOver() const { return m_gameOver; }
 
 signals:
     void boardChanged();
     void turnChanged();
-    void gameOverChanged();
 
 private:
     static constexpr int BOARD_SIZE = 14;

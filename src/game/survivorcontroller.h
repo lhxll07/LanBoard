@@ -1,19 +1,21 @@
 #pragma once
 
+#include <QByteArray>
 #include <QElapsedTimer>
 #include <QHash>
-#include <QObject>
-#include <QSet>
 #include <QTimer>
 #include <QVariantList>
 #include <QVector2D>
 
-class SurvivorController : public QObject
+#include "src/common/gamecontrollerbase.h"
+#include "survivorworld.h"
+
+class SurvivorController : public GameControllerBase
 {
     Q_OBJECT
     Q_PROPERTY(bool running READ isRunning NOTIFY runningChanged)
     Q_PROPERTY(bool gameOver READ isGameOver NOTIFY gameOverChanged)
-    Q_PROPERTY(bool networkPrototype READ isNetworkPrototype NOTIFY runningChanged)
+    Q_PROPERTY(bool networkSession READ isNetworkSession NOTIFY runningChanged)
     Q_PROPERTY(int hp READ hp NOTIFY stateChanged)
     Q_PROPERTY(int maxHp READ maxHp NOTIFY stateChanged)
     Q_PROPERTY(int level READ level NOTIFY stateChanged)
@@ -32,201 +34,103 @@ class SurvivorController : public QObject
     Q_PROPERTY(QString chestTitle READ chestTitle NOTIFY stateChanged)
     Q_PROPERTY(QVariantList weaponSlots READ weaponSlots NOTIFY stateChanged)
     Q_PROPERTY(QVariantList passiveSlots READ passiveSlots NOTIFY stateChanged)
+    Q_PROPERTY(QVariantList damageNumbers READ damageNumbers NOTIFY frameChanged)
     Q_PROPERTY(QString waveLabel READ waveLabel NOTIFY stateChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
     Q_PROPERTY(QString upgradeSummary READ upgradeSummary NOTIFY stateChanged)
+    Q_PROPERTY(bool waitingForOtherPlayer READ waitingForOtherPlayer NOTIFY stateChanged)
 
 public:
+    using Enemy = LanBoard::Survivor::Enemy;
+    using Pickup = LanBoard::Survivor::Pickup;
+    using Projectile = LanBoard::Survivor::Projectile;
+    using Zone = LanBoard::Survivor::Zone;
+    using UpgradeChoice = LanBoard::Survivor::UpgradeChoice;
+    using ChestReward = LanBoard::Survivor::ChestReward;
+    using PlayerState = LanBoard::Survivor::PlayerState;
+    using DamageNumber = LanBoard::Survivor::DamageNumber;
+    using RenderPlayer = LanBoard::Survivor::RenderPlayer;
+    using RenderEnemy = LanBoard::Survivor::RenderEnemy;
+    using RenderOrbital = LanBoard::Survivor::RenderOrbital;
+    using RenderProjectile = LanBoard::Survivor::RenderProjectile;
+    using RenderPickup = LanBoard::Survivor::RenderPickup;
+    using RenderZone = LanBoard::Survivor::RenderZone;
+    using RenderDamageNumber = LanBoard::Survivor::RenderDamageNumber;
+    using RenderSnapshot = LanBoard::Survivor::RenderSnapshot;
+
     explicit SurvivorController(QObject *parent = nullptr);
 
-    bool isRunning() const { return m_running; }
-    bool isGameOver() const { return m_gameOver; }
-    bool isNetworkPrototype() const { return m_networkPrototype; }
-    int hp() const { return m_hp; }
-    int maxHp() const { return m_maxHp; }
-    int level() const { return m_level; }
-    int exp() const { return m_exp; }
-    int expToNext() const { return m_expToNext; }
-    int killCount() const { return m_killCount; }
-    int survivalTimeSec() const { return m_survivalTimeMs / 1000; }
-    qreal playerX() const { return m_playerPos.x(); }
-    qreal playerY() const { return m_playerPos.y(); }
-    qreal auraRadius() const { return m_garlicLevel > 0 ? m_garlicRadius * currentAreaMultiplier() : 0.0; }
+    bool isRunning() const { return m_matchState.running; }
+    bool isGameOver() const override { return m_matchState.gameOver; }
+    int winner() const override { return m_matchWinner; }
+    bool isNetworkSession() const { return m_networkSession; }
+    int hp() const { const PlayerState *player = localPlayerState(); return player ? player->hp : 0; }
+    int maxHp() const { const PlayerState *player = localPlayerState(); return player ? player->maxHp : 0; }
+    int level() const { return m_matchState.level; }
+    int exp() const { return m_matchState.exp; }
+    int expToNext() const { return m_matchState.expToNext; }
+    int killCount() const { return m_matchState.killCount; }
+    int survivalTimeSec() const { return m_matchState.survivalTimeMs / 1000; }
+    qreal playerX() const { return cameraAnchor().x(); }
+    qreal playerY() const { return cameraAnchor().y(); }
+    qreal auraRadius() const {
+        if (m_networkSession && !m_networkAuthoritative)
+            return m_networkAuraRadius;
+        const PlayerState *player = localPlayerState();
+        return player && player->garlicLevel > 0 ? m_matchState.worldRuntime.garlicRadius * currentAreaMultiplier(*player) : 0.0;
+    }
     qreal radarRange() const { return 2.6; }
-    bool isLevelUpPending() const { return m_levelUpPending; }
+    bool isLevelUpPending() const { return m_matchState.levelUpPending; }
     QVariantList levelUpChoices() const;
-    bool isChestPending() const { return m_chestPending; }
+    bool isChestPending() const { return m_matchState.chestPending; }
     QVariantList chestRewards() const;
-    QString chestTitle() const { return m_chestTitle; }
+    QString chestTitle() const { return m_matchState.chestTitle; }
+    int interactionPlayerId() const { return m_matchState.pendingInteractionPlayerId; }
     QVariantList weaponSlots() const;
     QVariantList passiveSlots() const;
-    QString waveLabel() const { return m_waveLabel; }
+    QVariantList damageNumbers() const { return m_cachedDamageNumbers; }
+    QString waveLabel() const { return m_matchState.waveLabel; }
     QString statusText() const { return m_statusText; }
     QString upgradeSummary() const { return m_upgradeSummary; }
+    bool waitingForOtherPlayer() const {
+        return m_matchState.pendingInteractionPlayerId >= 0
+            && !m_matchState.levelUpPending
+            && !m_matchState.chestPending;
+    }
+    const RenderSnapshot &renderSnapshot() const { return m_renderSnapshot; }
 
-    Q_INVOKABLE void startRun(bool networkPrototype = false);
+    // ---- GameControllerBase ----
+    void startNewGame() override;
+    void reset() override;
+
+    Q_INVOKABLE void startRun(bool networkSession = false);
     Q_INVOKABLE void stopRun();
     Q_INVOKABLE void setMoveInput(qreal horizontal, qreal vertical);
     Q_INVOKABLE void chooseLevelUp(const QString &upgradeId);
     Q_INVOKABLE void closeChestRewards();
+    void configureNetworkSession(const QVariantList &activePlayers,
+                                 int localPlayerId,
+                                 bool networkSession,
+                                 bool authoritative);
+    QByteArray buildFastNetworkPacket(int playerId) const;
+    QByteArray buildHudNetworkPacket(int playerId) const;
+    void applyFastNetworkPacket(const QByteArray &payload);
+    void applyHudNetworkPacket(const QByteArray &payload);
+    void setRemoteMoveInput(int playerId, qreal horizontal, qreal vertical);
 
 signals:
     void stateChanged();
     void frameChanged();
     void runningChanged();
     void gameOverChanged();
-
-private:
-    struct Enemy {
-        int id = 0;
-        QVector2D position;
-        qreal radius = 0.025f;
-        qreal speed = 0.11f;
-        qreal speedScale = 1.0f;
-        QVector2D forcedVelocity;
-        int forcedMovementMs = 0;
-        int hp = 2;
-        int maxHp = 2;
-        int touchDamage = 8;
-        int expReward = 1;
-        bool elite = false;
-        bool chestCarrier = false;
-        int kind = 0;
-        qreal knockbackFactor = 1.0f;
-        qreal knockbackBonus = 0.0f;
-        QHash<int, int> sourceHitCooldownsMs;
-        int hitFlashMs = 0;
-    };
-
-    struct Pickup {
-        QVector2D position;
-        qreal radius = 0.014f;
-        int exp = 1;
-        int kind = 0;
-        int rewardCount = 1;
-        bool canEvolve = false;
-    };
-
-    struct Projectile {
-        QVector2D position;
-        QVector2D velocity;
-        qreal radius = 0.012f;
-        int sourceId = 0;
-        int damage = 1;
-        int hitIntervalMs = 0;
-        int remainingHits = 1;
-        int lifeMs = 800;
-        int kind = 0;
-        bool returning = false;
-        qreal knockback = 0.0f;
-        qreal damageVariance = 0.12f;
-        QSet<int> hitEnemyIds;
-    };
-
-    struct Zone {
-        QVector2D position;
-        qreal radius = 0.08f;
-        int sourceId = 0;
-        int damage = 1;
-        int lifeMs = 0;
-        int totalLifeMs = 0;
-        int tickCooldownMs = 0;
-        int tickIntervalMs = 240;
-        int kind = 0;
-        qreal knockback = 0.0f;
-        qreal damageVariance = 0.08f;
-    };
-
-    struct UpgradeChoice {
-        QString id;
-        QString title;
-        QString description;
-        QString category;
-        int currentLevel = 0;
-        int maxLevel = 0;
-    };
-
-    struct ChestReward {
-        QString title;
-        QString description;
-        QString category;
-        bool evolved = false;
-    };
-
-    struct DamageNumber {
-        QVector2D position;
-        QVector2D velocity;
-        int amount = 0;
-        int lifeMs = 0;
-        int totalLifeMs = 0;
-        bool elite = false;
-    };
-
-public:
-    struct RenderEnemy {
-        qreal x = 0.0;
-        qreal y = 0.0;
-        qreal radius = 0.0;
-        int hp = 0;
-        int maxHp = 0;
-        bool elite = false;
-        bool chestCarrier = false;
-        int kind = 0;
-        int hitFlashMs = 0;
-    };
-
-    struct RenderOrbital {
-        qreal x = 0.0;
-        qreal y = 0.0;
-        qreal radius = 0.0;
-    };
-
-    struct RenderProjectile {
-        qreal x = 0.0;
-        qreal y = 0.0;
-        qreal radius = 0.0;
-        int kind = 0;
-    };
-
-    struct RenderPickup {
-        qreal x = 0.0;
-        qreal y = 0.0;
-        qreal radius = 0.0;
-        int exp = 0;
-        int kind = 0;
-    };
-
-    struct RenderZone {
-        qreal x = 0.0;
-        qreal y = 0.0;
-        qreal radius = 0.0;
-        int lifeMs = 0;
-        int totalLifeMs = 0;
-        int kind = 0;
-    };
-
-    struct RenderDamageNumber {
-        qreal x = 0.0;
-        qreal y = 0.0;
-        int amount = 0;
-        int lifeMs = 0;
-        int totalLifeMs = 0;
-        bool elite = false;
-    };
-
-    struct RenderSnapshot {
-        QList<RenderEnemy> enemies;
-        QList<RenderOrbital> orbitals;
-        QList<RenderProjectile> projectiles;
-        QList<RenderPickup> pickups;
-        QList<RenderZone> zones;
-        QList<RenderDamageNumber> damageNumbers;
-    };
-
-    const RenderSnapshot &renderSnapshot() const { return m_renderSnapshot; }
+    void localInputChanged(qreal horizontal, qreal vertical);
+    void levelUpChoiceRequested(QString upgradeId);
+    void chestRewardsCloseRequested();
+    void networkSyncRequested(bool includeHudDetails);
 
 private:
     void resetState();
+    void initializePlayers();
     void spawnEnemy(bool elite = false, int forcedKind = -1, bool forceChestCarrier = false);
     void tick();
     void simulateStep(int elapsedMs);
@@ -238,27 +142,29 @@ private:
     void updateZones(qreal deltaSec, int elapsedMs);
     void collectPickups(qreal deltaSec);
     void defeatEnemy(int index);
-    void gainExp(int amount);
-    void prepareLevelUpChoices();
-    void applyUpgrade(const QString &upgradeId);
+    void gainExp(PlayerState &player, int amount);
+    void prepareLevelUpChoices(PlayerState &player);
+    void applyUpgrade(PlayerState &player, const QString &upgradeId);
     void addDamageNumber(const QVector2D &position, int amount, bool elite);
     void damageEnemy(int enemyIndex, int damage);
     void refreshDerivedStats();
     void refreshFrameCache();
+    void syncHudState();
+    void syncInteractionState();
     void refreshLevelUpChoiceCache();
     void refreshChestRewardCache();
     void refreshWeaponSlotCache();
     void refreshPassiveSlotCache();
     void refreshHudSlotCaches();
-    void openChest(const Pickup &pickup);
-    void enqueueChest(const Pickup &pickup);
+    void openChest(PlayerState &player, const Pickup &pickup);
+    void enqueueChest(PlayerState &player, const Pickup &pickup);
     void tryOpenQueuedChest();
     int rollChestRewardCount() const;
-    QList<QString> currentChestUpgradeCandidates() const;
-    QList<QString> currentEvolutionCandidates() const;
-    bool canEvolveWeapon(const QString &weaponId) const;
-    void applyChestReward(const QString &upgradeId, bool evolved);
-    bool applyEvolution(const QString &weaponId);
+    QList<QString> currentChestUpgradeCandidates(const PlayerState &player) const;
+    QList<QString> currentEvolutionCandidates(const PlayerState &player) const;
+    bool canEvolveWeapon(const PlayerState &player, const QString &weaponId) const;
+    void applyChestReward(PlayerState &player, const QString &upgradeId, bool evolved);
+    bool applyEvolution(PlayerState &player, const QString &weaponId);
     QString evolvedTitleForWeapon(const QString &weaponId) const;
     QString evolvedDescriptionForWeapon(const QString &weaponId) const;
     bool tryApplyHit(int enemyIndex,
@@ -272,17 +178,17 @@ private:
     void applyKnockbackToEnemy(Enemy &enemy, const QVector2D &sourcePosition, qreal knockback);
     void decayEnemyHitCooldowns(Enemy &enemy, int elapsedMs);
     int rollDamage(int baseDamage, qreal damageVariance) const;
-    int levelForUpgrade(const QString &upgradeId) const;
+    int levelForUpgrade(const PlayerState &player, const QString &upgradeId) const;
     int maxLevelForUpgrade(const QString &upgradeId) const;
     bool isWeaponUpgrade(const QString &upgradeId) const;
-    qreal currentDamageMultiplier() const;
-    qreal currentAreaMultiplier() const;
-    qreal currentCooldownMultiplier() const;
+    qreal currentDamageMultiplier(const PlayerState &player) const;
+    qreal currentAreaMultiplier(const PlayerState &player) const;
+    qreal currentCooldownMultiplier(const PlayerState &player) const;
     qreal currentDurationMultiplier() const;
     qreal currentProjectileSpeedMultiplier() const;
-    qreal currentMoveSpeed() const;
-    qreal currentMagnetRange() const;
-    int currentMaxHpValue() const;
+    qreal currentMoveSpeed(const PlayerState &player) const;
+    qreal currentMagnetRange(const PlayerState &player) const;
+    int currentMaxHpValue(const PlayerState &player) const;
     QString titleForUpgrade(const QString &upgradeId) const;
     QString categoryForUpgrade(const QString &upgradeId) const;
     QString descriptionForUpgrade(const QString &upgradeId, int currentLevel) const;
@@ -301,103 +207,65 @@ private:
     int currentEliteKind() const;
     int currentBossKind() const;
     bool hasLivingBoss() const;
+    QVector2D playerAnchor() const;
+    QVector2D cameraAnchor() const;
+    QVector2D cameraAnchorForPlayer(int playerId) const;
+    PlayerState *playerStateById(int playerId);
+    const PlayerState *playerStateById(int playerId) const;
+    PlayerState *hudPlayerState();
+    const PlayerState *hudPlayerState() const;
+    PlayerState *interactionPlayerState();
+    const PlayerState *interactionPlayerState() const;
+    PlayerState *localPlayerState();
+    const PlayerState *localPlayerState() const;
+    int nearestLivingPlayerIndex(const QVector2D &position) const;
+    QList<int> livingPlayerIndices() const;
+    void syncPlayerMaxHp();
+    void emitNetworkSyncIfNeeded(bool force = false);
+    RenderSnapshot buildNetworkRenderSnapshot(int playerId) const;
+    QVariantList exportDamageNumberVariantList() const;
+    void adoptRemoteSnapshot(const QVector<PlayerState> &players,
+                             const RenderSnapshot &snapshot,
+                             bool immediate);
+    void stepRemoteInterpolation(int elapsedMs);
 
     static constexpr int TickIntervalMs = 16;
+    static constexpr qreal NetworkCullRadius = 3.4;
 
     QTimer m_tickTimer;
     QElapsedTimer m_frameTimer;
-    QVector2D m_playerPos {0.5f, 0.5f};
-    QVector2D m_moveInput {0.0f, 0.0f};
-    QVector2D m_facingDirection {1.0f, 0.0f};
-    QList<Enemy> m_enemies;
-    QList<Projectile> m_projectiles;
-    QList<Pickup> m_pickups;
-    QList<Zone> m_zones;
-    QList<DamageNumber> m_damageNumbers;
+    LanBoard::Survivor::MatchState m_matchState;
     QList<UpgradeChoice> m_levelUpChoices;
-    bool m_running = false;
-    bool m_gameOver = false;
-    bool m_networkPrototype = false;
-    bool m_levelUpPending = false;
-    bool m_chestPending = false;
-    int m_hp = 100;
-    int m_maxHp = 100;
-    int m_level = 1;
-    int m_exp = 0;
-    int m_expToNext = 5;
-    int m_killCount = 0;
-    int m_pendingLevelUps = 0;
-    int m_survivalTimeMs = 0;
-    int m_tickAccumulatorMs = 0;
-    int m_spawnAccumulatorMs = 0;
-    int m_eliteSpawnAccumulatorMs = 0;
-    int m_spawnedBossCount = 0;
-    int m_nextEnemyId = 1;
-    int m_nextSourceId = 1;
-    qreal m_contactDamageCarry = 0.0;
-    int m_attackCooldownMs = 0;
-    int m_attackCooldownBaseMs = 520;
-    int m_orbitBladeCooldownMs = 0;
-    int m_orbitBladeCooldownBaseMs = 3200;
-    int m_orbitBladeActiveMs = 0;
-    int m_orbitBladeDurationMs = 3100;
-    int m_fireWandCooldownMs = 0;
-    int m_fireWandCooldownBaseMs = 1500;
-    int m_garlicCooldownBaseMs = 1300;
-    int m_crossCooldownMs = 0;
-    int m_crossCooldownBaseMs = 1080;
-    int m_santaWaterCooldownMs = 0;
-    int m_santaWaterCooldownBaseMs = 1260;
-    int m_attackDamage = 1;
-    int m_bladeWeaponLevel = 1;
-    int m_projectileCount = 1;
-    int m_projectilePierce = 1;
-    int m_orbitBladeLevel = 0;
-    int m_orbitBladeCount = 0;
-    int m_orbitBladeDamage = 0;
-    int m_fireWandLevel = 0;
-    int m_fireWandDamage = 3;
-    qreal m_fireWandProjectileSpeedMultiplier = 1.0f;
-    int m_garlicLevel = 0;
-    int m_garlicDamage = 1;
-    int m_crossLevel = 0;
-    int m_crossDamage = 2;
-    int m_crossAmount = 1;
-    int m_crossPierce = 1000;
-    int m_santaWaterLevel = 0;
-    int m_santaWaterDamage = 2;
-    int m_santaWaterAmount = 1;
-    int m_santaWaterDurationMs = 1400;
-    int m_wingsPassiveLevel = 0;
-    int m_emptyTomePassiveLevel = 0;
-    int m_candelabradorPassiveLevel = 0;
-    int m_attractorbPassiveLevel = 0;
-    int m_hollowHeartPassiveLevel = 0;
-    int m_spinachPassiveLevel = 0;
-    bool m_fireWandEvolved = false;
-    bool m_santaWaterEvolved = false;
-    int m_lastWaveIndex = -1;
-    QSet<int> m_triggeredEventSeconds;
-    qreal m_moveSpeed = 0.28f;
-    qreal m_pickupRange = 0.11f;
-    qreal m_projectileSpeed = 0.74f;
-    qreal m_orbitBladeRadius = 0.12f;
-    qreal m_orbitBladeAngularSpeedDeg = 140.0f;
-    qreal m_orbitAngleDeg = 0.0f;
-    qreal m_fireWandRange = 0.74f;
-    qreal m_garlicRadius = 0.12f;
-    qreal m_crossSpeed = 0.74f;
-    qreal m_crossRadius = 0.018f;
-    qreal m_santaWaterRadius = 0.08f;
+    bool m_networkSession = false;
+    bool m_networkAuthoritative = true;
+    qreal m_networkAuraRadius = 0.0f;
+    int m_networkBroadcastAccumulatorMs = 0;
+    int m_networkHudBroadcastAccumulatorMs = 0;
+    int m_localPlayerId = 0;
+    int m_matchWinner = 0;
+    quint64 m_networkStateSequence = 0;
+    QVariantList m_sessionActivePlayers;
     RenderSnapshot m_renderSnapshot;
+    QVector<PlayerState> m_networkBasePlayers;
+    QVector<PlayerState> m_networkTargetPlayers;
+    RenderSnapshot m_networkBaseSnapshot;
+    RenderSnapshot m_networkTargetSnapshot;
+    quint64 m_lastAppliedFastStateSeq = 0;
+    int m_networkInterpolationElapsedMs = 0;
+    int m_networkInterpolationDurationMs = 33;
+    bool m_hasNetworkInterpolationTarget = false;
+    QVector2D m_localPredictedPosition;
+    QVector2D m_localAuthoritativePosition;
+    bool m_hasLocalPrediction = false;
     QVariantList m_cachedLevelUpChoices;
     QVariantList m_cachedChestRewards;
     QVariantList m_cachedWeaponSlots;
     QVariantList m_cachedPassiveSlots;
+    QVariantList m_cachedDamageNumbers;
     QList<ChestReward> m_chestRewardEntries;
-    QList<Pickup> m_queuedChests;
-    QString m_chestTitle;
     QString m_statusText;
     QString m_upgradeSummary;
-    QString m_waveLabel;
+
+    static constexpr int NetworkSnapshotIntervalMs = 25;
+    static constexpr int NetworkHudSnapshotIntervalMs = 200;
 };

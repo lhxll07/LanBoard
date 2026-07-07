@@ -15,20 +15,10 @@ Rectangle {
 
     radius: AppTheme.radiusCard
 
-    // Shadow layers
     Rectangle {
         x: 0
-        y: 4
-        width: parent.width - 2
-        height: parent.height + 1
-        radius: parent.radius
-        color: AppTheme.shadowMedium
-    }
-
-    Rectangle {
-        x: 0
-        y: 2
-        width: parent.width - 1
+        y: 6
+        width: parent.width
         height: parent.height
         radius: parent.radius
         color: AppTheme.shadowLight
@@ -39,6 +29,16 @@ Rectangle {
     border.color: AppTheme.cardBorder
 
     Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: parent.height * 0.46
+        radius: parent.radius
+        color: AppTheme.surfaceHighlight
+        opacity: 0.16
+    }
+
+    Rectangle {
         id: avatar
         anchors.left: parent.left
         anchors.leftMargin: AppTheme.spacingLg
@@ -46,7 +46,9 @@ Rectangle {
         width: 32
         height: 32
         radius: 16
-        color: root.ready ? "#DDE7DF" : "#ECEEE8"
+        color: root.ready ? "#DDE7DF" : AppTheme.cardBackgroundSoft
+        border.width: 1
+        border.color: root.ready ? "#D2DFD6" : AppTheme.cardBorder
     }
 
     Column {
@@ -70,7 +72,7 @@ Rectangle {
             width: parent.width
             text: root.roleText
             color: AppTheme.textSecondary
-            font.pixelSize: 13
+            font.pixelSize: AppTheme.fontSizeBody
             elide: Text.ElideRight
         }
     }
@@ -91,7 +93,7 @@ Rectangle {
             text: root.statusText
             color: "#2F5C4D"
             font.pixelSize: 12
-            font.weight: Font.Medium
+            font.weight: Font.DemiBold
         }
     }
 
@@ -103,6 +105,7 @@ Rectangle {
         text: root.statusText
         color: AppTheme.textMuted
         font.pixelSize: 12
+        font.weight: Font.Medium
     }
 
     ActionButton {

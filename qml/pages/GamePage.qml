@@ -154,7 +154,7 @@ Page {
             Layout.maximumWidth: 360
             Layout.alignment: Qt.AlignHCenter
             radius: 30
-            color: "#EAD4A7"
+            color: AppTheme.warmBoard
 
             Canvas {
                 id: boardCanvas
@@ -167,7 +167,7 @@ Page {
                 onPaint: {
                     const ctx = getContext("2d");
                     ctx.reset();
-                    ctx.strokeStyle = "#8A7248";
+                    ctx.strokeStyle = AppTheme.boardGridLine;
                     ctx.lineWidth = 1.2;
 
                     // Draw grid lines
@@ -200,12 +200,12 @@ Page {
                             ctx.beginPath();
                             ctx.arc(px, py, 7, 0, Math.PI * 2);
                             if (val === 1) {
-                                ctx.fillStyle = "#17382F";
+                                ctx.fillStyle = AppTheme.boardBlackPiece;
                                 ctx.fill();
                             } else {
-                                ctx.fillStyle = "#F7F2E8";
+                                ctx.fillStyle = AppTheme.boardWhitePiece;
                                 ctx.fill();
-                                ctx.strokeStyle = "#B2905D";
+                                ctx.strokeStyle = AppTheme.boardWhiteStroke;
                                 ctx.lineWidth = 1;
                                 ctx.stroke();
                             }
@@ -247,13 +247,6 @@ Page {
             }
         }
 
-        // -- 当前玩家 --
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            text: AppCtrl.gameController.currentPlayer === 1 ? "黑子" : "白子"
-            color: AppTheme.textSecondary
-            font.pixelSize: 14
-        }
 
         // -- 底部按钮 --
         ActionButton {

@@ -1,12 +1,13 @@
 #pragma once
 
-#include <QObject>
 #include <QJsonObject>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QVector>
 
-class DouDiZhuController : public QObject
+#include "src/common/gamecontrollerbase.h"
+
+class DouDiZhuController : public GameControllerBase
 {
     Q_OBJECT
     Q_PROPERTY(QVariantList playerHand READ playerHand NOTIFY stateChanged)
@@ -39,8 +40,8 @@ public:
     int rightOpponentPlayer() const { return (m_localPlayer + 2) % 3; }
     int leftOpponentCount() const { return m_cardCounts[leftOpponentPlayer()]; }
     int rightOpponentCount() const { return m_cardCounts[rightOpponentPlayer()]; }
-    bool isGameOver() const { return m_gameOver; }
-    int winner() const { return m_winner; }
+    bool isGameOver() const override { return m_gameOver; }
+    int winner() const override { return m_winner; }
     bool canPass() const;
     QString statusText() const { return m_statusText; }
     QString turnText() const;
@@ -48,7 +49,6 @@ public:
     QVariantList lastPlayedCards() const;
     QString resultText() const;
 
-    Q_INVOKABLE void startNewGame();
     Q_INVOKABLE void startNetworkGame(int localPlayer = 0);
     Q_INVOKABLE void setLocalPlayer(int player);
     Q_INVOKABLE void applyNetworkState(const QJsonObject &state);
@@ -58,6 +58,12 @@ public:
     Q_INVOKABLE bool passForPlayer(int player);
     Q_INVOKABLE bool playAiTurnForPlayer(int player);
     QJsonObject stateForPlayer(int player) const;
+
+    // ---- GameControllerBase ----
+    /** 发牌、确定地主（本地模式，玩家默认为地主） */
+    void startNewGame() override;
+    /** 重置到初始状态 */
+    void reset() override;
 
 signals:
     void stateChanged();

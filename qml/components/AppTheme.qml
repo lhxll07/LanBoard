@@ -3,33 +3,44 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    readonly property color pageBackground: "#F6F2EA"
-    readonly property color pageBackgroundAlt: "#EEF2EC"
-    readonly property color panelBackground: "#FBFAF6"
-    readonly property color cardBackground: "#FFFFFF"
-    readonly property color cardBackgroundSoft: "#F8F7F3"
-    readonly property color cardBorder: "#E2E5DE"
+    readonly property color pageBackground: "#F4F0E8"
+    readonly property color pageBackgroundAlt: "#EDF2EB"
+    readonly property color panelBackground: "#FAF8F2"
+    readonly property color cardBackground: "#FFFDFC"
+    readonly property color cardBackgroundSoft: "#F6F4EE"
+    readonly property color cardBorder: "#E3E4DB"
+    readonly property color cardBorderStrong: "#D7DBD2"
     readonly property color accent: "#173A31"
     readonly property color accentSoft: "#E2EEE8"
     readonly property color textPrimary: "#1F302A"
-    readonly property color textSecondary: "#738179"
-    readonly property color textMuted: "#8A958D"
+    readonly property color textSecondary: "#6E7C74"
+    readonly property color textMuted: "#8A938B"
     readonly property color line: "#E4E6E0"
     readonly property color shadowTint: "#16211D"
+    readonly property color surfaceRaised: "#FCFAF5"
+    readonly property color surfaceTint: "#F0F2EC"
+    readonly property color surfaceHighlight: "#80FFFFFF"
+    readonly property color pressedOverlay: "#140E1915"
     readonly property color warmBoard: "#F4E5C7"
     readonly property color warmBoardDeep: "#E1C287"
     readonly property color darkCard: "#202E2A"
     readonly property color darkCardAccent: "#355449"
     readonly property color goldAccent: "#E5D2A1"
 
+    // Game board colors
+    readonly property color boardGridLine: "#8A7248"
+    readonly property color boardBlackPiece: "#17382F"
+    readonly property color boardWhitePiece: "#F7F2E8"
+    readonly property color boardWhiteStroke: "#B2905D"
+
     // Shadow colors (ARGB hex: #AARRGGBB)
-    readonly property color shadowLight: "#08000000"
-    readonly property color shadowMedium: "#04000000"
-    readonly property color shadowDeep: "#02000000"
+    readonly property color shadowLight: "#0A17201A"
+    readonly property color shadowMedium: "#0617201A"
+    readonly property color shadowDeep: "#0317201A"
 
     readonly property int radiusWindow: 32
-    readonly property int radiusCard: 28
-    readonly property int radiusButton: 26
+    readonly property int radiusCard: 30
+    readonly property int radiusButton: 24
 
     readonly property int spacingXs: 8
     readonly property int spacingSm: 12
@@ -39,8 +50,8 @@ QtObject {
     readonly property int spacingXxl: 40
     readonly property int contentWidth: 334
     readonly property int pageTopInset: 20
-    readonly property int pageBottomInset: 12
-    readonly property int navHeight: 54
+    readonly property int pageBottomInset: 132
+    readonly property int navHeight: 58
 
     // Font size tokens
     readonly property int fontSizeCaption: 12
@@ -49,7 +60,7 @@ QtObject {
     readonly property int fontSizeSubtitle: 16
     readonly property int fontSizeTitle: 20
     readonly property int fontSizeHeading: 24
-    readonly property int fontSizeHero: 26
+    readonly property int fontSizeHero: 28
 
     function zhSetting() { return "\u8bbe\u7f6e"; }
     function zhNickname() { return "\u6635\u79f0"; }

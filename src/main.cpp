@@ -9,6 +9,9 @@
 #include <qqml.h>
 #include <QtGlobal>
 #include <QQuickStyle>
+#include <QSurfaceFormat>
+#include <QQuickWindow>
+#include <QSGRendererInterface>
 
 #include "src/app/appcontroller.h"
 #include "src/game/survivorrenderitem.h"
@@ -55,6 +58,23 @@ void messageHandler(QtMsgType type, const QMessageLogContext &, const QString &m
 
 int main(int argc, char *argv[])
 {
+    QSurfaceFormat format;
+    format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+#if defined(Q_OS_ANDROID)
+    // Android needs an ES-compatible surface format here. Forcing desktop OpenGL
+    // causes the scene graph to abort during QRhi/OpenGL context creation.
+    format.setRenderableType(QSurfaceFormat::OpenGLES);
+    format.setSamples(2);
+#else
+    format.setRenderableType(QSurfaceFormat::OpenGL);
+    format.setSamples(8);
+#endif
+    QSurfaceFormat::setDefaultFormat(format);
+
+#if !defined(Q_OS_ANDROID)
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+#endif
+
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("LanBoard"));
     QCoreApplication::setApplicationName(QStringLiteral("LanBoard"));

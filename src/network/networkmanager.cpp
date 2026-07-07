@@ -1,91 +1,111 @@
 #include "networkmanager.h"
 
-#include "linejsonprotocol.h"
-#include "networkaddressutils.h"
-#include "roomdiscoveryservice.h"
-
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
-#include <QHostAddress>
-#include <QNetworkProxy>
-#include <QDebug>
+#include <utility>
+
+#include "src/common/roomtypes.h"
+#include "src/game/survivornetcodec.h"
+#include "src/network/enetutils.h"
+#include "src/network/networkaddressutils.h"
+#include "src/network/protocolids.h"
+#include "src/network/roomdiscoveryservice.h"
+
+namespace {
+constexpr size_t EnetChannelCount = 4;
+constexpr enet_uint8 SurvivorInputChannel = 1;
+constexpr enet_uint8 SurvivorFrameChannel = 2;
+constexpr enet_uint8 SurvivorHudChannel = 3;
+
+QJsonObject protocolMessage(QStringView type)
+{
+    return QJsonObject { { QStringLiteral("type"), type.toString() } };
+}
+
+}
 
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
     , m_roomDiscovery(new RoomDiscoveryService(this))
 {
+    LanBoard::Enet::initialize();
+
     connect(m_roomDiscovery, &RoomDiscoveryService::discoveredRoomsChanged,
             this, &NetworkManager::discoveredRoomsChanged);
     connect(m_roomDiscovery, &RoomDiscoveryService::errorOccurred,
             this, &NetworkManager::errorOccurred);
+
+    m_enetServiceTimer.setInterval(4);
+    m_enetServiceTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_enetServiceTimer, &QTimer::timeout, this, &NetworkManager::serviceEnet);
+}
+
+NetworkManager::~NetworkManager()
+{
+    disconnectAll();
+    LanBoard::Enet::deinitialize();
 }
 
 // ── Public API ──
 
 void NetworkManager::startServer(quint16 port)
 {
-    if (m_server) {
-        m_server->close();
-        m_server->deleteLater();
-        m_server = nullptr;
-    }
-    m_server = new QTcpServer(this);
-    m_server->setProxy(QNetworkProxy::NoProxy);
-    connect(m_server, &QTcpServer::newConnection, this, &NetworkManager::onNewConnection);
+    disconnectAll();
 
-    if (!m_server->listen(QHostAddress::AnyIPv4, port)) {
-        emit errorOccurred(QStringLiteral("无法监听端口 %1: %2")
-                               .arg(port)
-                               .arg(m_server->errorString()));
+    ENetAddress address {};
+    address.host = ENET_HOST_ANY;
+    address.port = port;
+    m_hostServer = enet_host_create(&address, 16, EnetChannelCount, 0, 0);
+    if (!m_hostServer) {
+        emit errorOccurred(QStringLiteral("无法监听端口 %1").arg(port));
         return;
     }
+
     m_isHost = true;
-    m_nextPlayerId = 1;
     m_serverPort = port;
+    if (!m_enetServiceTimer.isActive())
+        m_enetServiceTimer.start();
     updateDiscoveryIdentity();
     emit connectionChanged();
-    emit serverStarted(port);
 }
 
 void NetworkManager::connectToServer(const QString &ip, quint16 port,
                                      const QString &playerName,
                                      const QString &gameId)
 {
-    connectClientSocket(ip,
-                        port,
-                        playerName,
-                        gameId,
-                        QStringLiteral("legacy_join"));
+    connectDedicatedPeer(ip,
+                         port,
+                         playerName,
+                         gameId,
+                         LanBoard::Protocol::Join);
 }
 
 void NetworkManager::disconnectAll()
 {
     if (m_isHost) {
-        for (auto *c : m_clients) {
-            c->disconnect(this);
-            c->disconnectFromHost();
-            c->deleteLater();
-        }
-        m_clients.clear();
-        if (m_server) {
-            m_server->close();
-            m_server->deleteLater();
-            m_server = nullptr;
+        disconnectAllHostPeers();
+        if (m_hostServer) {
+            enet_host_destroy(m_hostServer);
+            m_hostServer = nullptr;
         }
     }
-    if (m_socket) {
-        m_socket->disconnect(this);
-        m_socket->disconnectFromHost();
-        m_socket->deleteLater();
-        m_socket = nullptr;
-    }
+    disconnectEnetPeer(m_serverPeer, m_clientHost, false);
+    disconnectEnetPeer(m_lobbyPeer, m_lobbyHost, false);
+    m_pendingConnectAction.clear();
+    m_pendingPlayerName.clear();
+    m_pendingGameId.clear();
+    m_pendingRoomId.clear();
+    m_pendingRoomName.clear();
+    m_enetActiveConnection = false;
     m_isHost = false;
     m_discoveryGameInProgress = false;
     m_serverPort = 0;
     m_connectedIp.clear();
     m_connectedPort = 0;
     updateDiscoveryIdentity();
+    if (!m_clientHost && !m_lobbyHost && !m_hostServer)
+        m_enetServiceTimer.stop();
     emit connectionChanged();
     emit clientCountChanged();
 }
@@ -93,8 +113,10 @@ void NetworkManager::disconnectAll()
 bool NetworkManager::isConnected() const
 {
     if (m_isHost)
-        return m_server && m_server->isListening();
-    return m_socket && m_socket->state() == QAbstractSocket::ConnectedState;
+        return m_hostServer != nullptr;
+    if (LanBoard::Enet::isConnected(m_serverPeer))
+        return true;
+    return false;
 }
 
 QString NetworkManager::localIp() const
@@ -104,55 +126,82 @@ QString NetworkManager::localIp() const
 
 QVariantList NetworkManager::discoveredRooms() const
 {
-    return m_roomDiscovery ? m_roomDiscovery->discoveredRooms() : QVariantList();
+    return m_roomDiscovery ? m_roomDiscovery->discoveredRooms() : QVariantList {};
 }
 
 // ── Send actions (client → server) ──
 
 void NetworkManager::sendReady(bool ready)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("ready");
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::Ready);
     msg[QStringLiteral("ready")] = ready;
-    sendJson(m_socket, msg);
+    sendServerJson(msg);
 }
 
 void NetworkManager::sendPlacePiece(int row, int col)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("place_piece");
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::PlacePiece);
     msg[QStringLiteral("row")] = row;
     msg[QStringLiteral("col")] = col;
-    sendJson(m_socket, msg);
+    sendServerJson(msg);
 }
 
 void NetworkManager::sendFlightRoll()
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("flight_roll");
-    sendJson(m_socket, msg);
+    sendServerJson(protocolMessage(LanBoard::Protocol::FlightRoll));
 }
 
 void NetworkManager::sendFlightMove(int planeIndex)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("flight_move");
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::FlightMove);
     msg[QStringLiteral("planeIndex")] = planeIndex;
-    sendJson(m_socket, msg);
+    sendServerJson(msg);
 }
 
 void NetworkManager::sendSurrender()
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("surrender");
-    sendJson(m_socket, msg);
+    sendServerJson(protocolMessage(LanBoard::Protocol::Surrender));
+}
+
+void NetworkManager::sendSurvivorInput(qreal horizontal, qreal vertical)
+{
+    sendServerRaw(LanBoard::Survivor::NetCodec::encodeInputPacket(horizontal, vertical),
+                  SurvivorInputChannel,
+                  0);
+}
+
+void NetworkManager::sendSurvivorChooseLevelUp(const QString &upgradeId)
+{
+    const QString normalizedUpgradeId = upgradeId.trimmed();
+    if (normalizedUpgradeId.isEmpty())
+        return;
+
+    sendServerRaw(LanBoard::Survivor::NetCodec::encodeChooseLevelUpPacket(normalizedUpgradeId),
+                  SurvivorHudChannel,
+                  ENET_PACKET_FLAG_RELIABLE);
+}
+
+void NetworkManager::sendSurvivorCloseChest()
+{
+    sendServerRaw(LanBoard::Survivor::NetCodec::encodeCloseChestPacket(),
+                  SurvivorHudChannel,
+                  ENET_PACKET_FLAG_RELIABLE);
 }
 
 void NetworkManager::sendStartGame()
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("start_game");
-    sendJson(m_socket, msg);
+    sendServerJson(protocolMessage(LanBoard::Protocol::StartGame));
+}
+
+void NetworkManager::sendGameOverResult(int winner)
+{
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::GameOver);
+    msg[QStringLiteral("winner")] = winner;
+    if (m_isHost) {
+        broadcastJson(msg);
+        return;
+    }
+    sendServerJson(msg);
 }
 
 void NetworkManager::sendDouDiZhuPlay(const QVariantList &cardIds)
@@ -161,27 +210,22 @@ void NetworkManager::sendDouDiZhuPlay(const QVariantList &cardIds)
     for (const auto &id : cardIds)
         cards.append(id.toInt());
 
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("ddz_play");
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::DouDiZhuPlay);
     msg[QStringLiteral("cards")] = cards;
-    sendJson(m_socket, msg);
+    sendServerJson(msg);
 }
 
 void NetworkManager::sendDouDiZhuPass()
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("ddz_pass");
-    sendJson(m_socket, msg);
+    sendServerJson(protocolMessage(LanBoard::Protocol::DouDiZhuPass));
 }
 
 void NetworkManager::sendChangeSeat(const QString &seatType)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("change_seat");
-    msg[QStringLiteral("seatType")] = seatType == QStringLiteral("spectator")
-        ? QStringLiteral("spectator")
-        : QStringLiteral("active");
-    sendJson(m_socket, msg);
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::ChangeSeat);
+    msg[QStringLiteral("seatType")] = LanBoard::seatTypeString(
+        LanBoard::normalizedSeatKind(seatType));
+    sendServerJson(msg);
 }
 
 void NetworkManager::startRoomDiscovery()
@@ -213,20 +257,12 @@ void NetworkManager::requestOnlineRooms(const QString &host, quint16 port)
     if (host.trimmed().isEmpty() || port == 0)
         return;
 
-    if (m_onlineLobbySocket) {
-        m_onlineLobbySocket->disconnect(this);
-        m_onlineLobbySocket->disconnectFromHost();
-        m_onlineLobbySocket->deleteLater();
-        m_onlineLobbySocket = nullptr;
-    }
-
-    m_onlineLobbySocket = new QTcpSocket(this);
-    m_onlineLobbySocket->setProxy(QNetworkProxy::NoProxy);
-    connect(m_onlineLobbySocket, &QTcpSocket::connected, this, &NetworkManager::onOnlineLobbyConnected);
-    connect(m_onlineLobbySocket, &QTcpSocket::readyRead, this, &NetworkManager::onOnlineLobbyReadyRead);
-    connect(m_onlineLobbySocket, &QTcpSocket::disconnected, this, &NetworkManager::onOnlineLobbyDisconnected);
-    connect(m_onlineLobbySocket, &QTcpSocket::errorOccurred, this, &NetworkManager::onOnlineLobbyError);
-    m_onlineLobbySocket->connectToHost(host.trimmed(), port);
+    disconnectEnetPeer(m_lobbyPeer, m_lobbyHost, false);
+    connectDedicatedPeer(host.trimmed(),
+                         port,
+                         QString(),
+                         QString(),
+                         QStringLiteral("online_list_rooms"));
 }
 
 void NetworkManager::clearOnlineRooms()
@@ -242,32 +278,31 @@ void NetworkManager::createOnlineRoom(const QString &host, quint16 port,
                                       const QString &playerName, const QString &gameId,
                                       const QString &roomName)
 {
-    connectClientSocket(host,
-                        port,
-                        playerName,
-                        gameId,
-                        QStringLiteral("online_create_room"),
-                        QString(),
-                        roomName);
+    connectDedicatedPeer(host,
+                         port,
+                         playerName,
+                         gameId,
+                         QStringLiteral("online_create_room"),
+                         QString(),
+                         roomName);
 }
 
 void NetworkManager::joinOnlineRoom(const QString &host, quint16 port,
                                     const QString &playerName, const QString &roomId)
 {
-    connectClientSocket(host,
-                        port,
-                        playerName,
-                        QString(),
-                        QStringLiteral("online_join_room"),
-                        roomId);
+    connectDedicatedPeer(host,
+                         port,
+                         playerName,
+                         QString(),
+                         QStringLiteral("online_join_room"),
+                         roomId);
 }
 
 void NetworkManager::sendSwitchRoomGame(const QString &gameId)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("switch_room_game");
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::SwitchRoomGame);
     msg[QStringLiteral("gameId")] = LanBoard::normalizeGameId(gameId);
-    sendJson(m_socket, msg);
+    sendServerJson(msg);
 }
 
 void NetworkManager::setDiscoveryHostName(const QString &hostName)
@@ -298,8 +333,7 @@ void NetworkManager::setDiscoveryRoomInfo(const QString &gameId, const QString &
 
 void NetworkManager::broadcastRoomState(const QJsonArray &players)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("room_state");
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::RoomState);
     msg[QStringLiteral("gameId")] = m_discoveryGameId;
     msg[QStringLiteral("gameName")] = m_discoveryGameName;
     msg[QStringLiteral("roomCapacity")] = m_discoveryRoomCapacity;
@@ -310,8 +344,7 @@ void NetworkManager::broadcastRoomState(const QJsonArray &players)
 
 void NetworkManager::broadcastGameStarted(const QString &gameId)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("game_start");
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::GameStart);
     if (!gameId.isEmpty())
         msg[QStringLiteral("gameId")] = gameId;
     broadcastJson(msg);
@@ -319,8 +352,7 @@ void NetworkManager::broadcastGameStarted(const QString &gameId)
 
 void NetworkManager::broadcastMove(int player, int row, int col)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("move");
+    QJsonObject msg = protocolMessage(QStringLiteral("move"));
     msg[QStringLiteral("player")] = player;
     msg[QStringLiteral("row")] = row;
     msg[QStringLiteral("col")] = col;
@@ -329,8 +361,7 @@ void NetworkManager::broadcastMove(int player, int row, int col)
 
 void NetworkManager::broadcastFlightRoll(int player, int diceValue)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("flight_roll_result");
+    QJsonObject msg = protocolMessage(QStringLiteral("flight_roll_result"));
     msg[QStringLiteral("player")] = player;
     msg[QStringLiteral("diceValue")] = diceValue;
     broadcastJson(msg);
@@ -338,8 +369,7 @@ void NetworkManager::broadcastFlightRoll(int player, int diceValue)
 
 void NetworkManager::broadcastFlightMove(int player, int planeIndex)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("flight_move_result");
+    QJsonObject msg = protocolMessage(QStringLiteral("flight_move_result"));
     msg[QStringLiteral("player")] = player;
     msg[QStringLiteral("planeIndex")] = planeIndex;
     broadcastJson(msg);
@@ -347,328 +377,449 @@ void NetworkManager::broadcastFlightMove(int player, int planeIndex)
 
 void NetworkManager::broadcastGameOver(int winner)
 {
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("game_over");
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::GameOver);
     msg[QStringLiteral("winner")] = winner;
     broadcastJson(msg);
+}
+
+void NetworkManager::sendSurvivorFastPacketToPlayer(int playerId, const QByteArray &payload)
+{
+    ENetPeer *peer = peerForPlayerId(playerId);
+    if (!peer || payload.isEmpty())
+        return;
+    sendEnetRaw(peer, m_hostServer, payload, SurvivorFrameChannel, 0);
+}
+
+void NetworkManager::sendSurvivorHudPacketToPlayer(int playerId, const QByteArray &payload)
+{
+    ENetPeer *peer = peerForPlayerId(playerId);
+    if (!peer || payload.isEmpty())
+        return;
+    sendEnetRaw(peer, m_hostServer, payload, SurvivorHudChannel, ENET_PACKET_FLAG_RELIABLE);
 }
 
 void NetworkManager::sendDouDiZhuState(int playerId, const QJsonObject &state)
 {
     QJsonObject msg = state;
-    msg[QStringLiteral("type")] = QStringLiteral("ddz_state");
+    msg[QStringLiteral("type")] = LanBoard::Protocol::DouDiZhuState;
+    sendRoomStateToPlayer(playerId, msg);
+}
 
-    for (QTcpSocket *client : m_clients) {
-        if (client->property("playerId").toInt() != playerId)
-            continue;
-        sendJson(client, msg);
+void NetworkManager::connectDedicatedPeer(const QString &host, quint16 port,
+                                          const QString &playerName, const QString &gameId,
+                                          const QString &action, const QString &roomId,
+                                          const QString &roomName)
+{
+    ENetAddress address {};
+    if (!LanBoard::Enet::resolveAddress(host, port, address)) {
+        emit errorOccurred(QStringLiteral("无法解析服务器地址"));
         return;
+    }
+
+    const bool lobbyOnly = action == QStringLiteral("online_list_rooms");
+    ENetHost *&hostSlot = lobbyOnly ? m_lobbyHost : m_clientHost;
+    ENetPeer *&peerSlot = lobbyOnly ? m_lobbyPeer : m_serverPeer;
+    disconnectEnetPeer(peerSlot, hostSlot, false);
+
+    hostSlot = enet_host_create(nullptr, 1, EnetChannelCount, 0, 0);
+    if (!hostSlot) {
+        emit errorOccurred(QStringLiteral("无法创建 ENet 客户端"));
+        return;
+    }
+
+    peerSlot = enet_host_connect(hostSlot, &address, EnetChannelCount, 0);
+    if (!peerSlot) {
+        enet_host_destroy(hostSlot);
+        hostSlot = nullptr;
+        emit errorOccurred(QStringLiteral("无法发起 ENet 连接"));
+        return;
+    }
+
+    m_connectedIp = host;
+    m_connectedPort = port;
+    m_pendingConnectAction = action;
+    m_pendingPlayerName = playerName.trimmed();
+    m_pendingGameId = LanBoard::normalizeGameId(gameId);
+    m_pendingRoomId = roomId.trimmed();
+    m_pendingRoomName = roomName.trimmed();
+    if (!lobbyOnly)
+        m_enetActiveConnection = true;
+
+    if (!m_enetServiceTimer.isActive())
+        m_enetServiceTimer.start();
+}
+
+void NetworkManager::disconnectEnetPeer(ENetPeer *&peer, ENetHost *&host, bool graceful)
+{
+    if (peer) {
+        if (graceful) {
+            enet_peer_disconnect(peer, 0);
+            if (host)
+                enet_host_flush(host);
+        } else {
+            enet_peer_disconnect_now(peer, 0);
+        }
+        peer = nullptr;
+    }
+
+    if (host) {
+        enet_host_destroy(host);
+        host = nullptr;
     }
 }
 
-// ── Slots ──
-
-void NetworkManager::onNewConnection()
+void NetworkManager::sendEnetJson(ENetPeer *peer, ENetHost *host, const QJsonObject &msg)
 {
-    while (m_server->hasPendingConnections()) {
-        QTcpSocket *client = m_server->nextPendingConnection();
-        connect(client, &QTcpSocket::readyRead, this, &NetworkManager::onReadyRead);
-        connect(client, &QTcpSocket::disconnected, this, &NetworkManager::onClientDisconnected);
-        m_clients.append(client);
+    if (!LanBoard::Enet::sendJson(peer, msg) || !host)
+        return;
+    enet_host_flush(host);
+}
 
-        int playerId = 1;
-        bool used = true;
-        while (used) {
-            used = false;
-            for (QTcpSocket *existing : std::as_const(m_clients)) {
-                if (existing == client)
-                    continue;
-                if (existing->property("playerId").toInt() == playerId) {
-                    used = true;
-                    ++playerId;
-                    break;
-                }
+void NetworkManager::sendEnetRaw(ENetPeer *peer, ENetHost *host,
+                                 const QByteArray &payload, enet_uint8 channel, enet_uint32 flags)
+{
+    if (!LanBoard::Enet::sendRaw(peer, channel, payload, flags) || !host)
+        return;
+    enet_host_flush(host);
+}
+
+void NetworkManager::sendServerJson(const QJsonObject &msg)
+{
+    if (!m_enetActiveConnection)
+        return;
+    sendEnetJson(m_serverPeer, m_clientHost, msg);
+}
+
+void NetworkManager::sendServerRaw(const QByteArray &payload,
+                                   enet_uint8 channel,
+                                   enet_uint32 flags)
+{
+    if (!m_enetActiveConnection)
+        return;
+    sendEnetRaw(m_serverPeer, m_clientHost, payload, channel, flags);
+}
+
+void NetworkManager::disconnectAllHostPeers()
+{
+    for (EnetClientSession &session : m_peerClients) {
+        if (session.peer)
+            enet_peer_disconnect_now(session.peer, 0);
+    }
+    m_peerClients.clear();
+}
+
+void NetworkManager::broadcastJson(const QJsonObject &obj, ENetPeer *exclude)
+{
+    for (const EnetClientSession &session : std::as_const(m_peerClients)) {
+        if (!session.peer || session.peer == exclude)
+            continue;
+        LanBoard::Enet::sendJson(session.peer, obj);
+    }
+
+    if (m_hostServer)
+        enet_host_flush(m_hostServer);
+}
+
+void NetworkManager::sendRoomStateToPlayer(int playerId, const QJsonObject &state)
+{
+    ENetPeer *peer = peerForPlayerId(playerId);
+    if (!peer)
+        return;
+
+    sendEnetJson(peer, m_hostServer, state);
+    if (state.value(QStringLiteral("type")).toString() == LanBoard::Protocol::Error)
+        enet_peer_disconnect_later(peer, 0);
+}
+
+void NetworkManager::processHostPeerMessage(ENetPeer *peer, const QJsonObject &msg)
+{
+    EnetClientSession *session = sessionForPeer(peer);
+    if (!session)
+        return;
+
+    const QString type = msg.value(QStringLiteral("type")).toString();
+    if (type == LanBoard::Protocol::Join) {
+        session->playerName = msg.value(QStringLiteral("name")).toString();
+        emit joinRequested(session->playerName, session->playerId);
+    } else if (type == LanBoard::Protocol::Ready) {
+        emit remoteReadyChanged(session->playerId, msg.value(QStringLiteral("ready")).toBool());
+    } else if (type == LanBoard::Protocol::PlacePiece) {
+        emit remoteMoveReceived(session->playerId,
+                                msg.value(QStringLiteral("row")).toInt(),
+                                msg.value(QStringLiteral("col")).toInt());
+    } else if (type == LanBoard::Protocol::FlightRoll) {
+        emit remoteFlightRoll(session->playerId);
+    } else if (type == LanBoard::Protocol::FlightMove) {
+        emit remoteFlightMove(session->playerId,
+                              msg.value(QStringLiteral("planeIndex")).toInt(-1));
+    } else if (type == LanBoard::Protocol::Surrender) {
+        emit remoteSurrender(session->playerId);
+    } else if (type == LanBoard::Protocol::ChangeSeat) {
+        emit remoteSeatChanged(session->playerId,
+                               msg.value(QStringLiteral("seatType")).toString(QStringLiteral("active")));
+    } else if (type == LanBoard::Protocol::DouDiZhuPlay) {
+        emit remoteDouDiZhuPlay(session->playerId, msg.value(QStringLiteral("cards")).toArray());
+    } else if (type == LanBoard::Protocol::DouDiZhuPass) {
+        emit remoteDouDiZhuPass(session->playerId);
+    }
+}
+
+bool NetworkManager::processHostPeerBinaryPacket(ENetPeer *peer, const QByteArray &payload)
+{
+    EnetClientSession *session = sessionForPeer(peer);
+    if (!session)
+        return false;
+
+    const auto kind = LanBoard::Survivor::NetCodec::packetKind(payload);
+    qreal horizontal = 0.0;
+    qreal vertical = 0.0;
+    QString upgradeId;
+
+    switch (kind) {
+    case LanBoard::Survivor::NetCodec::PacketKind::Input:
+        if (!LanBoard::Survivor::NetCodec::decodeInputPacket(payload, horizontal, vertical))
+            return false;
+        emit remoteSurvivorInput(session->playerId, horizontal, vertical);
+        return true;
+    case LanBoard::Survivor::NetCodec::PacketKind::ChooseLevelUp:
+        if (!LanBoard::Survivor::NetCodec::decodeChooseLevelUpPacket(payload, upgradeId))
+            return false;
+        emit remoteSurvivorChooseLevelUp(session->playerId, upgradeId);
+        return true;
+    case LanBoard::Survivor::NetCodec::PacketKind::CloseChest:
+        if (!LanBoard::Survivor::NetCodec::decodeCloseChestPacket(payload))
+            return false;
+        emit remoteSurvivorCloseChest(session->playerId);
+        return true;
+    default:
+        return false;
+    }
+}
+
+int NetworkManager::allocateHostPlayerId() const
+{
+    for (int candidate = 1; candidate < qMax(2, m_discoveryRoomCapacity); ++candidate) {
+        bool used = false;
+        for (const EnetClientSession &session : m_peerClients) {
+            if (session.playerId == candidate) {
+                used = true;
+                break;
             }
         }
-        client->setProperty("playerId", playerId);
-        m_nextPlayerId = qMax(m_nextPlayerId, playerId + 1);
-
-        emit clientCountChanged();
-        updateDiscoveryIdentity();
+        if (!used)
+            return candidate;
     }
+    return qMax(1, m_peerClients.size() + 1);
 }
 
-void NetworkManager::onReadyRead()
+ENetPeer *NetworkManager::peerForPlayerId(int playerId) const
 {
-    QTcpSocket *sender = qobject_cast<QTcpSocket *>(QObject::sender());
-    if (!sender)
-        return;
-
-    QByteArray buf = sender->property("readBuffer").toByteArray();
-    buf.append(sender->readAll());
-
-    QStringList errors;
-    const QList<QJsonObject> messages = LineJsonProtocol::takeMessages(&buf, &errors);
-    for (const QString &error : errors)
-        qWarning() << "JSON parse error:" << error;
-    for (const QJsonObject &message : messages)
-        processMessage(sender, message);
-
-    sender->setProperty("readBuffer", buf);
-}
-
-void NetworkManager::onClientDisconnected()
-{
-    QTcpSocket *client = qobject_cast<QTcpSocket *>(QObject::sender());
-    if (client) {
-        const int playerId = client->property("playerId").toInt();
-        m_clients.removeOne(client);
-        client->deleteLater();
-        emit clientDisconnected(playerId);
-        emit clientCountChanged();
-        updateDiscoveryIdentity();
+    for (const EnetClientSession &session : m_peerClients) {
+        if (session.playerId == playerId)
+            return session.peer;
     }
+    return nullptr;
 }
 
-void NetworkManager::onConnected()
+NetworkManager::EnetClientSession *NetworkManager::sessionForPeer(ENetPeer *peer)
 {
-    QString name = m_socket->property("playerName").toString().trimmed();
-    if (name.isEmpty())
-        name = QStringLiteral("player");
-
-    const QString action = m_socket->property("connectAction").toString();
-    QJsonObject msg;
-    if (action == QStringLiteral("online_create_room")) {
-        msg[QStringLiteral("type")] = QStringLiteral("create_room");
-        msg[QStringLiteral("name")] = name;
-        msg[QStringLiteral("gameId")] = m_socket->property("gameId").toString();
-        msg[QStringLiteral("roomName")] = m_socket->property("roomName").toString();
-    } else if (action == QStringLiteral("online_join_room")) {
-        msg[QStringLiteral("type")] = QStringLiteral("join_room");
-        msg[QStringLiteral("name")] = name;
-        msg[QStringLiteral("roomId")] = m_socket->property("roomId").toString();
-    } else {
-        msg[QStringLiteral("type")] = QStringLiteral("join");
-        msg[QStringLiteral("name")] = name;
-        msg[QStringLiteral("gameId")] = m_socket->property("gameId").toString();
+    for (EnetClientSession &session : m_peerClients) {
+        if (session.peer == peer)
+            return &session;
     }
-    sendJson(m_socket, msg);
-
-    emit connectionChanged();
+    return nullptr;
 }
 
-void NetworkManager::onDisconnected()
+const NetworkManager::EnetClientSession *NetworkManager::sessionForPeer(ENetPeer *peer) const
 {
-    if (m_socket) {
-        m_socket->deleteLater();
-        m_socket = nullptr;
+    for (const EnetClientSession &session : m_peerClients) {
+        if (session.peer == peer)
+            return &session;
     }
-    m_connectedIp.clear();
-    m_connectedPort = 0;
-    emit connectionChanged();
+    return nullptr;
 }
 
-void NetworkManager::onError(QAbstractSocket::SocketError)
+void NetworkManager::serviceEnet()
 {
-    if (m_socket)
-        emit errorOccurred(m_socket->errorString());
-}
-
-void NetworkManager::onOnlineLobbyConnected()
-{
-    if (!m_onlineLobbySocket)
-        return;
-
-    QJsonObject msg;
-    msg[QStringLiteral("type")] = QStringLiteral("list_rooms");
-    sendJson(m_onlineLobbySocket, msg);
-}
-
-void NetworkManager::onOnlineLobbyReadyRead()
-{
-    if (!m_onlineLobbySocket)
-        return;
-
-    QByteArray buf = m_onlineLobbySocket->property("readBuffer").toByteArray();
-    buf.append(m_onlineLobbySocket->readAll());
-
-    const QList<QJsonObject> messages = LineJsonProtocol::takeMessages(&buf);
-    for (const QJsonObject &msg : messages) {
-        const QString type = msg.value(QStringLiteral("type")).toString();
-        if (type == QStringLiteral("rooms_list")) {
-            applyOnlineRooms(msg.value(QStringLiteral("rooms")).toArray());
-        } else if (type == QStringLiteral("error")) {
-            emit errorOccurred(msg.value(QStringLiteral("message")).toString(QStringLiteral("Network error")));
+    if (m_hostServer) {
+        ENetEvent event {};
+        while (enet_host_service(m_hostServer, &event, 0) > 0) {
+            switch (event.type) {
+            case ENET_EVENT_TYPE_CONNECT: {
+                EnetClientSession session;
+                session.peer = event.peer;
+                session.playerId = allocateHostPlayerId();
+                m_peerClients.append(session);
+                emit clientCountChanged();
+                updateDiscoveryIdentity();
+                break;
+            }
+            case ENET_EVENT_TYPE_RECEIVE: {
+                const QByteArray payload(reinterpret_cast<const char *>(event.packet->data),
+                                         static_cast<qsizetype>(event.packet->dataLength));
+                QJsonObject msg;
+                if (processHostPeerBinaryPacket(event.peer, payload)) {
+                } else if (LanBoard::Enet::decodeJsonPacket(event.packet, msg)) {
+                    processHostPeerMessage(event.peer, msg);
+                }
+                enet_packet_destroy(event.packet);
+                break;
+            }
+            case ENET_EVENT_TYPE_DISCONNECT: {
+                for (int i = 0; i < m_peerClients.size(); ++i) {
+                    if (m_peerClients.at(i).peer != event.peer)
+                        continue;
+                    const int playerId = m_peerClients.at(i).playerId;
+                    m_peerClients.removeAt(i);
+                    emit clientDisconnected(playerId);
+                    emit clientCountChanged();
+                    updateDiscoveryIdentity();
+                    break;
+                }
+                break;
+            }
+            case ENET_EVENT_TYPE_NONE:
+            default:
+                break;
+            }
         }
     }
 
-    m_onlineLobbySocket->setProperty("readBuffer", buf);
+    auto serviceHost = [this](ENetHost *host, bool lobbyOnly) {
+        if (!host)
+            return;
+
+        ENetEvent event {};
+        while (enet_host_service(host, &event, 0) > 0) {
+            switch (event.type) {
+            case ENET_EVENT_TYPE_CONNECT: {
+                sendEnetJson(event.peer, host, pendingConnectMessage(lobbyOnly));
+                if (!lobbyOnly)
+                    emit connectionChanged();
+                break;
+            }
+            case ENET_EVENT_TYPE_RECEIVE: {
+                const QByteArray payload(reinterpret_cast<const char *>(event.packet->data),
+                                         static_cast<qsizetype>(event.packet->dataLength));
+                QJsonObject msg;
+                if (!lobbyOnly && processDedicatedServerBinaryPacket(payload)) {
+                } else if (LanBoard::Enet::decodeJsonPacket(event.packet, msg)) {
+                    if (lobbyOnly)
+                        processOnlineLobbyMessage(msg);
+                    else
+                        processDedicatedServerMessage(msg);
+                }
+                enet_packet_destroy(event.packet);
+                break;
+            }
+            case ENET_EVENT_TYPE_DISCONNECT:
+                if (lobbyOnly) {
+                    if (event.peer == m_lobbyPeer)
+                        m_lobbyPeer = nullptr;
+                    if (!m_clientHost && !m_lobbyPeer && !m_hostServer)
+                        m_enetServiceTimer.stop();
+                } else {
+                    if (event.peer == m_serverPeer)
+                        m_serverPeer = nullptr;
+                    const bool hadConnection = m_enetActiveConnection;
+                    m_enetActiveConnection = false;
+                    if (hadConnection)
+                        emit connectionChanged();
+                }
+                break;
+            case ENET_EVENT_TYPE_NONE:
+            default:
+                break;
+            }
+        }
+    };
+
+    serviceHost(m_lobbyHost, true);
+    serviceHost(m_clientHost, false);
+
+    if (!m_lobbyHost && !m_clientHost && !m_hostServer)
+        m_enetServiceTimer.stop();
 }
 
-void NetworkManager::onOnlineLobbyDisconnected()
+void NetworkManager::processDedicatedServerMessage(const QJsonObject &msg)
 {
-    if (!m_onlineLobbySocket)
-        return;
-
-    m_onlineLobbySocket->deleteLater();
-    m_onlineLobbySocket = nullptr;
-}
-
-void NetworkManager::onOnlineLobbyError(QAbstractSocket::SocketError)
-{
-    if (m_onlineLobbySocket)
-        emit errorOccurred(m_onlineLobbySocket->errorString());
-}
-
-// ── Private ──
-
-void NetworkManager::sendJson(QTcpSocket *socket, const QJsonObject &obj)
-{
-    if (!socket || socket->state() != QAbstractSocket::ConnectedState)
-        return;
-
-    socket->write(LineJsonProtocol::encode(obj));
-    socket->flush();
-}
-
-void NetworkManager::broadcastJson(const QJsonObject &obj, QTcpSocket *exclude)
-{
-    for (QTcpSocket *client : m_clients) {
-        if (client != exclude)
-            sendJson(client, obj);
-    }
-}
-
-void NetworkManager::processMessage(QTcpSocket *sender, const QJsonObject &msg)
-{
-    QString type = msg.value(QStringLiteral("type")).toString();
-
-    if (type == QStringLiteral("join")) {
-        QString name = msg.value(QStringLiteral("name")).toString();
-        sender->setProperty("playerName", name);
-        emit joinRequested(name, sender);
-    }
-    else if (type == QStringLiteral("ready")) {
-        int playerId = sender->property("playerId").toInt();
-        bool ready = msg.value(QStringLiteral("ready")).toBool();
-        emit remoteReadyChanged(playerId, ready);
-    }
-    else if (type == QStringLiteral("place_piece")) {
-        int playerId = sender->property("playerId").toInt();
-        int row = msg.value(QStringLiteral("row")).toInt();
-        int col = msg.value(QStringLiteral("col")).toInt();
-        emit remoteMoveReceived(playerId, row, col);
-    }
-    else if (type == QStringLiteral("flight_roll")) {
-        const int playerId = sender->property("playerId").toInt();
-        emit remoteFlightRoll(playerId);
-    }
-    else if (type == QStringLiteral("flight_move")) {
-        const int playerId = sender->property("playerId").toInt();
-        const int planeIndex = msg.value(QStringLiteral("planeIndex")).toInt(-1);
-        emit remoteFlightMove(playerId, planeIndex);
-    }
-    else if (type == QStringLiteral("surrender")) {
-        int playerId = sender->property("playerId").toInt();
-        emit remoteSurrender(playerId);
-    }
-    else if (type == QStringLiteral("change_seat")) {
-        int playerId = sender->property("playerId").toInt();
-        emit remoteSeatChanged(playerId,
-                               msg.value(QStringLiteral("seatType")).toString(QStringLiteral("active")));
-    }
-    else if (type == QStringLiteral("move")) {
-        int player = msg.value(QStringLiteral("player")).toInt();
-        int row = msg.value(QStringLiteral("row")).toInt();
-        int col = msg.value(QStringLiteral("col")).toInt();
-        emit remoteMoveReceived(player, row, col);
-    }
-    else if (type == QStringLiteral("game_over")) {
-        int winner = msg.value(QStringLiteral("winner")).toInt();
-        emit gameOverReceived(winner);
-    }
-    else if (type == QStringLiteral("flight_roll_result")) {
-        const int player = msg.value(QStringLiteral("player")).toInt();
-        const int diceValue = msg.value(QStringLiteral("diceValue")).toInt();
-        emit flightRollReceived(player, diceValue);
-    }
-    else if (type == QStringLiteral("flight_move_result")) {
-        const int player = msg.value(QStringLiteral("player")).toInt();
-        const int planeIndex = msg.value(QStringLiteral("planeIndex")).toInt(-1);
-        emit flightMoveReceived(player, planeIndex);
-    }
-    else if (type == QStringLiteral("room_state")) {
+    const QString type = msg.value(QStringLiteral("type")).toString();
+    if (type == LanBoard::Protocol::RoomState) {
         emit roomStateReceived(msg);
-    }
-    else if (type == QStringLiteral("rooms_list")) {
+    } else if (type == LanBoard::Protocol::RoomsList) {
         applyOnlineRooms(msg.value(QStringLiteral("rooms")).toArray());
-    }
-    else if (type == QStringLiteral("game_start")) {
+    } else if (type == LanBoard::Protocol::GameStart) {
         emit remoteStartGame(msg.value(QStringLiteral("gameId")).toString());
-    }
-    else if (type == QStringLiteral("start_game")) {
-        // Dedicated server accepts this. LAN host currently ignores it.
-    }
-    else if (type == QStringLiteral("ddz_play")) {
-        int playerId = sender->property("playerId").toInt();
-        emit remoteDouDiZhuPlay(playerId, msg.value(QStringLiteral("cards")).toArray());
-    }
-    else if (type == QStringLiteral("ddz_pass")) {
-        int playerId = sender->property("playerId").toInt();
-        emit remoteDouDiZhuPass(playerId);
-    }
-    else if (type == QStringLiteral("ddz_state")) {
+    } else if (type == LanBoard::Protocol::GameOver) {
+        emit gameOverReceived(msg.value(QStringLiteral("winner")).toInt());
+    } else if (type == LanBoard::Protocol::DouDiZhuState) {
         emit douDiZhuStateReceived(msg);
-    }
-    else if (type == QStringLiteral("error")) {
+    } else if (type == QStringLiteral("move")) {
+        emit remoteMoveReceived(msg.value(QStringLiteral("player")).toInt(),
+                                msg.value(QStringLiteral("row")).toInt(),
+                                msg.value(QStringLiteral("col")).toInt());
+    } else if (type == QStringLiteral("flight_roll_result")) {
+        emit flightRollReceived(msg.value(QStringLiteral("player")).toInt(),
+                                msg.value(QStringLiteral("diceValue")).toInt());
+    } else if (type == QStringLiteral("flight_move_result")) {
+        emit flightMoveReceived(msg.value(QStringLiteral("player")).toInt(),
+                                msg.value(QStringLiteral("planeIndex")).toInt(-1));
+    } else if (type == LanBoard::Protocol::Error) {
         emit errorOccurred(msg.value(QStringLiteral("message")).toString(QStringLiteral("Network error")));
     }
 }
 
-void NetworkManager::connectClientSocket(const QString &ip, quint16 port,
-                                         const QString &playerName, const QString &gameId,
-                                         const QString &action, const QString &roomId,
-                                         const QString &roomName)
+bool NetworkManager::processDedicatedServerBinaryPacket(const QByteArray &payload)
 {
-    if (m_socket) {
-        m_socket->disconnect(this);
-        m_socket->disconnectFromHost();
-        m_socket->deleteLater();
-        m_socket = nullptr;
+    switch (LanBoard::Survivor::NetCodec::packetKind(payload)) {
+    case LanBoard::Survivor::NetCodec::PacketKind::FastState:
+        emit survivorFastPacketReceived(payload);
+        return true;
+    case LanBoard::Survivor::NetCodec::PacketKind::HudState:
+        emit survivorHudPacketReceived(payload);
+        return true;
+    default:
+        return false;
     }
-
-    m_socket = new QTcpSocket(this);
-    m_socket->setProxy(QNetworkProxy::NoProxy);
-    connect(m_socket, &QTcpSocket::connected, this, &NetworkManager::onConnected);
-    connect(m_socket, &QTcpSocket::readyRead, this, &NetworkManager::onReadyRead);
-    connect(m_socket, &QTcpSocket::disconnected, this, &NetworkManager::onDisconnected);
-    connect(m_socket, &QTcpSocket::errorOccurred, this, &NetworkManager::onError);
-
-    m_connectedIp = ip;
-    m_connectedPort = port;
-    m_socket->setProperty("playerName", playerName);
-    m_socket->setProperty("gameId", LanBoard::normalizeGameId(gameId));
-    m_socket->setProperty("connectAction", action);
-    m_socket->setProperty("roomId", roomId);
-    m_socket->setProperty("roomName", roomName.trimmed());
-    m_socket->connectToHost(ip, port);
 }
 
-void NetworkManager::updateDiscoveryIdentity()
+QJsonObject NetworkManager::pendingConnectMessage(bool lobbyOnly) const
 {
-    if (!m_roomDiscovery)
-        return;
+    if (lobbyOnly)
+        return protocolMessage(LanBoard::Protocol::ListRooms);
 
-    const bool activeHost = m_isHost && m_server && m_server->isListening();
-    m_roomDiscovery->setPublishedRoom(m_discoveryHostName,
-                                      m_serverPort,
-                                      activeHost ? 1 + m_clients.size() : 0,
-                                      m_discoveryRoomCapacity,
-                                      m_discoveryMaxPlayers,
-                                      m_discoveryGameId,
-                                      m_discoveryGameName,
-                                      m_discoveryGameInProgress,
-                                      activeHost);
+    if (m_pendingConnectAction == QStringLiteral("online_create_room")) {
+        QJsonObject msg = protocolMessage(LanBoard::Protocol::CreateRoom);
+        msg[QStringLiteral("name")] = m_pendingPlayerName;
+        msg[QStringLiteral("gameId")] = m_pendingGameId;
+        msg[QStringLiteral("roomName")] = m_pendingRoomName;
+        return msg;
+    }
+
+    if (m_pendingConnectAction == QStringLiteral("online_join_room")) {
+        QJsonObject msg = protocolMessage(LanBoard::Protocol::JoinRoom);
+        msg[QStringLiteral("name")] = m_pendingPlayerName;
+        msg[QStringLiteral("roomId")] = m_pendingRoomId;
+        return msg;
+    }
+
+    QJsonObject msg = protocolMessage(LanBoard::Protocol::Join);
+    msg[QStringLiteral("name")] = m_pendingPlayerName;
+    msg[QStringLiteral("gameId")] = m_pendingGameId;
+    return msg;
+}
+
+void NetworkManager::processOnlineLobbyMessage(const QJsonObject &msg)
+{
+    if (msg.value(QStringLiteral("type")).toString() == LanBoard::Protocol::RoomsList) {
+        applyOnlineRooms(msg.value(QStringLiteral("rooms")).toArray());
+        disconnectEnetPeer(m_lobbyPeer, m_lobbyHost, false);
+        if (!m_clientHost && !m_hostServer)
+            m_enetServiceTimer.stop();
+        return;
+    }
+
+    processDedicatedServerMessage(msg);
 }
 
 void NetworkManager::applyOnlineRooms(const QJsonArray &rooms)
@@ -697,4 +848,21 @@ void NetworkManager::applyOnlineRooms(const QJsonArray &rooms)
 
     m_onlineRooms = mappedRooms;
     emit onlineRoomsChanged();
+}
+
+void NetworkManager::updateDiscoveryIdentity()
+{
+    if (!m_roomDiscovery)
+        return;
+
+    const bool activeHost = m_isHost && m_hostServer != nullptr;
+    m_roomDiscovery->setPublishedRoom(m_discoveryHostName,
+                                      m_serverPort,
+                                      activeHost ? 1 + m_peerClients.size() : 0,
+                                      m_discoveryRoomCapacity,
+                                      m_discoveryMaxPlayers,
+                                      m_discoveryGameId,
+                                      m_discoveryGameName,
+                                      m_discoveryGameInProgress,
+                                      activeHost);
 }

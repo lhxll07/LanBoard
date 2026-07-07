@@ -2,27 +2,223 @@
 
 #include "survivorcontroller.h"
 
-#include <functional>
-#include <QPainter>
-#include <QPainterPath>
-#include <QPixmap>
+#include <QColor>
+#include <QSGGeometry>
+#include <QSGGeometryNode>
+#include <QSGNode>
+#include <QSGVertexColorMaterial>
+#include <cstring>
 #include <QtMath>
 
 namespace {
 
-QColor enemyFillColor(int kind, bool hurtFlash)
-{
-    if (hurtFlash)
-        return QColor("#F7F1E4");
+using Vertex = QSGGeometry::ColoredPoint2D;
 
+Vertex makeVertex(qreal x, qreal y, const QColor &color)
+{
+    Vertex vertex;
+    vertex.set(static_cast<float>(x),
+               static_cast<float>(y),
+               static_cast<uchar>(color.red()),
+               static_cast<uchar>(color.green()),
+               static_cast<uchar>(color.blue()),
+               static_cast<uchar>(color.alpha()));
+    return vertex;
+}
+
+void appendLine(QVector<Vertex> &vertices,
+                const QPointF &from,
+                const QPointF &to,
+                const QColor &color)
+{
+    vertices.append(makeVertex(from.x(), from.y(), color));
+    vertices.append(makeVertex(to.x(), to.y(), color));
+}
+
+void appendTriangle(QVector<Vertex> &vertices,
+                    const QPointF &a,
+                    const QPointF &b,
+                    const QPointF &c,
+                    const QColor &color)
+{
+    vertices.append(makeVertex(a.x(), a.y(), color));
+    vertices.append(makeVertex(b.x(), b.y(), color));
+    vertices.append(makeVertex(c.x(), c.y(), color));
+}
+
+void appendRect(QVector<Vertex> &vertices,
+                const QRectF &rect,
+                const QColor &color)
+{
+    const QPointF topLeft = rect.topLeft();
+    const QPointF topRight = rect.topRight();
+    const QPointF bottomLeft = rect.bottomLeft();
+    const QPointF bottomRight = rect.bottomRight();
+    appendTriangle(vertices, topLeft, bottomLeft, topRight, color);
+    appendTriangle(vertices, topRight, bottomLeft, bottomRight, color);
+}
+
+void appendRectOutline(QVector<Vertex> &vertices,
+                       const QRectF &rect,
+                       const QColor &color)
+{
+    const QPointF topLeft = rect.topLeft();
+    const QPointF topRight = rect.topRight();
+    const QPointF bottomLeft = rect.bottomLeft();
+    const QPointF bottomRight = rect.bottomRight();
+    appendLine(vertices, topLeft, topRight, color);
+    appendLine(vertices, topRight, bottomRight, color);
+    appendLine(vertices, bottomRight, bottomLeft, color);
+    appendLine(vertices, bottomLeft, topLeft, color);
+}
+
+void appendRegularPolygon(QVector<Vertex> &vertices,
+                          const QPointF &center,
+                          qreal radius,
+                          int sides,
+                          const QColor &color,
+                          qreal rotationDeg = 0.0)
+{
+    if (sides < 3 || radius <= 0.0)
+        return;
+
+    const qreal step = 360.0 / sides;
+    QPointF previousPoint;
+    for (int index = 0; index <= sides; ++index) {
+        const qreal angle = qDegreesToRadians(rotationDeg + step * index);
+        const QPointF point(center.x() + qCos(angle) * radius,
+                            center.y() + qSin(angle) * radius);
+        if (index > 0)
+            appendTriangle(vertices, center, previousPoint, point, color);
+        previousPoint = point;
+    }
+}
+
+void appendRegularPolygonOutline(QVector<Vertex> &vertices,
+                                 const QPointF &center,
+                                 qreal radius,
+                                 int sides,
+                                 const QColor &color,
+                                 qreal rotationDeg = 0.0)
+{
+    if (sides < 3 || radius <= 0.0)
+        return;
+
+    const qreal step = 360.0 / sides;
+    QPointF firstPoint;
+    QPointF previousPoint;
+    for (int index = 0; index < sides; ++index) {
+        const qreal angle = qDegreesToRadians(rotationDeg + step * index);
+        const QPointF point(center.x() + qCos(angle) * radius,
+                            center.y() + qSin(angle) * radius);
+        if (index == 0)
+            firstPoint = point;
+        else
+            appendLine(vertices, previousPoint, point, color);
+        previousPoint = point;
+    }
+    appendLine(vertices, previousPoint, firstPoint, color);
+}
+
+void appendDiamond(QVector<Vertex> &vertices,
+                   const QPointF &center,
+                   qreal radius,
+                   const QColor &color)
+{
+    const QPointF top(center.x(), center.y() - radius);
+    const QPointF right(center.x() + radius, center.y());
+    const QPointF bottom(center.x(), center.y() + radius);
+    const QPointF left(center.x() - radius, center.y());
+    appendTriangle(vertices, top, left, right, color);
+    appendTriangle(vertices, right, left, bottom, color);
+}
+
+void appendDiamondOutline(QVector<Vertex> &vertices,
+                          const QPointF &center,
+                          qreal radius,
+                          const QColor &color)
+{
+    const QPointF top(center.x(), center.y() - radius);
+    const QPointF right(center.x() + radius, center.y());
+    const QPointF bottom(center.x(), center.y() + radius);
+    const QPointF left(center.x() - radius, center.y());
+    appendLine(vertices, top, right, color);
+    appendLine(vertices, right, bottom, color);
+    appendLine(vertices, bottom, left, color);
+    appendLine(vertices, left, top, color);
+}
+
+QColor withAlpha(const QColor &color, int alpha)
+{
+    QColor copy = color;
+    copy.setAlpha(alpha);
+    return copy;
+}
+
+void appendLayeredPolygon(QVector<Vertex> &fillVertices,
+                          QVector<Vertex> &lineVertices,
+                          const QPointF &center,
+                          qreal radius,
+                          int sides,
+                          qreal rotationDeg,
+                          const QColor &baseColor,
+                          const QColor &innerColor,
+                          const QColor &outlineColor,
+                          const QColor &shadowColor)
+{
+    if (radius <= 0.0)
+        return;
+
+    appendRegularPolygon(fillVertices,
+                         QPointF(center.x(), center.y() + radius * 0.16),
+                         radius * 1.03,
+                         sides,
+                         shadowColor,
+                         rotationDeg);
+    appendRegularPolygon(fillVertices, center, radius, sides, baseColor, rotationDeg);
+    appendRegularPolygon(fillVertices,
+                         QPointF(center.x() - radius * 0.14, center.y() - radius * 0.18),
+                         radius * 0.58,
+                         qMax(4, sides - 2),
+                         innerColor,
+                         rotationDeg);
+    appendRegularPolygonOutline(lineVertices, center, radius, sides, outlineColor, rotationDeg);
+}
+
+void appendLayeredDiamond(QVector<Vertex> &fillVertices,
+                          QVector<Vertex> &lineVertices,
+                          const QPointF &center,
+                          qreal radius,
+                          const QColor &baseColor,
+                          const QColor &innerColor,
+                          const QColor &outlineColor,
+                          const QColor &shadowColor)
+{
+    if (radius <= 0.0)
+        return;
+
+    appendDiamond(fillVertices,
+                  QPointF(center.x(), center.y() + radius * 0.16),
+                  radius * 1.04,
+                  shadowColor);
+    appendDiamond(fillVertices, center, radius, baseColor);
+    appendDiamond(fillVertices,
+                  QPointF(center.x() - radius * 0.12, center.y() - radius * 0.14),
+                  radius * 0.54,
+                  innerColor);
+    appendDiamondOutline(lineVertices, center, radius, outlineColor);
+}
+
+QColor enemyFillColor(int kind)
+{
     switch (kind) {
-    case 0: return QColor("#5A7284"); // Night crow
-    case 1: return QColor("#B78A69"); // Jiangshi
-    case 2: return QColor("#F0E5D6"); // Paper effigy
-    case 3: return QColor("#8E6C5B"); // Mountain beast
-    case 4: return QColor("#8BA06E"); // Tree spirit
-    case 5: return QColor("#6F5E53"); // Brute
-    default: return QColor("#A47052"); // Boss demon
+    case 0: return QColor("#5A7284");
+    case 1: return QColor("#B78A69");
+    case 2: return QColor("#F0E5D6");
+    case 3: return QColor("#8E6C5B");
+    case 4: return QColor("#8BA06E");
+    case 5: return QColor("#6F5E53");
+    default: return QColor("#A47052");
     }
 }
 
@@ -56,413 +252,73 @@ QColor jadeColor(int kind)
     }
 }
 
-void drawEnemyShape(QPainter *painter,
-                    const SurvivorController::RenderEnemy &enemy,
-                    const QPointF &center,
-                    qreal radius,
-                    bool highDetail);
-
-QPainterPath roundedDiamondPath(qreal size)
+bool circlesOverlap(const QVector2D &lhs, const QVector2D &rhs, qreal combinedRadius)
 {
-    QPainterPath path;
-    path.moveTo(0.0, -size);
-    path.quadTo(size * 0.55, -size * 0.42, size, 0.0);
-    path.quadTo(size * 0.5, size * 0.58, 0.0, size);
-    path.quadTo(-size * 0.5, size * 0.58, -size, 0.0);
-    path.quadTo(-size * 0.55, -size * 0.42, 0.0, -size);
-    return path;
+    return (lhs - rhs).lengthSquared() <= combinedRadius * combinedRadius;
 }
 
-QHash<QString, QPixmap> &spriteCache()
+QPointF clampToRadar(qreal dx, qreal dy, qreal range, bool *faded)
 {
-    static QHash<QString, QPixmap> cache;
-    return cache;
+    const qreal distanceSquared = dx * dx + dy * dy;
+    if (distanceSquared <= range * range) {
+        *faded = false;
+        return QPointF(dx, dy);
+    }
+
+    *faded = true;
+    const qreal distance = qSqrt(distanceSquared);
+    const qreal ratio = range / qMax(distance, 0.0001);
+    return QPointF(dx * ratio, dy * ratio);
 }
 
-const QPixmap &cachedPixmap(const QString &key,
-                            int width,
-                            int height,
-                            const std::function<void(QPainter &)> &paintFn)
+struct GeometryLayerNode : public QSGGeometryNode
 {
-    QHash<QString, QPixmap> &cache = spriteCache();
-    const auto it = cache.constFind(key);
-    if (it != cache.constEnd())
-        return it.value();
+    GeometryLayerNode(QSGGeometry::DrawingMode mode)
+        : geometry(QSGGeometry::defaultAttributes_ColoredPoint2D(), 0)
+    {
+        geometry.setDrawingMode(mode);
+        geometry.setLineWidth(1.0f);
+        setGeometry(&geometry);
+        setFlag(QSGNode::OwnsGeometry, false);
+        setMaterial(&material);
+        setFlag(QSGNode::OwnsMaterial, false);
+    }
 
-    QPixmap pixmap(width, height);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setRenderHint(QPainter::TextAntialiasing, true);
-    paintFn(painter);
-    painter.end();
-
-    auto inserted = cache.insert(key, pixmap);
-    return inserted.value();
-}
-
-quint32 stableCellNoise(int cellX, int cellY)
-{
-    quint32 hash = static_cast<quint32>(cellX) * 73856093u
-        ^ static_cast<quint32>(cellY) * 19349663u
-        ^ 0x9E3779B9u;
-    hash ^= hash >> 13;
-    hash *= 1274126177u;
-    return hash ^ (hash >> 16);
-}
-
-void drawBackdropDecoration(QPainter *painter,
-                            qreal width,
-                            qreal height,
-                            qreal playerWorldX,
-                            qreal playerWorldY,
-                            qreal scale)
-{
-    painter->fillRect(QRectF(0.0, 0.0, width, height), QColor("#E8E1D3"));
-
-    const qreal centerX = width / 2.0;
-    const qreal centerY = height / 2.0;
-    const qreal leftWorld = playerWorldX - width / (2.0 * scale);
-    const qreal rightWorld = playerWorldX + width / (2.0 * scale);
-    const qreal topWorld = playerWorldY - height / (2.0 * scale);
-    const qreal bottomWorld = playerWorldY + height / (2.0 * scale);
-
-    auto screenX = [centerX, playerWorldX, scale](qreal worldX) {
-        return centerX + (worldX - playerWorldX) * scale;
-    };
-    auto screenY = [centerY, playerWorldY, scale](qreal worldY) {
-        return centerY + (worldY - playerWorldY) * scale;
-    };
-
-    const qreal minorCell = 0.22;
-    const qreal majorCell = 0.66;
-
-    painter->setPen(QPen(QColor("#D8D0C2"), 1.0));
-    for (qreal worldX = qFloor(leftWorld / minorCell) * minorCell; worldX <= rightWorld + minorCell; worldX += minorCell)
-        painter->drawLine(QPointF(screenX(worldX), 0.0), QPointF(screenX(worldX), height));
-    for (qreal worldY = qFloor(topWorld / minorCell) * minorCell; worldY <= bottomWorld + minorCell; worldY += minorCell)
-        painter->drawLine(QPointF(0.0, screenY(worldY)), QPointF(width, screenY(worldY)));
-
-    painter->setPen(QPen(QColor("#C5BBAB"), 1.2));
-    for (qreal worldX = qFloor(leftWorld / majorCell) * majorCell; worldX <= rightWorld + majorCell; worldX += majorCell)
-        painter->drawLine(QPointF(screenX(worldX), 0.0), QPointF(screenX(worldX), height));
-    for (qreal worldY = qFloor(topWorld / majorCell) * majorCell; worldY <= bottomWorld + majorCell; worldY += majorCell)
-        painter->drawLine(QPointF(0.0, screenY(worldY)), QPointF(width, screenY(worldY)));
-
-    const int cellXStart = qFloor(leftWorld / majorCell) - 1;
-    const int cellXEnd = qCeil(rightWorld / majorCell) + 1;
-    const int cellYStart = qFloor(topWorld / majorCell) - 1;
-    const int cellYEnd = qCeil(bottomWorld / majorCell) + 1;
-
-    for (int cellY = cellYStart; cellY <= cellYEnd; ++cellY) {
-        for (int cellX = cellXStart; cellX <= cellXEnd; ++cellX) {
-            const quint32 noise = stableCellNoise(cellX, cellY);
-            const qreal worldCenterX = (cellX + 0.5) * majorCell;
-            const qreal worldCenterY = (cellY + 0.5) * majorCell;
-            const QPointF point(screenX(worldCenterX), screenY(worldCenterY));
-
-            if (point.x() < -36.0 || point.x() > width + 36.0 || point.y() < -36.0 || point.y() > height + 36.0)
-                continue;
-
-            if (noise % 13u == 0u) {
-                const qreal dot = qMax(4.0, scale * 0.016);
-                painter->setPen(Qt::NoPen);
-                painter->setBrush(QColor::fromRgbF(0.72, 0.67, 0.61, 0.16));
-                painter->drawEllipse(point, dot, dot);
-            } else if (noise % 7u == 0u) {
-                painter->setPen(QPen(QColor::fromRgbF(0.76, 0.71, 0.65, 0.22),
-                                     qMax(4.0, scale * 0.016),
-                                     Qt::SolidLine,
-                                     Qt::RoundCap));
-                painter->drawLine(QPointF(point.x() - scale * 0.06, point.y()),
-                                  QPointF(point.x() + scale * 0.06, point.y()));
-            }
+    void updateVertices(const QVector<Vertex> &vertices)
+    {
+        geometry.allocate(vertices.size());
+        if (!vertices.isEmpty()) {
+            std::memcpy(geometry.vertexData(),
+                        vertices.constData(),
+                        static_cast<size_t>(vertices.size()) * sizeof(Vertex));
         }
-    }
-}
-
-void drawJadePickup(QPainter *painter, const QPointF &center, qreal size, int kind)
-{
-    painter->save();
-    painter->translate(center);
-    painter->setPen(QPen(QColor("#F8F6F2"), 1.3));
-    painter->setBrush(jadeColor(kind));
-    painter->drawPath(roundedDiamondPath(size));
-
-    painter->setPen(QPen(QColor::fromRgbF(1.0, 1.0, 1.0, 0.55), 1.0));
-    painter->drawLine(QPointF(0.0, -size * 0.56), QPointF(0.0, size * 0.42));
-    painter->drawLine(QPointF(-size * 0.34, 0.0), QPointF(size * 0.34, 0.0));
-    painter->restore();
-}
-
-void drawChestPickup(QPainter *painter, const QPointF &center, qreal width)
-{
-    const qreal boxWidth = width;
-    const qreal boxHeight = width * 0.70;
-
-    painter->save();
-    painter->translate(center);
-    painter->setPen(QPen(QColor("#6C5234"), 1.8));
-    painter->setBrush(QColor("#B9894B"));
-    painter->drawRoundedRect(QRectF(-boxWidth / 2.0, -boxHeight / 2.0, boxWidth, boxHeight), 4.0, 4.0);
-    painter->setBrush(QColor("#E5C68A"));
-    painter->drawRoundedRect(QRectF(-boxWidth / 2.0, -boxHeight / 2.0, boxWidth, boxHeight * 0.34), 3.0, 3.0);
-    painter->setPen(QPen(QColor("#F7E4B6"), 1.8));
-    painter->drawLine(QPointF(0.0, -boxHeight * 0.46), QPointF(0.0, boxHeight * 0.46));
-    painter->drawLine(QPointF(-boxWidth * 0.46, 0.0), QPointF(boxWidth * 0.46, 0.0));
-    painter->restore();
-}
-
-void drawZoneShape(QPainter *painter, const QPointF &center, qreal radius, bool evolvedZone)
-{
-    painter->save();
-    painter->translate(center);
-
-    if (evolvedZone) {
-        painter->setPen(QPen(QColor::fromRgbF(95.0 / 255.0, 132.0 / 255.0, 214.0 / 255.0, 0.70), 2.2));
-        painter->setBrush(QColor::fromRgbF(95.0 / 255.0, 132.0 / 255.0, 214.0 / 255.0, 0.10));
-        painter->drawEllipse(QPointF(0.0, 0.0), radius, radius);
-        painter->drawEllipse(QPointF(0.0, 0.0), radius * 0.55, radius * 0.55);
-        painter->setPen(QPen(QColor::fromRgbF(0.95, 0.98, 1.0, 0.36), 1.4));
-        painter->drawLine(QPointF(-radius * 0.36, 0.0), QPointF(radius * 0.36, 0.0));
-        painter->drawLine(QPointF(0.0, -radius * 0.36), QPointF(0.0, radius * 0.36));
-    } else {
-        painter->setPen(QPen(QColor::fromRgbF(92.0 / 255.0, 136.0 / 255.0, 208.0 / 255.0, 0.52), 2.0));
-        painter->setBrush(QColor::fromRgbF(92.0 / 255.0, 136.0 / 255.0, 208.0 / 255.0, 0.08));
-        painter->drawEllipse(QPointF(0.0, 0.0), radius, radius);
-        painter->setPen(QPen(QColor::fromRgbF(0.92, 0.96, 1.0, 0.28), 1.2));
-        painter->drawEllipse(QPointF(0.0, 0.0), radius * 0.40, radius * 0.40);
+        markDirty(QSGNode::DirtyGeometry);
     }
 
-    painter->restore();
-}
+    QSGGeometry geometry;
+    QSGVertexColorMaterial material;
+};
 
-void drawAura(QPainter *painter, const QPointF &center, qreal radius)
+struct SceneRootNode : public QSGNode
 {
-    painter->save();
-    painter->setPen(QPen(QColor::fromRgbF(167.0 / 255.0, 192.0 / 255.0, 122.0 / 255.0, 0.54), 2.0));
-    painter->setBrush(QColor::fromRgbF(167.0 / 255.0, 192.0 / 255.0, 122.0 / 255.0, 0.08));
-    painter->drawEllipse(center, radius, radius);
-    painter->drawEllipse(center, radius * 0.62, radius * 0.62);
-    painter->restore();
-}
-
-void drawPlayerShape(QPainter *painter, const QPointF &center, qreal scaleFactor)
-{
-    painter->save();
-    painter->translate(center);
-    painter->scale(scaleFactor, scaleFactor);
-
-    painter->setPen(QPen(QColor("#2E5451"), 3.0));
-    painter->setBrush(QColor("#5C8E89"));
-    painter->drawEllipse(QPointF(0.0, 0.0), 17.0, 17.0);
-    painter->setBrush(Qt::NoBrush);
-    painter->setPen(QPen(QColor("#DCE8E2"), 2.2));
-    painter->drawEllipse(QPointF(0.0, 0.0), 10.0, 10.0);
-    painter->setPen(QPen(QColor("#E26C58"), 2.4, Qt::SolidLine, Qt::RoundCap));
-    painter->drawLine(QPointF(-6.0, 0.0), QPointF(6.0, 0.0));
-    painter->drawLine(QPointF(0.0, -6.0), QPointF(0.0, 6.0));
-    painter->restore();
-}
-
-void drawCoinOrbital(QPainter *painter, const QPointF &center, qreal radius)
-{
-    painter->save();
-    painter->translate(center);
-    painter->setPen(QPen(QColor("#B38D45"), 1.4));
-    painter->setBrush(QColor("#E5BB57"));
-    painter->drawEllipse(QPointF(0.0, 0.0), radius, radius);
-    painter->setBrush(QColor("#FFF1C8"));
-    painter->drawEllipse(QPointF(0.0, 0.0), radius * 0.34, radius * 0.34);
-    painter->restore();
-}
-
-void drawProjectileShape(QPainter *painter, const QPointF &center, int kind, qreal baseSize)
-{
-    painter->save();
-    painter->translate(center);
-
-    if (kind == 0) {
-        painter->setPen(QPen(QColor("#927448"), 1.0));
-        painter->setBrush(QColor("#F0D7A5"));
-        QPolygonF blade;
-        blade << QPointF(-baseSize * 1.12, 0.0)
-              << QPointF(baseSize * 0.20, -baseSize * 0.64)
-              << QPointF(baseSize * 1.08, 0.0)
-              << QPointF(baseSize * 0.20, baseSize * 0.64);
-        painter->drawPolygon(blade);
-        painter->setPen(QPen(QColor("#FFF7DF"), 1.0));
-        painter->drawLine(QPointF(-baseSize * 0.18, 0.0), QPointF(baseSize * 0.72, 0.0));
-    } else if (kind == 1 || kind == 3) {
-        const QColor fill = kind == 3 ? QColor("#F05F47") : QColor("#F28B5D");
-        painter->setPen(QPen(QColor("#7D3528"), 1.4));
-        painter->setBrush(fill);
-        painter->drawEllipse(QPointF(0.0, 0.0), baseSize * 0.94, baseSize * 0.94);
-        painter->setPen(QPen(QColor("#FFD4B2"), 1.2));
-        painter->drawLine(QPointF(-baseSize * 0.44, 0.0), QPointF(baseSize * 0.44, 0.0));
-        painter->drawLine(QPointF(0.0, -baseSize * 0.44), QPointF(0.0, baseSize * 0.44));
-    } else if (kind == 2) {
-        painter->setPen(QPen(QColor("#C5A25D"), 2.0, Qt::SolidLine, Qt::RoundCap));
-        painter->drawLine(QPointF(-baseSize * 1.4, 0.0), QPointF(baseSize * 1.4, 0.0));
-        painter->drawLine(QPointF(0.0, -baseSize * 1.4), QPointF(0.0, baseSize * 1.4));
-        painter->setPen(QPen(QColor("#EEDAA4"), 1.2));
-        painter->drawEllipse(QPointF(0.0, 0.0), baseSize * 0.42, baseSize * 0.42);
+    SceneRootNode()
+    {
+        fillNode = new GeometryLayerNode(QSGGeometry::DrawTriangles);
+        lineNode = new GeometryLayerNode(QSGGeometry::DrawLines);
+        appendChildNode(fillNode);
+        appendChildNode(lineNode);
     }
 
-    painter->restore();
-}
-
-const QPixmap &playerSprite(bool compactLayout)
-{
-    const qreal scaleFactor = compactLayout ? 0.42 : 0.46;
-    const int spriteSize = compactLayout ? 54 : 58;
-    const QString key = QStringLiteral("player_%1").arg(compactLayout ? 1 : 0);
-    return cachedPixmap(key, spriteSize, spriteSize, [scaleFactor, spriteSize](QPainter &painter) {
-        drawPlayerShape(&painter, QPointF(spriteSize / 2.0, spriteSize / 2.0), scaleFactor);
-    });
-}
-
-const QPixmap &enemySprite(int kind, int pixelRadius, bool highDetail, bool hurtFlash)
-{
-    const int radius = qMax(7, pixelRadius);
-    const int spriteWidth = qRound(radius * 5.8);
-    const int spriteHeight = qRound(radius * 6.2);
-    const QString key = QStringLiteral("enemy_%1_%2_%3_%4")
-                            .arg(kind)
-                            .arg(radius)
-                            .arg(highDetail ? 1 : 0)
-                            .arg(hurtFlash ? 1 : 0);
-    return cachedPixmap(key, spriteWidth, spriteHeight, [kind, radius, highDetail, hurtFlash, spriteWidth, spriteHeight](QPainter &painter) {
-        SurvivorController::RenderEnemy enemy;
-        enemy.kind = kind;
-        enemy.hitFlashMs = hurtFlash ? 1 : 0;
-        drawEnemyShape(&painter, enemy, QPointF(spriteWidth / 2.0, spriteHeight * 0.38), radius, highDetail);
-    });
-}
-
-const QPixmap &projectileSprite(int kind, int baseSize)
-{
-    const int size = qMax(10, baseSize);
-    const int spriteSize = qMax(18, size * 4);
-    const QString key = QStringLiteral("projectile_%1_%2").arg(kind).arg(size);
-    return cachedPixmap(key, spriteSize, spriteSize, [kind, size, spriteSize](QPainter &painter) {
-        drawProjectileShape(&painter, QPointF(spriteSize / 2.0, spriteSize / 2.0), kind, size);
-    });
-}
-
-const QPixmap &jadeSprite(int kind, int size)
-{
-    const int spriteSize = qMax(16, size * 4);
-    const QString key = QStringLiteral("jade_%1_%2").arg(kind).arg(size);
-    return cachedPixmap(key, spriteSize, spriteSize, [kind, size, spriteSize](QPainter &painter) {
-        drawJadePickup(&painter, QPointF(spriteSize / 2.0, spriteSize / 2.0), size, kind);
-    });
-}
-
-const QPixmap &chestSprite(int size)
-{
-    const int spriteWidth = qMax(22, qRound(size * 2.4));
-    const int spriteHeight = qMax(18, qRound(size * 1.9));
-    const QString key = QStringLiteral("chest_%1").arg(size);
-    return cachedPixmap(key, spriteWidth, spriteHeight, [size, spriteWidth, spriteHeight](QPainter &painter) {
-        drawChestPickup(&painter, QPointF(spriteWidth / 2.0, spriteHeight * 0.56), size * 1.4);
-    });
-}
-
-const QPixmap &orbitalSprite(int size)
-{
-    const int spriteSize = qMax(14, size * 4);
-    const QString key = QStringLiteral("orbital_%1").arg(size);
-    return cachedPixmap(key, spriteSize, spriteSize, [size, spriteSize](QPainter &painter) {
-        drawCoinOrbital(&painter, QPointF(spriteSize / 2.0, spriteSize / 2.0), size);
-    });
-}
-
-void drawEnemyShape(QPainter *painter,
-                    const SurvivorController::RenderEnemy &enemy,
-                    const QPointF &center,
-                    qreal radius,
-                    bool highDetail)
-{
-    const QColor fill = enemyFillColor(enemy.kind, enemy.hitFlashMs > 0);
-    const QColor outline = enemyOutlineColor(enemy.kind);
-    const QColor accent = enemyAccentColor(enemy.kind);
-
-    painter->save();
-    painter->translate(center);
-    painter->setPen(QPen(outline, qMax(1.6, radius * 0.18)));
-    painter->setBrush(fill);
-
-    switch (enemy.kind) {
-    case 0:
-        painter->drawEllipse(QPointF(0.0, 0.0), radius * 0.78, radius * 0.78);
-        break;
-    case 1:
-        painter->drawEllipse(QPointF(0.0, 0.0), radius * 0.90, radius * 0.90);
-        break;
-    case 2: {
-        QPolygonF diamond;
-        diamond << QPointF(0.0, -radius * 0.98)
-                << QPointF(radius * 0.98, 0.0)
-                << QPointF(0.0, radius * 0.98)
-                << QPointF(-radius * 0.98, 0.0);
-        painter->drawPolygon(diamond);
-        break;
-    }
-    case 3: {
-        QPolygonF hex;
-        for (int i = 0; i < 6; ++i) {
-            const qreal angle = qDegreesToRadians(60.0 * i - 30.0);
-            hex << QPointF(qCos(angle) * radius * 0.98, qSin(angle) * radius * 0.98);
-        }
-        painter->drawPolygon(hex);
-        break;
-    }
-    case 4:
-        painter->drawEllipse(QPointF(0.0, 0.0), radius * 0.92, radius * 0.92);
-        break;
-    case 5:
-        painter->drawRoundedRect(QRectF(-radius * 0.94, -radius * 0.94, radius * 1.88, radius * 1.88),
-                                 radius * 0.20,
-                                 radius * 0.20);
-        break;
-    default: {
-        QPolygonF octagon;
-        for (int i = 0; i < 8; ++i) {
-            const qreal angle = qDegreesToRadians(45.0 * i - 22.5);
-            octagon << QPointF(qCos(angle) * radius * 1.02, qSin(angle) * radius * 1.02);
-        }
-        painter->drawPolygon(octagon);
-        break;
-    }
-    }
-
-    painter->setBrush(accent);
-    painter->setPen(Qt::NoPen);
-    if (enemy.kind == 4) {
-        painter->drawEllipse(QPointF(0.0, 0.0), radius * 0.26, radius * 0.26);
-        painter->setBrush(Qt::NoBrush);
-        painter->setPen(QPen(accent, qMax(1.2, radius * 0.10)));
-        painter->drawEllipse(QPointF(0.0, 0.0), radius * 0.58, radius * 0.58);
-    } else {
-        painter->drawEllipse(QPointF(0.0, 0.0), radius * 0.22, radius * 0.22);
-        if (highDetail) {
-            painter->setPen(QPen(QColor("#F8F4EC"), qMax(1.0, radius * 0.10), Qt::SolidLine, Qt::RoundCap));
-            painter->drawLine(QPointF(-radius * 0.30, 0.0), QPointF(radius * 0.30, 0.0));
-        }
-    }
-
-    painter->restore();
-}
+    GeometryLayerNode *fillNode = nullptr;
+    GeometryLayerNode *lineNode = nullptr;
+};
 
 }
 
 SurvivorRenderItem::SurvivorRenderItem(QQuickItem *parent)
-    : QQuickPaintedItem(parent)
+    : QQuickItem(parent)
 {
-    setRenderTarget(QQuickPaintedItem::FramebufferObject);
-    setAntialiasing(true);
-    setOpaquePainting(true);
+    setFlag(ItemHasContents, true);
 }
 
 QObject *SurvivorRenderItem::controller() const
@@ -504,18 +360,539 @@ void SurvivorRenderItem::setCompactLayout(bool value)
     emit compactLayoutChanged();
 }
 
-void SurvivorRenderItem::paint(QPainter *painter)
+QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
     if (!m_controller)
-        return;
+        return oldNode;
 
-    painter->setRenderHint(QPainter::Antialiasing, true);
-    painter->setRenderHint(QPainter::TextAntialiasing, true);
+    SceneRootNode *root = static_cast<SceneRootNode *>(oldNode);
+    if (!root)
+        root = new SceneRootNode();
 
-    if (m_radarMode)
-        drawRadar(painter);
-    else
-        drawArena(painter);
+    QVector<Vertex> fillVertices;
+    QVector<Vertex> lineVertices;
+
+    const auto &currentSnapshot = m_controller->renderSnapshot();
+
+    if (m_radarMode) {
+        const qreal centerX = width() / 2.0;
+        const qreal centerY = height() / 2.0;
+        const qreal radarRadius = qMax(0.0, width() / 2.0 - 2.0);
+        const qreal worldRange = m_controller->radarRange();
+        const qreal scale = radarRadius / qMax(worldRange, 0.0001);
+        const qreal playerX = m_controller->playerX();
+        const qreal playerY = m_controller->playerY();
+
+        fillVertices.reserve(256);
+        lineVertices.reserve(320);
+
+        appendRegularPolygon(fillVertices, QPointF(centerX, centerY + 2.0), radarRadius * 1.02, 28, QColor(9, 14, 12, 72));
+        appendRegularPolygon(fillVertices, QPointF(centerX, centerY), radarRadius, 28, QColor("#16211D"));
+        appendRegularPolygon(fillVertices, QPointF(centerX, centerY), radarRadius * 0.84, 28, QColor(37, 56, 49, 58));
+        appendRegularPolygonOutline(lineVertices, QPointF(centerX, centerY), radarRadius - 1.0, 28, QColor("#7A6037"));
+        appendRegularPolygonOutline(lineVertices, QPointF(centerX, centerY), radarRadius * 0.66, 28, QColor(122, 96, 55, 150));
+        appendRegularPolygonOutline(lineVertices, QPointF(centerX, centerY), radarRadius * 0.34, 20, QColor(86, 72, 46, 110));
+        appendLine(lineVertices, QPointF(centerX, 0.0), QPointF(centerX, height()), QColor(77, 59, 34, 120));
+        appendLine(lineVertices, QPointF(0.0, centerY), QPointF(width(), centerY), QColor(77, 59, 34, 120));
+
+        const int pickupStep = qMax(1, static_cast<int>(qCeil(currentSnapshot.pickups.size() / 28.0)));
+        for (int i = 0; i < currentSnapshot.pickups.size(); i += pickupStep) {
+            const SurvivorController::RenderPickup &pickup = currentSnapshot.pickups.at(i);
+            bool faded = false;
+            const QPointF radarPoint = clampToRadar(pickup.x - playerX, pickup.y - playerY, worldRange, &faded);
+            const QPointF point(centerX + radarPoint.x() * scale,
+                                centerY + radarPoint.y() * scale);
+            const QColor color = pickup.kind == 3
+                ? (faded ? QColor(240, 205, 132, 110) : QColor("#F0CD84"))
+                : (faded ? QColor(jadeColor(pickup.kind).red(),
+                                  jadeColor(pickup.kind).green(),
+                                  jadeColor(pickup.kind).blue(),
+                                  110)
+                         : jadeColor(pickup.kind));
+            appendLayeredPolygon(fillVertices,
+                                 lineVertices,
+                                 point,
+                                 pickup.kind == 3 ? 2.8 : 2.4,
+                                 4,
+                                 45.0,
+                                 color,
+                                 withAlpha(QColor("#FFF7E2"), faded ? 90 : 160),
+                                 withAlpha(QColor("#F9F1DB"), faded ? 90 : 150),
+                                 faded ? QColor(12, 18, 16, 24) : QColor(12, 18, 16, 48));
+        }
+
+        const int enemyStep = qMax(1, static_cast<int>(qCeil(currentSnapshot.enemies.size() / 56.0)));
+        for (int i = 0; i < currentSnapshot.enemies.size(); i += enemyStep) {
+            const SurvivorController::RenderEnemy &enemy = currentSnapshot.enemies.at(i);
+            bool faded = false;
+            const QPointF radarPoint = clampToRadar(enemy.x - playerX, enemy.y - playerY, worldRange, &faded);
+            const QPointF point(centerX + radarPoint.x() * scale,
+                                centerY + radarPoint.y() * scale);
+            const QColor color = enemy.elite
+                ? (faded ? QColor(214, 154, 109, 110) : QColor("#D69A6D"))
+                : (faded ? QColor(208, 89, 74, 90) : QColor("#D0594A"));
+            appendLayeredPolygon(fillVertices,
+                                 lineVertices,
+                                 point,
+                                 enemy.elite ? 3.2 : 2.5,
+                                 enemy.elite ? 6 : 5,
+                                 -18.0,
+                                 color,
+                                 withAlpha(QColor("#F3E8D4"), faded ? 70 : 120),
+                                 withAlpha(QColor("#2D261F"), faded ? 80 : 130),
+                                 faded ? QColor(10, 16, 14, 24) : QColor(10, 16, 14, 42));
+        }
+
+        for (int i = 0; i < currentSnapshot.players.size(); ++i) {
+            const SurvivorController::RenderPlayer &player = currentSnapshot.players.at(i);
+            if (player.local || !player.alive)
+                continue;
+            bool faded = false;
+            const QPointF radarPoint = clampToRadar(player.x - playerX, player.y - playerY, worldRange, &faded);
+            const QPointF point(centerX + radarPoint.x() * scale,
+                                centerY + radarPoint.y() * scale);
+            const QColor baseColor = player.colorIndex % 3 == 1
+                ? QColor("#8DBFB6")
+                : (player.colorIndex % 3 == 2 ? QColor("#D9A86B") : QColor("#6F9E98"));
+            appendLayeredPolygon(fillVertices,
+                                 lineVertices,
+                                 point,
+                                 3.1,
+                                 6,
+                                 0.0,
+                                 faded ? withAlpha(baseColor, 110) : baseColor,
+                                 withAlpha(QColor("#E9F1EC"), faded ? 80 : 150),
+                                 withAlpha(QColor("#2B544F"), faded ? 90 : 150),
+                                 faded ? QColor(10, 16, 14, 24) : QColor(10, 16, 14, 42));
+        }
+
+        appendLayeredPolygon(fillVertices,
+                             lineVertices,
+                             QPointF(centerX, centerY),
+                             4.1,
+                             16,
+                             0.0,
+                             QColor("#6F9E98"),
+                             QColor("#E9F1EC"),
+                             QColor("#2B544F"),
+                             QColor(10, 18, 16, 56));
+    } else {
+        const qreal playerWorldX = m_controller->playerX();
+        const qreal playerWorldY = m_controller->playerY();
+        const qreal scale = arenaScale();
+        const qreal px = width() / 2.0;
+        const qreal py = height() / 2.0;
+        const qreal drawMargin = 36.0;
+
+        auto screenX = [px, playerWorldX, scale](qreal worldX) {
+            return px + (worldX - playerWorldX) * scale;
+        };
+        auto screenY = [py, playerWorldY, scale](qreal worldY) {
+            return py + (worldY - playerWorldY) * scale;
+        };
+
+        fillVertices.reserve(2048 + currentSnapshot.enemies.size() * 48 + currentSnapshot.projectiles.size() * 12);
+        lineVertices.reserve(1024 + currentSnapshot.enemies.size() * 32);
+
+        appendRect(fillVertices, QRectF(0.0, 0.0, width(), height()), QColor("#D8D1C3"));
+
+        const qreal leftWorld = playerWorldX - width() / (2.0 * scale);
+        const qreal rightWorld = playerWorldX + width() / (2.0 * scale);
+        const qreal topWorld = playerWorldY - height() / (2.0 * scale);
+        const qreal bottomWorld = playerWorldY + height() / (2.0 * scale);
+        const qreal minorCell = 0.22;
+        const qreal majorCell = 0.66;
+
+        for (qreal worldX = qFloor(leftWorld / minorCell) * minorCell; worldX <= rightWorld + minorCell; worldX += minorCell) {
+            appendLine(lineVertices,
+                       QPointF(screenX(worldX), 0.0),
+                       QPointF(screenX(worldX), height()),
+                       QColor(174, 165, 153, 78));
+        }
+        for (qreal worldY = qFloor(topWorld / minorCell) * minorCell; worldY <= bottomWorld + minorCell; worldY += minorCell) {
+            appendLine(lineVertices,
+                       QPointF(0.0, screenY(worldY)),
+                       QPointF(width(), screenY(worldY)),
+                       QColor(174, 165, 153, 78));
+        }
+        for (qreal worldX = qFloor(leftWorld / majorCell) * majorCell; worldX <= rightWorld + majorCell; worldX += majorCell) {
+            appendLine(lineVertices,
+                       QPointF(screenX(worldX), 0.0),
+                       QPointF(screenX(worldX), height()),
+                       QColor(147, 136, 122, 118));
+        }
+        for (qreal worldY = qFloor(topWorld / majorCell) * majorCell; worldY <= bottomWorld + majorCell; worldY += majorCell) {
+            appendLine(lineVertices,
+                       QPointF(0.0, screenY(worldY)),
+                       QPointF(width(), screenY(worldY)),
+                       QColor(147, 136, 122, 118));
+        }
+
+        for (qreal worldX = qFloor(leftWorld / (majorCell * 2.0)) * (majorCell * 2.0);
+             worldX <= rightWorld + majorCell * 2.0;
+             worldX += majorCell * 2.0) {
+            for (qreal worldY = qFloor(topWorld / (majorCell * 2.0)) * (majorCell * 2.0);
+                 worldY <= bottomWorld + majorCell * 2.0;
+                 worldY += majorCell * 2.0) {
+                appendRegularPolygon(fillVertices,
+                                     QPointF(screenX(worldX), screenY(worldY)),
+                                     4.8,
+                                     4,
+                                     QColor(255, 250, 238, 14),
+                                     45.0);
+            }
+        }
+
+        for (int i = 0; i < currentSnapshot.pickups.size(); ++i) {
+            const SurvivorController::RenderPickup &pickup = currentSnapshot.pickups.at(i);
+            const QPointF point(screenX(pickup.x), screenY(pickup.y));
+            if (point.x() < -drawMargin || point.x() > width() + drawMargin
+                || point.y() < -drawMargin || point.y() > height() + drawMargin) {
+                continue;
+            }
+
+            if (pickup.kind == 3) {
+                appendRect(fillVertices,
+                           QRectF(point.x() - 8.0, point.y() - 4.8, 16.0, 12.4),
+                           QColor(16, 20, 18, 44));
+                appendRect(fillVertices,
+                           QRectF(point.x() - 8.0, point.y() - 6.0, 16.0, 12.0),
+                           QColor("#B9894B"));
+                appendRect(fillVertices,
+                           QRectF(point.x() - 8.0, point.y() - 6.0, 16.0, 4.2),
+                           QColor("#F1D6A1"));
+                appendRect(fillVertices,
+                           QRectF(point.x() - 1.2, point.y() - 6.0, 2.4, 12.0),
+                           QColor("#F9EDC8"));
+                appendRectOutline(lineVertices,
+                                  QRectF(point.x() - 8.0, point.y() - 6.0, 16.0, 12.0),
+                                  QColor("#7B5931"));
+            } else {
+                const qreal size = qMax(pickup.kind == 2 ? 7.2 : (pickup.kind == 1 ? 5.6 : 4.4),
+                                        pickup.radius * scale * 1.18);
+                appendLayeredDiamond(fillVertices,
+                                     lineVertices,
+                                     point,
+                                     size,
+                                     jadeColor(pickup.kind),
+                                     withAlpha(QColor("#FAF6EE"), 170),
+                                     QColor("#F8F6F2"),
+                                     QColor(12, 18, 16, 42));
+            }
+        }
+
+        for (int i = 0; i < currentSnapshot.zones.size(); ++i) {
+            const SurvivorController::RenderZone &zone = currentSnapshot.zones.at(i);
+            const QPointF point(screenX(zone.x), screenY(zone.y));
+            const qreal radius = qMax(13.0, zone.radius * scale);
+            if (point.x() + radius < -drawMargin || point.x() - radius > width() + drawMargin
+                || point.y() + radius < -drawMargin || point.y() - radius > height() + drawMargin) {
+                continue;
+            }
+
+            const QColor fill = zone.kind == 1
+                ? QColor(66, 110, 170, 18)
+                : QColor(62, 104, 156, 14);
+            const QColor outline = zone.kind == 1
+                ? QColor(89, 134, 196, 110)
+                : QColor(82, 122, 178, 84);
+            appendRegularPolygon(fillVertices, point, radius * 1.04, 22, withAlpha(QColor(10, 18, 24), 18));
+            appendRegularPolygon(fillVertices, point, radius, 20, fill);
+            appendRegularPolygon(fillVertices,
+                                 QPointF(point.x() - radius * 0.08, point.y() - radius * 0.08),
+                                 radius * (zone.kind == 1 ? 0.72 : 0.64),
+                                 18,
+                                 zone.kind == 1 ? QColor(118, 154, 204, 24) : QColor(108, 146, 196, 18));
+            appendRegularPolygonOutline(lineVertices, point, radius, 18, outline);
+            appendRegularPolygonOutline(lineVertices, point, radius * (zone.kind == 1 ? 0.74 : 0.56), 16,
+                                        zone.kind == 1
+                                            ? QColor(168, 204, 236, 64)
+                                            : QColor(146, 186, 226, 48));
+            appendRegularPolygonOutline(lineVertices, point, radius * (zone.kind == 1 ? 0.32 : 0.26), 12,
+                                        zone.kind == 1
+                                            ? QColor(214, 230, 248, 52)
+                                            : QColor(200, 220, 242, 40));
+        }
+
+        const qreal auraRadius = m_controller->auraRadius();
+        if (auraRadius > 0.001) {
+            const qreal radius = qMax(20.0, auraRadius * scale);
+            appendRegularPolygon(fillVertices, QPointF(px, py), radius * 1.03, 24, QColor(14, 20, 12, 16));
+            appendRegularPolygon(fillVertices, QPointF(px, py), radius, 22, QColor(103, 128, 82, 10));
+            appendRegularPolygon(fillVertices, QPointF(px, py), radius * 0.72, 20, QColor(128, 156, 104, 12));
+            appendRegularPolygonOutline(lineVertices, QPointF(px, py), radius, 22, QColor(136, 168, 112, 72));
+            appendRegularPolygonOutline(lineVertices, QPointF(px, py), radius * 0.74, 20, QColor(160, 188, 132, 48));
+            appendRegularPolygonOutline(lineVertices, QPointF(px, py), radius * 0.42, 16, QColor(182, 206, 154, 36));
+        }
+
+        for (int i = 0; i < currentSnapshot.orbitals.size(); ++i) {
+            const SurvivorController::RenderOrbital &orbital = currentSnapshot.orbitals.at(i);
+            const QPointF point(screenX(orbital.x), screenY(orbital.y));
+            if (point.x() < -drawMargin || point.x() > width() + drawMargin
+                || point.y() < -drawMargin || point.y() > height() + drawMargin) {
+                continue;
+            }
+
+            const qreal radius = qMax(4.0, orbital.radius * scale);
+            appendLayeredPolygon(fillVertices,
+                                 lineVertices,
+                                 point,
+                                 radius,
+                                 12,
+                                 0.0,
+                                 QColor("#D6A74B"),
+                                 QColor("#FFF0C4"),
+                                 QColor("#8E6D31"),
+                                 QColor(14, 16, 12, 42));
+        }
+
+        for (int i = 0; i < currentSnapshot.projectiles.size(); ++i) {
+            const SurvivorController::RenderProjectile &projectile = currentSnapshot.projectiles.at(i);
+            const QPointF point(screenX(projectile.x), screenY(projectile.y));
+            if (point.x() < -drawMargin || point.x() > width() + drawMargin
+                || point.y() < -drawMargin || point.y() > height() + drawMargin) {
+                continue;
+            }
+
+            const qreal size = qMax(projectile.kind == 2 ? 5.0 : 4.8,
+                                    projectile.radius * scale * 1.2);
+            if (projectile.kind == 0) {
+                appendLayeredDiamond(fillVertices,
+                                     lineVertices,
+                                     point,
+                                     size,
+                                     QColor("#E7CCA0"),
+                                     QColor("#FFF4D4"),
+                                     QColor("#8B6C41"),
+                                     QColor(12, 16, 14, 34));
+            } else if (projectile.kind == 2) {
+                appendLine(lineVertices,
+                           QPointF(point.x() - size * 1.4, point.y() + 1.0),
+                           QPointF(point.x() + size * 1.4, point.y() + 1.0),
+                           QColor(14, 18, 16, 48));
+                appendLine(lineVertices,
+                           QPointF(point.x() + 1.0, point.y() - size * 1.4),
+                           QPointF(point.x() + 1.0, point.y() + size * 1.4),
+                           QColor(14, 18, 16, 48));
+                appendLine(lineVertices,
+                           QPointF(point.x() - size * 1.4, point.y()),
+                           QPointF(point.x() + size * 1.4, point.y()),
+                           QColor("#C5A25D"));
+                appendLine(lineVertices,
+                           QPointF(point.x(), point.y() - size * 1.4),
+                           QPointF(point.x(), point.y() + size * 1.4),
+                           QColor("#C5A25D"));
+                appendRegularPolygon(fillVertices, point, size * 0.54, 10, QColor("#F2E0AD"));
+                appendRegularPolygon(fillVertices,
+                                     QPointF(point.x() - size * 0.08, point.y() - size * 0.08),
+                                     size * 0.26,
+                                     8,
+                                     QColor("#FFF5D6"));
+            } else {
+                const QColor fill = projectile.kind == 3 ? QColor("#F05F47") : QColor("#F28B5D");
+                appendLayeredPolygon(fillVertices,
+                                     lineVertices,
+                                     point,
+                                     size * 0.94,
+                                     12,
+                                     0.0,
+                                     fill,
+                                     projectile.kind == 3 ? QColor("#FFD2B0") : QColor("#FFE1C4"),
+                                     QColor("#7D3528"),
+                                     QColor(18, 12, 10, 40));
+            }
+        }
+
+        for (int i = 0; i < currentSnapshot.enemies.size(); ++i) {
+            const SurvivorController::RenderEnemy &enemy = currentSnapshot.enemies.at(i);
+            const QPointF point(screenX(enemy.x), screenY(enemy.y));
+            const qreal radius = qMax(7.0, enemy.radius * scale);
+            const qreal drawRadius = radius * (enemy.kind == 0 ? 1.02 : 1.0);
+            if (point.x() + drawRadius * 2.4 < -drawMargin || point.x() - drawRadius * 2.4 > width() + drawMargin
+                || point.y() + drawRadius * 2.8 < -drawMargin || point.y() - drawRadius * 2.0 > height() + drawMargin) {
+                continue;
+            }
+
+            const QColor fill = enemy.hitFlashMs > 0 ? QColor("#F7F1E4") : enemyFillColor(enemy.kind);
+            const QColor outline = enemyOutlineColor(enemy.kind);
+            const QColor accent = enemyAccentColor(enemy.kind);
+            const QColor shadow = QColor(16, 18, 16, enemy.elite ? 62 : 44);
+
+            switch (enemy.kind) {
+            case 0:
+            case 1:
+            case 4:
+                appendLayeredPolygon(fillVertices,
+                                     lineVertices,
+                                     point,
+                                     drawRadius * (enemy.kind == 0 ? 0.78 : (enemy.kind == 1 ? 0.90 : 0.92)),
+                                     enemy.kind == 4 ? 12 : 10,
+                                     0.0,
+                                     fill,
+                                     withAlpha(QColor("#FFF4E1"), enemy.kind == 4 ? 120 : 96),
+                                     outline,
+                                     shadow);
+                break;
+            case 2:
+                appendLayeredDiamond(fillVertices,
+                                     lineVertices,
+                                     point,
+                                     drawRadius * 0.98,
+                                     fill,
+                                     QColor("#FFF7E7"),
+                                     outline,
+                                     shadow);
+                break;
+            case 3:
+                appendLayeredPolygon(fillVertices,
+                                     lineVertices,
+                                     point,
+                                     drawRadius * 0.98,
+                                     6,
+                                     -30.0,
+                                     fill,
+                                     QColor("#F0D7B7"),
+                                     outline,
+                                     shadow);
+                break;
+            case 5:
+                appendRect(fillVertices,
+                           QRectF(point.x() - drawRadius * 0.94,
+                                  point.y() - drawRadius * 0.78,
+                                  drawRadius * 1.88,
+                                  drawRadius * 1.88),
+                           shadow);
+                appendRect(fillVertices,
+                           QRectF(point.x() - drawRadius * 0.94,
+                                  point.y() - drawRadius * 0.94,
+                                  drawRadius * 1.88,
+                                  drawRadius * 1.88),
+                           fill);
+                appendRect(fillVertices,
+                           QRectF(point.x() - drawRadius * 0.68,
+                                  point.y() - drawRadius * 0.80,
+                                  drawRadius * 0.98,
+                                  drawRadius * 0.98),
+                           QColor("#D8B98F"));
+                appendLine(lineVertices,
+                           QPointF(point.x() - drawRadius * 0.94, point.y() - drawRadius * 0.94),
+                           QPointF(point.x() + drawRadius * 0.94, point.y() - drawRadius * 0.94),
+                           outline);
+                appendLine(lineVertices,
+                           QPointF(point.x() + drawRadius * 0.94, point.y() - drawRadius * 0.94),
+                           QPointF(point.x() + drawRadius * 0.94, point.y() + drawRadius * 0.94),
+                           outline);
+                appendLine(lineVertices,
+                           QPointF(point.x() + drawRadius * 0.94, point.y() + drawRadius * 0.94),
+                           QPointF(point.x() - drawRadius * 0.94, point.y() + drawRadius * 0.94),
+                           outline);
+                appendLine(lineVertices,
+                           QPointF(point.x() - drawRadius * 0.94, point.y() + drawRadius * 0.94),
+                           QPointF(point.x() - drawRadius * 0.94, point.y() - drawRadius * 0.94),
+                           outline);
+                break;
+            default:
+                appendLayeredPolygon(fillVertices,
+                                     lineVertices,
+                                     point,
+                                     drawRadius * 1.02,
+                                     8,
+                                     -22.5,
+                                     fill,
+                                     QColor("#E5C79B"),
+                                     outline,
+                                     shadow);
+                break;
+            }
+
+            appendRegularPolygon(fillVertices,
+                                 QPointF(point.x() - drawRadius * 0.08, point.y() - drawRadius * 0.10),
+                                 drawRadius * 0.22,
+                                 8,
+                                 accent);
+            if (enemy.kind == 4)
+                appendRegularPolygonOutline(lineVertices, point, drawRadius * 0.58, 12, QColor(accent.red(), accent.green(), accent.blue(), 150));
+
+            if (enemy.elite || enemy.chestCarrier) {
+                appendRegularPolygonOutline(lineVertices,
+                                            point,
+                                            drawRadius + 3.0,
+                                            16,
+                                            enemy.chestCarrier ? QColor("#E6B678") : QColor("#D69A6D"));
+                appendRegularPolygonOutline(lineVertices,
+                                            point,
+                                            drawRadius + 5.4,
+                                            18,
+                                            enemy.chestCarrier ? QColor(230, 182, 120, 72) : QColor(214, 154, 109, 72));
+            }
+
+            if (enemy.maxHp > 0 && enemy.hp < enemy.maxHp) {
+                const qreal hpWidth = drawRadius * 1.9;
+                appendRect(fillVertices,
+                           QRectF(point.x() - hpWidth / 2.0,
+                                  point.y() - drawRadius - 13.0,
+                                  hpWidth,
+                                  4.5),
+                           QColor(16, 24, 20, 210));
+                appendRect(fillVertices,
+                           QRectF(point.x() - hpWidth / 2.0,
+                                  point.y() - drawRadius - 13.0,
+                                  hpWidth * qMax(0.08, enemy.hp / qMax(1.0, static_cast<qreal>(enemy.maxHp))),
+                                  4.5),
+                           enemy.chestCarrier ? QColor("#E7B774") : QColor("#D76456"));
+            }
+        }
+
+        for (int i = 0; i < currentSnapshot.players.size(); ++i) {
+            const SurvivorController::RenderPlayer &player = currentSnapshot.players.at(i);
+            const QPointF point(screenX(player.x), screenY(player.y));
+            const qreal playerRadius = player.local
+                ? (m_compactLayout ? 17.5 : 19.0)
+                : (m_compactLayout ? 14.0 : 15.0);
+            const QColor baseColor = player.local
+                ? QColor("#4E827B")
+                : (player.colorIndex % 3 == 1
+                    ? QColor("#739C95")
+                    : (player.colorIndex % 3 == 2 ? QColor("#A6845D") : QColor("#5F8D86")));
+            const QColor outlineColor = player.local ? QColor("#244E49") : QColor("#304E49");
+            const QColor accentColor = player.alive ? QColor("#D96D58") : QColor("#766A63");
+
+            appendRegularPolygon(fillVertices,
+                                 QPointF(point.x(), point.y() + 3.0),
+                                 playerRadius * 1.04,
+                                 14,
+                                 QColor(10, 16, 14, player.local ? 72 : 54));
+            appendRegularPolygon(fillVertices, point, playerRadius, 14, baseColor);
+            appendRegularPolygon(fillVertices,
+                                 QPointF(point.x() - 2.0, point.y() - 3.0),
+                                 playerRadius * 0.56,
+                                 12,
+                                 QColor("#E7F1EC"));
+            appendRegularPolygonOutline(lineVertices, point, playerRadius, 14, outlineColor);
+            appendRegularPolygonOutline(lineVertices,
+                                        point,
+                                        playerRadius * 0.62,
+                                        12,
+                                        QColor(219, 236, 230, player.local ? 164 : 130));
+            appendLine(lineVertices,
+                       QPointF(point.x() - 6.0, point.y()),
+                       QPointF(point.x() + 6.0, point.y()),
+                       accentColor);
+            appendLine(lineVertices,
+                       QPointF(point.x(), point.y() - 6.0),
+                       QPointF(point.x(), point.y() + 6.0),
+                       accentColor);
+            appendRegularPolygon(fillVertices,
+                                 QPointF(point.x() + playerRadius * 0.52, point.y()),
+                                 playerRadius * 0.16,
+                                 6,
+                                 accentColor);
+        }
+    }
+
+    root->fillNode->updateVertices(fillVertices);
+    root->lineNode->updateVertices(lineVertices);
+    return root;
 }
 
 void SurvivorRenderItem::attachControllerSignals()
@@ -535,238 +912,4 @@ void SurvivorRenderItem::attachControllerSignals()
 qreal SurvivorRenderItem::arenaScale() const
 {
     return qMax(width() * (m_compactLayout ? 0.64 : 0.56), 220.0);
-}
-
-void SurvivorRenderItem::drawArena(QPainter *painter)
-{
-    const qreal playerWorldX = m_controller->playerX();
-    const qreal playerWorldY = m_controller->playerY();
-    const auto &currentSnapshot = m_controller->renderSnapshot();
-    const qreal scale = arenaScale();
-    const qreal px = width() / 2.0;
-    const qreal py = height() / 2.0;
-    const qreal drawMargin = 36.0;
-
-    auto screenX = [px, playerWorldX, scale](qreal worldX) {
-        return px + (worldX - playerWorldX) * scale;
-    };
-    auto screenY = [py, playerWorldY, scale](qreal worldY) {
-        return py + (worldY - playerWorldY) * scale;
-    };
-
-    drawBackdropDecoration(painter, width(), height(), playerWorldX, playerWorldY, scale);
-
-    painter->setPen(Qt::NoPen);
-    for (int i = 0; i < currentSnapshot.pickups.size(); ++i) {
-        const SurvivorController::RenderPickup &pickup = currentSnapshot.pickups.at(i);
-        const QPointF point(screenX(pickup.x), screenY(pickup.y));
-        if (point.x() < -drawMargin || point.x() > width() + drawMargin
-            || point.y() < -drawMargin || point.y() > height() + drawMargin) {
-            continue;
-        }
-
-        if (pickup.kind == 3) {
-            const int chestSize = qRound(qMax(14.0, pickup.radius * scale * 1.5));
-            const QPixmap &sprite = chestSprite(chestSize);
-            painter->drawPixmap(QPointF(point.x() - sprite.width() / 2.0,
-                                        point.y() - sprite.height() * 0.56),
-                                sprite);
-        } else {
-            const int gemSize = qRound(qMax(pickup.kind == 2 ? 7.2 : (pickup.kind == 1 ? 5.6 : 4.4),
-                                            pickup.radius * scale * 1.18));
-            const QPixmap &sprite = jadeSprite(pickup.kind, gemSize);
-            painter->drawPixmap(QPointF(point.x() - sprite.width() / 2.0,
-                                        point.y() - sprite.height() / 2.0),
-                                sprite);
-        }
-    }
-
-    for (int i = 0; i < currentSnapshot.zones.size(); ++i) {
-        const SurvivorController::RenderZone &zone = currentSnapshot.zones.at(i);
-        const QPointF point(screenX(zone.x), screenY(zone.y));
-        const qreal radius = qMax(13.0, zone.radius * scale);
-        if (point.x() + radius < -drawMargin || point.x() - radius > width() + drawMargin
-            || point.y() + radius < -drawMargin || point.y() - radius > height() + drawMargin) {
-            continue;
-        }
-        drawZoneShape(painter, point, radius, zone.kind == 1);
-    }
-
-    const qreal auraRadius = m_controller->auraRadius();
-    if (auraRadius > 0.001)
-        drawAura(painter, QPointF(px, py), qMax(20.0, auraRadius * scale));
-
-    for (int i = 0; i < currentSnapshot.orbitals.size(); ++i) {
-        const SurvivorController::RenderOrbital &orbital = currentSnapshot.orbitals.at(i);
-        const QPointF point(screenX(orbital.x), screenY(orbital.y));
-        if (point.x() < -drawMargin || point.x() > width() + drawMargin
-            || point.y() < -drawMargin || point.y() > height() + drawMargin) {
-            continue;
-        }
-        const int coinSize = qRound(qMax(4.0, orbital.radius * scale));
-        const QPixmap &sprite = orbitalSprite(coinSize);
-        painter->drawPixmap(QPointF(point.x() - sprite.width() / 2.0,
-                                    point.y() - sprite.height() / 2.0),
-                            sprite);
-    }
-
-    int projectileIndex = 0;
-    for (int i = 0; i < currentSnapshot.projectiles.size(); ++i) {
-        const SurvivorController::RenderProjectile &projectile = currentSnapshot.projectiles.at(i);
-        const QPointF point(screenX(projectile.x), screenY(projectile.y));
-        if (point.x() < -drawMargin || point.x() > width() + drawMargin
-            || point.y() < -drawMargin || point.y() > height() + drawMargin) {
-            ++projectileIndex;
-            continue;
-        }
-        const int projectileSize = qRound(qMax(projectile.kind == 2 ? 5.0 : 4.8, projectile.radius * scale * 1.2));
-        const QPixmap &sprite = projectileSprite(projectile.kind, projectileSize);
-        if (projectile.kind == 2) {
-            painter->save();
-            painter->translate(point);
-            painter->rotate(projectileIndex * 18.0 + m_controller->survivalTimeSec() * 8.0);
-            painter->drawPixmap(QPointF(-sprite.width() / 2.0, -sprite.height() / 2.0), sprite);
-            painter->restore();
-        } else {
-            painter->drawPixmap(QPointF(point.x() - sprite.width() / 2.0,
-                                        point.y() - sprite.height() / 2.0),
-                                sprite);
-        }
-        ++projectileIndex;
-    }
-
-    for (int i = 0; i < currentSnapshot.enemies.size(); ++i) {
-        const SurvivorController::RenderEnemy &enemy = currentSnapshot.enemies.at(i);
-        const QPointF point(screenX(enemy.x), screenY(enemy.y));
-        const qreal radius = qMax(7.0, enemy.radius * scale);
-        const qreal drawRadius = radius * (enemy.kind == 0 ? 1.02 : 1.0);
-        if (point.x() + drawRadius * 2.4 < -drawMargin || point.x() - drawRadius * 2.4 > width() + drawMargin
-            || point.y() + drawRadius * 2.8 < -drawMargin || point.y() - drawRadius * 2.0 > height() + drawMargin) {
-            continue;
-        }
-
-        const bool highDetail = drawRadius >= 11.5 || enemy.elite || enemy.chestCarrier;
-        const QPixmap &sprite = enemySprite(enemy.kind, qRound(drawRadius), highDetail, enemy.hitFlashMs > 0);
-        painter->drawPixmap(QPointF(point.x() - sprite.width() / 2.0,
-                                    point.y() - sprite.height() * 0.38),
-                            sprite);
-
-        if (enemy.elite || enemy.chestCarrier) {
-            painter->setBrush(Qt::NoBrush);
-            painter->setPen(QPen(enemy.chestCarrier ? QColor("#E6B678") : QColor("#D69A6D"), 2.0));
-            painter->drawEllipse(point, drawRadius + 3.0, drawRadius + 3.0);
-        }
-
-        if (enemy.maxHp > 0 && enemy.hp < enemy.maxHp) {
-            const qreal hpWidth = drawRadius * 1.9;
-            painter->fillRect(QRectF(point.x() - hpWidth / 2.0, point.y() - drawRadius - 13.0, hpWidth, 4.5),
-                              QColor::fromRgbF(16.0 / 255.0, 24.0 / 255.0, 20.0 / 255.0, 0.82));
-            painter->fillRect(QRectF(point.x() - hpWidth / 2.0, point.y() - drawRadius - 13.0,
-                                     hpWidth * qMax(0.08, enemy.hp / qMax(1.0, static_cast<qreal>(enemy.maxHp))), 4.5),
-                              enemy.chestCarrier ? QColor("#E7B774") : QColor("#D76456"));
-        }
-    }
-
-    const QPixmap &player = playerSprite(m_compactLayout);
-    painter->drawPixmap(QPointF(px - player.width() / 2.0,
-                                py - player.height() / 2.0),
-                        player);
-
-    static QFont eliteFont(QStringLiteral("STSong"));
-    static QFont normalFont(QStringLiteral("STSong"));
-    static bool fontInitialized = false;
-    if (!fontInitialized) {
-        eliteFont.setPixelSize(18);
-        eliteFont.setWeight(QFont::DemiBold);
-        normalFont.setPixelSize(14);
-        normalFont.setWeight(QFont::DemiBold);
-        fontInitialized = true;
-    }
-
-    for (int i = 0; i < currentSnapshot.damageNumbers.size(); ++i) {
-        const SurvivorController::RenderDamageNumber &number = currentSnapshot.damageNumbers.at(i);
-        const QPointF point(screenX(number.x), screenY(number.y));
-        if (point.x() < -drawMargin || point.x() > width() + drawMargin
-            || point.y() < -drawMargin || point.y() > height() + drawMargin) {
-            continue;
-        }
-
-        const qreal lifeRatio = qMax(0.0, static_cast<qreal>(number.lifeMs) / qMax(1.0, static_cast<qreal>(number.totalLifeMs)));
-        const qreal textAlpha = 0.35 + lifeRatio * 0.65;
-        const QString text = QString::number(number.amount);
-        painter->setFont(number.elite ? eliteFont : normalFont);
-        painter->setPen(QColor::fromRgbF(14.0 / 255.0, 18.0 / 255.0, 17.0 / 255.0, textAlpha * 0.72));
-        painter->drawText(QPointF(point.x() + 1.0, point.y() + 1.0), QStringLiteral("-") + text);
-        painter->setPen(number.elite
-                            ? QColor::fromRgbF(239.0 / 255.0, 214.0 / 255.0, 144.0 / 255.0, textAlpha)
-                            : QColor::fromRgbF(244.0 / 255.0, 235.0 / 255.0, 216.0 / 255.0, textAlpha));
-        painter->drawText(QPointF(point.x(), point.y()), QStringLiteral("-") + text);
-    }
-}
-
-void SurvivorRenderItem::drawRadar(QPainter *painter)
-{
-    painter->fillRect(boundingRect(), Qt::transparent);
-
-    const qreal centerX = width() / 2.0;
-    const qreal centerY = height() / 2.0;
-    const qreal radarRadius = width() / 2.0 - 2.0;
-    const qreal worldRange = m_controller->radarRange();
-    const qreal scale = radarRadius / worldRange;
-    const qreal playerX = m_controller->playerX();
-    const qreal playerY = m_controller->playerY();
-
-    auto clampToRadar = [worldRange](qreal dx, qreal dy, bool *faded) {
-        const qreal length = qSqrt(dx * dx + dy * dy);
-        if (length <= worldRange) {
-            *faded = false;
-            return QPointF(dx, dy);
-        }
-        *faded = true;
-        const qreal ratio = worldRange / qMax(length, 0.0001);
-        return QPointF(dx * ratio, dy * ratio);
-    };
-
-    painter->setPen(Qt::NoPen);
-    painter->setBrush(QColor("#211915"));
-    painter->drawEllipse(QPointF(centerX, centerY), radarRadius, radarRadius);
-
-    painter->setPen(QPen(QColor("#7A6037"), 1.0));
-    painter->setBrush(Qt::NoBrush);
-    painter->drawEllipse(QPointF(centerX, centerY), radarRadius - 1.0, radarRadius - 1.0);
-    painter->drawEllipse(QPointF(centerX, centerY), radarRadius * 0.66, radarRadius * 0.66);
-    painter->setPen(QPen(QColor("#4D3B22"), 1.0));
-    painter->drawLine(QPointF(centerX, 0.0), QPointF(centerX, height()));
-    painter->drawLine(QPointF(0.0, centerY), QPointF(width(), centerY));
-
-    const auto &currentSnapshot = m_controller->renderSnapshot();
-    const int pickupStep = qMax(1, static_cast<int>(qCeil(currentSnapshot.pickups.size() / 28.0)));
-    painter->setPen(Qt::NoPen);
-    for (int i = 0; i < currentSnapshot.pickups.size(); i += pickupStep) {
-        const SurvivorController::RenderPickup &pickup = currentSnapshot.pickups.at(i);
-        bool faded = false;
-        const QPointF point = clampToRadar(pickup.x - playerX, pickup.y - playerY, &faded);
-        painter->setBrush(pickup.kind == 3
-                              ? (faded ? QColor::fromRgbF(240.0 / 255.0, 205.0 / 255.0, 132.0 / 255.0, 0.38) : QColor("#F0CD84"))
-                              : (faded ? QColor(jadeColor(pickup.kind).red(), jadeColor(pickup.kind).green(), jadeColor(pickup.kind).blue(), 110)
-                                       : jadeColor(pickup.kind)));
-        painter->drawEllipse(QPointF(centerX + point.x() * scale, centerY + point.y() * scale),
-                             pickup.kind == 3 ? 2.7 : 2.3,
-                             pickup.kind == 3 ? 2.7 : 2.3);
-    }
-
-    const int enemyStep = qMax(1, static_cast<int>(qCeil(currentSnapshot.enemies.size() / 56.0)));
-    for (int i = 0; i < currentSnapshot.enemies.size(); i += enemyStep) {
-        const SurvivorController::RenderEnemy &enemy = currentSnapshot.enemies.at(i);
-        bool faded = false;
-        const QPointF point = clampToRadar(enemy.x - playerX, enemy.y - playerY, &faded);
-        painter->setBrush(enemy.elite
-                              ? (faded ? QColor::fromRgbF(214.0 / 255.0, 154.0 / 255.0, 109.0 / 255.0, 0.42) : QColor("#D69A6D"))
-                              : (faded ? QColor::fromRgbF(208.0 / 255.0, 89.0 / 255.0, 74.0 / 255.0, 0.35) : QColor("#D0594A")));
-        const qreal radius = enemy.elite ? 3.2 : 2.5;
-        painter->drawEllipse(QPointF(centerX + point.x() * scale, centerY + point.y() * scale), radius, radius);
-    }
-
-    painter->setBrush(QColor("#F2E7D2"));
-    painter->drawEllipse(QPointF(centerX, centerY), 4.0, 4.0);
 }

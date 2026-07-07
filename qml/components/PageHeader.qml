@@ -18,26 +18,28 @@ Item {
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.right: parent.right
-        spacing: 6
+        spacing: 5
 
         Text {
             visible: root.eyebrowText.length > 0
             text: root.eyebrowText
             color: AppTheme.textMuted
             font.pixelSize: 12
-            font.letterSpacing: 1.6
+            font.letterSpacing: 1.4
+            font.weight: Font.Medium
         }
 
         RowLayout {
             width: parent.width
-            spacing: 8
+            spacing: 10
 
             Text {
                 Layout.fillWidth: true
                 text: root.titleText
                 color: AppTheme.textPrimary
-                font.pixelSize: 26
+                font.pixelSize: AppTheme.fontSizeHero
                 font.weight: Font.DemiBold
+                elide: Text.ElideRight
             }
 
             Text {
@@ -45,6 +47,7 @@ Item {
                 text: root.trailingText
                 color: AppTheme.textMuted
                 font.pixelSize: 12
+                font.weight: Font.Medium
                 Layout.alignment: Qt.AlignBottom
             }
         }
@@ -54,7 +57,7 @@ Item {
             width: parent.width
             text: root.subtitleText
             color: AppTheme.textSecondary
-            font.pixelSize: 14
+            font.pixelSize: AppTheme.fontSizeBody
             wrapMode: Text.WordWrap
         }
     }
