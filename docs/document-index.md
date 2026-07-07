@@ -16,11 +16,9 @@
 
 - [main-sync-workplan-20260707.md](./main-sync-workplan-20260707.md)
 
-该计划用于处理 `refactor/network-internals` 与最新 `origin/main` 再次分叉后的合并前工作。对应的测试记录尚未生成，完成同步和验证后建议新增：
+该计划用于处理 `refactor/network-internals` 与最新 `origin/main` 再次分叉后的合并前工作。对应验证记录为：
 
-```text
-docs/main-sync-test-results-20260707.md
-```
+- [main-sync-test-results-20260707.md](./main-sync-test-results-20260707.md)
 
 ## 阅读顺序
 
@@ -51,6 +49,10 @@ docs/main-sync-test-results-20260707.md
 7. [main-sync-workplan-20260707.md](./main-sync-workplan-20260707.md)
    - 2026-07-07 当前合并前计划。
    - 处理最新 `origin/main` 继续前进后产生的新分叉和冲突。
+
+8. [main-sync-test-results-20260707.md](./main-sync-test-results-20260707.md)
+   - 2026-07-07 同步 `main` 后的验证记录。
+   - 记录 ENet 主线整合、构建、局域网发现、控制层 E2E 和本地在线服务端 ENet E2E 结果。
 
 ## 长期维护文档
 
