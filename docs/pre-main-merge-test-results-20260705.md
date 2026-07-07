@@ -2,6 +2,8 @@
 
 记录日期：2026-07-05
 
+文档性质：历史验证记录。本文件对应 `docs/pre-main-merge-workplan-20260705.md`；后续同步主线后的验证记录见 `docs/main-sync-test-results-20260706.md`。
+
 ## 当前分支状态
 
 - 分支：`refactor/network-internals`

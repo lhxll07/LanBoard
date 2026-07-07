@@ -2,6 +2,8 @@
 
 计划日期：2026-07-05
 
+文档性质：历史阶段计划。本文件记录网络重构完成后的第一次并入前验证计划；执行结果见 `docs/pre-main-merge-test-results-20260705.md`。后续主线同步计划见 `docs/main-sync-workplan-20260706.md` 和 `docs/main-sync-workplan-20260707.md`。
+
 ## 当前状态
 
 - 当前分支：`refactor/network-internals`
@@ -16,9 +18,9 @@
 - `LineJsonProtocol`
 - `NetworkAddressUtils`
 - `RoomDiscoveryService`
-- `docs/network-refactor-workplan.md`
+- `docs/network-refactor-workplan-20260705.md`
 - `docs/network-messages.md`
-- `docs/network-refactor-work-report.md`
+- `docs/network-refactor-work-report-20260705.md`
 
 ## 工作目标
 
@@ -67,7 +69,7 @@ git diff --name-status origin/main...HEAD
 
 已处理项：
 
-- `docs/network-refactor-work-report.md`
+- `docs/network-refactor-work-report-20260705.md`
   - 避免用固定 HEAD 作为长期状态。
   - 移除已失效的未跟踪状态描述。
 - `README.md`
@@ -122,8 +124,8 @@ cmake --build build-qt6103 --parallel 8
 
 执行状态：
 
-- 已完成 `RoomDiscoveryService` 服务级自动冒烟测试，结果记录见 `docs/pre-main-merge-test-results.md`。
-- 已完成 GUI 本地多实例局域网发现和加入测试，结果记录见 `docs/pre-main-merge-test-results.md`。
+- 已完成 `RoomDiscoveryService` 服务级自动冒烟测试，结果记录见 `docs/pre-main-merge-test-results-20260705.md`。
+- 已完成 GUI 本地多实例局域网发现和加入测试，结果记录见 `docs/pre-main-merge-test-results-20260705.md`。
 
 测试准备：
 
@@ -159,7 +161,7 @@ cmake --build build-qt6103 --parallel 8
 
 执行状态：
 
-- 已完成控制层端到端自动冒烟测试，结果记录见 `docs/pre-main-merge-test-results.md`。
+- 已完成控制层端到端自动冒烟测试，结果记录见 `docs/pre-main-merge-test-results-20260705.md`。
 - 测试覆盖五子棋胜负闭环、飞行棋掷骰/移动同步、斗地主三人开局和私有状态下发。
 - 已完成 GUI 本地多实例五子棋、飞行棋和斗地主核心联机流程测试。
 
@@ -223,7 +225,7 @@ cmake --build build-qt6103 --parallel 8
 
 执行状态：
 
-- 已完成本地 `lanboardServer` 在线房间自动端到端测试，结果记录见 `docs/pre-main-merge-test-results.md`。
+- 已完成本地 `lanboardServer` 在线房间自动端到端测试，结果记录见 `docs/pre-main-merge-test-results-20260705.md`。
 - 已验证 `list_rooms`、`rooms_list`、`create_room`、`join_room`、`room_state`、`ready`、`start_game`、`move` 和错误消息。
 - 未连接远端 ECS 实例，真实公网服务端流程仍未覆盖。
 

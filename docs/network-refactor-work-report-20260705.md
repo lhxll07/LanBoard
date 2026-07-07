@@ -2,6 +2,8 @@
 
 报告日期：2026-07-05
 
+文档性质：历史工作报告。本文件记录网络拆分完成时的状态；后续同步主线和验证记录见 `docs/main-sync-workplan-20260706.md`、`docs/main-sync-test-results-20260706.md` 和 `docs/main-sync-workplan-20260707.md`。
+
 ## 结论
 
 当前分支 `refactor/network-internals` 有效。分支基于 `origin/main` 的 `2c1a3ba Add networked flight chess and 8-player rooms`。代码重构完成于 `492d51a refactor: extract LAN room discovery service`，后续文档提交不改变本报告对网络拆分有效性的判断。最新提交以 `git log -1 --oneline` 为准。
@@ -25,7 +27,7 @@
 重点检查文件：
 
 - 构建配置：`CMakeLists.txt`、`CMakePresets.json`、`.gitignore`。
-- 项目文档：`README.md`、`任务分工.md`、`Git协作流程.md`、`Qt安装流程.md`、`docs/network-refactor-workplan.md`、`docs/network-messages.md`。
+- 项目文档：`README.md`、`任务分工.md`、`Git协作流程.md`、`Qt安装流程.md`、`docs/network-refactor-workplan-20260705.md`、`docs/network-messages.md`。
 - QML 入口和房间页：`qml/Main.qml`、`qml/pages/RoomPage.qml`。
 - 应用协调层：`src/app/appcontroller.*`。
 - 房间逻辑：`src/lobby/roommanager.*`。
@@ -58,7 +60,7 @@ cmake --build build\codex-branch-check
 
 新增：
 
-- `docs/network-refactor-workplan.md`
+- `docs/network-refactor-workplan-20260705.md`
 - `docs/network-messages.md`
 
 作用：

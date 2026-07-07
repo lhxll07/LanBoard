@@ -2,6 +2,8 @@
 
 计划日期：2026-07-06
 
+文档性质：历史阶段计划。本文件记录 2026-07-06 第一次同步最新 `main` 的计划；执行结果见 `docs/main-sync-test-results-20260706.md`。2026-07-07 最新合并前计划见 `docs/main-sync-workplan-20260707.md`。
+
 ## 1. 当前实际情况
 
 当前分支：
@@ -415,22 +417,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File build\codex-online-server-e2
 
 需要更新：
 
-- `docs/pre-main-merge-workplan.md`
+- `docs/pre-main-merge-workplan-20260705.md`
   - 标记旧计划基于 `2c1a3ba`，已经被本计划补充。
   - 增加“最新主线已前进，需要先完成 main sync”的说明。
 
-- `docs/pre-main-merge-test-results.md`
+- `docs/pre-main-merge-test-results-20260705.md`
   - 增加同步最新 `main` 后的复测结果。
   - 明确原测试覆盖三款联网桌游，不覆盖 Survivor 实时联机。
 
-- `docs/network-refactor-work-report.md`
+- `docs/network-refactor-work-report-20260705.md`
   - 更新当前主线基线为 `e3526f9` 或同步后的 merge 提交。
   - 说明网络拆分已与 `unify-game-runtime` 整合。
 
 可以新增：
 
 ```text
-docs/main-sync-test-results.md
+docs/main-sync-test-results-20260706.md
 ```
 
 如果复测记录较多，建议新增该文件，避免把旧测试结果文档改得过长。

@@ -1,5 +1,9 @@
 # 网络重构工作计划
 
+计划日期：2026-07-05
+
+文档性质：历史阶段计划。本文件记录网络内部拆分启动时的方案；执行结果见 `docs/network-refactor-work-report-20260705.md`，后续并入前验证见 `docs/pre-main-merge-workplan-20260705.md` 和 `docs/pre-main-merge-test-results-20260705.md`。
+
 ## 当前基线
 
 - 云端基线：`origin/main`
