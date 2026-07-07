@@ -612,6 +612,7 @@ void SurvivorController::resetState()
 {
     m_tickTimer.stop();
     LanBoard::Survivor::initializeMatchState(m_matchState);
+    m_spawnAnchorCursor = 0;
     initializePlayers();
     m_levelUpChoices.clear();
     m_chestRewardEntries.clear();
@@ -907,7 +908,9 @@ void SurvivorController::stepRemoteInterpolation(int elapsedMs)
         for (const PlayerState &player : m_matchState.players) {
             m_renderSnapshot.players.append({
                 player.position.x(), player.position.y(), player.hp, player.maxHp,
-                player.alive, player.local, player.colorIndex
+                player.alive, player.local, player.colorIndex,
+                player.garlicLevel > 0 ? m_matchState.worldRuntime.garlicRadius * currentAreaMultiplier(player) : 0.0,
+                player.garlicEvolved
             });
         }
 
@@ -1085,10 +1088,30 @@ QVector2D SurvivorController::cameraAnchorForPlayer(int playerId) const
     return cameraAnchor();
 }
 
+QVector2D SurvivorController::combatAnchorForPosition(const QVector2D &position) const
+{
+    const int playerIndex = nearestLivingPlayerIndex(position);
+    if (playerIndex >= 0)
+        return m_matchState.players.at(playerIndex).position;
+    return playerAnchor();
+}
+
+QVector2D SurvivorController::nextSpawnAnchor()
+{
+    const QList<int> livingPlayers = livingPlayerIndices();
+    if (livingPlayers.isEmpty())
+        return playerAnchor();
+
+    const int chosenSlot = m_spawnAnchorCursor % livingPlayers.size();
+    m_spawnAnchorCursor = (m_spawnAnchorCursor + 1) % qMax(1, livingPlayers.size());
+    return m_matchState.players.at(livingPlayers.at(chosenSlot)).position;
+}
+
 SurvivorController::RenderSnapshot SurvivorController::buildNetworkRenderSnapshot(int playerId) const
 {
     RenderSnapshot snapshot;
     const QVector2D origin = cameraAnchorForPlayer(playerId);
+    snapshot.players = m_renderSnapshot.players;
 
     auto insideRange = [origin](qreal x, qreal y, qreal radius = 0.0) {
         const qreal dx = x - origin.x();
@@ -1103,17 +1126,9 @@ SurvivorController::RenderSnapshot SurvivorController::buildNetworkRenderSnapsho
             snapshot.enemies.append(enemy);
     }
 
-    snapshot.orbitals.reserve(m_renderSnapshot.orbitals.size());
-    for (const RenderOrbital &orbital : m_renderSnapshot.orbitals) {
-        if (insideRange(orbital.x, orbital.y, orbital.radius))
-            snapshot.orbitals.append(orbital);
-    }
+    snapshot.orbitals = m_renderSnapshot.orbitals;
 
-    snapshot.projectiles.reserve(m_renderSnapshot.projectiles.size());
-    for (const RenderProjectile &projectile : m_renderSnapshot.projectiles) {
-        if (insideRange(projectile.x, projectile.y, projectile.radius))
-            snapshot.projectiles.append(projectile);
-    }
+    snapshot.projectiles = m_renderSnapshot.projectiles;
 
     snapshot.pickups.reserve(m_renderSnapshot.pickups.size());
     for (const RenderPickup &pickup : m_renderSnapshot.pickups) {
@@ -1121,17 +1136,9 @@ SurvivorController::RenderSnapshot SurvivorController::buildNetworkRenderSnapsho
             snapshot.pickups.append(pickup);
     }
 
-    snapshot.zones.reserve(m_renderSnapshot.zones.size());
-    for (const RenderZone &zone : m_renderSnapshot.zones) {
-        if (insideRange(zone.x, zone.y, zone.radius))
-            snapshot.zones.append(zone);
-    }
+    snapshot.zones = m_renderSnapshot.zones;
 
-    snapshot.damageNumbers.reserve(m_renderSnapshot.damageNumbers.size());
-    for (const RenderDamageNumber &number : m_renderSnapshot.damageNumbers) {
-        if (insideRange(number.x, number.y, 0.04))
-            snapshot.damageNumbers.append(number);
-    }
+    snapshot.damageNumbers = m_renderSnapshot.damageNumbers;
 
     return snapshot;
 }
@@ -1294,7 +1301,7 @@ void SurvivorController::spawnEnemy(bool elite, int forcedKind, bool forceChestC
 {
     Enemy enemy;
     enemy.id = m_matchState.nextEnemyId++;
-    const QVector2D anchor = playerAnchor();
+    const QVector2D anchor = nextSpawnAnchor();
     const qreal spawnAngle = QRandomGenerator::global()->generateDouble() * 360.0;
     const qreal spawnDistance = SpawnDistanceMin
         + QRandomGenerator::global()->generateDouble() * (SpawnDistanceMax - SpawnDistanceMin);
@@ -2106,7 +2113,7 @@ void SurvivorController::updateProjectiles(qreal deltaSec, int elapsedMs)
         if (projectileConsumed
             || projectile.lifeMs <= 0
             || returnedToPlayer
-            || (projectile.position - playerAnchor()).lengthSquared() > ProjectileCleanupDistanceSquared) {
+            || (projectile.position - combatAnchorForPosition(projectile.position)).lengthSquared() > ProjectileCleanupDistanceSquared) {
             m_matchState.projectiles.removeAt(i);
         }
     }
@@ -2117,7 +2124,7 @@ void SurvivorController::updateZones(qreal deltaSec, int elapsedMs)
     for (int zoneIndex = m_matchState.zones.size() - 1; zoneIndex >= 0; --zoneIndex) {
         Zone &zone = m_matchState.zones[zoneIndex];
         if (zone.kind == 1) {
-            QVector2D toPlayer = playerAnchor() - zone.position;
+            QVector2D toPlayer = combatAnchorForPosition(zone.position) - zone.position;
             if (toPlayer.lengthSquared() > 0.0001f)
                 zone.position += toPlayer.normalized()
                     * static_cast<float>(LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileLaBorra).driftSpeed * deltaSec);
@@ -3150,7 +3157,7 @@ void SurvivorController::spawnBatSwarm(int count, qreal speedMultiplier)
     const qreal angle = QRandomGenerator::global()->generateDouble() * 360.0;
     const QVector2D outward = rotatedVector(QVector2D(1.0f, 0.0f), angle);
     const QVector2D tangent(-outward.y(), outward.x());
-    const QVector2D basePosition = playerAnchor() + outward * 1.65f;
+    const QVector2D basePosition = nextSpawnAnchor() + outward * 1.65f;
 
     for (int i = 0; i < count; ++i) {
         spawnEnemy(false, BatEnemy, false);
@@ -3167,7 +3174,7 @@ void SurvivorController::spawnBatSwarm(int count, qreal speedMultiplier)
 
 void SurvivorController::spawnFlowerWall(int count, qreal ringRadius, qreal inwardSpeed, int hpOverride)
 {
-    const QVector2D anchor = playerAnchor();
+    const QVector2D anchor = nextSpawnAnchor();
     for (int i = 0; i < count; ++i) {
         spawnEnemy(false, FlowerEnemy, false);
         Enemy &enemy = m_matchState.enemies.last();

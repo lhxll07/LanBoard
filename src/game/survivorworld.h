@@ -247,6 +247,8 @@ struct RenderPlayer {
     bool alive = true;
     bool local = false;
     int colorIndex = 0;
+    qreal auraRadius = 0.0;
+    bool auraEvolved = false;
 };
 
 struct RenderEnemy {

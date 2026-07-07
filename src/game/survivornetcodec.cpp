@@ -10,7 +10,7 @@ namespace LanBoard::Survivor::NetCodec {
 namespace {
 
 constexpr quint32 PacketMagic = 0x5642534Cu;  // LSBV
-constexpr quint8 PacketVersion = 1;
+constexpr quint8 PacketVersion = 2;
 constexpr qreal PositionScale = 1024.0;
 constexpr qreal RadiusScale = 4096.0;
 constexpr qreal ScalarScale = 1000.0;
@@ -247,6 +247,7 @@ PacketKind packetKind(const char *data, qsizetype size)
 
 void writePlayerCore(PacketWriter &writer,
                      const PlayerState &player,
+                     const RenderPlayer &renderPlayer,
                      const QVector2D &origin)
 {
     writer.writeInt16(static_cast<qint16>(player.playerId));
@@ -256,6 +257,8 @@ void writePlayerCore(PacketWriter &writer,
     writer.writeInt16(static_cast<qint16>(player.maxHp));
     writer.writeUInt8(player.alive ? 1 : 0);
     writer.writeUInt8(static_cast<quint8>(qBound(0, player.colorIndex, 255)));
+    writer.writeUInt16(encodeRadius(renderPlayer.auraRadius));
+    writer.writeBool(renderPlayer.auraEvolved);
 }
 
 void writePlayerProgression(PacketWriter &writer, const PlayerState &player)
@@ -609,8 +612,8 @@ QByteArray encodeFastNetworkState(const FastNetworkState &state)
     if (state.hasLocalPlayer)
         writePlayerProgression(writer, state.localPlayer);
 
-    for (const PlayerState &player : state.players)
-        writePlayerCore(writer, player, state.origin);
+    for (int i = 0; i < state.players.size() && i < state.snapshot.players.size(); ++i)
+        writePlayerCore(writer, state.players.at(i), state.snapshot.players.at(i), state.origin);
 
     for (const RenderEnemy &enemy : state.snapshot.enemies) {
         writer.writeInt32(enemy.id);
@@ -739,12 +742,16 @@ bool decodeFastNetworkState(const QByteArray &payload,
         qint16 maxHp = 0;
         quint8 alive = 0;
         quint8 colorIndex = 0;
+        quint16 auraRadius = 0;
+        bool auraEvolved = false;
         if (!reader.readInt16(relX)
             || !reader.readInt16(relY)
             || !reader.readInt16(hp)
             || !reader.readInt16(maxHp)
             || !reader.readUInt8(alive)
-            || !reader.readUInt8(colorIndex)) {
+            || !reader.readUInt8(colorIndex)
+            || !reader.readUInt16(auraRadius)
+            || !reader.readBool(auraEvolved)) {
             return false;
         }
         player.position = QVector2D(decodeRelativeCoord(relX, decoded.origin.x()),
@@ -762,7 +769,9 @@ bool decodeFastNetworkState(const QByteArray &payload,
             player.maxHp,
             player.alive,
             player.local,
-            player.colorIndex
+            player.colorIndex,
+            decodeRadius(auraRadius),
+            auraEvolved
         });
     }
 
