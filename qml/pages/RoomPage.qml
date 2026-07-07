@@ -255,7 +255,10 @@ Page {
     Timer {
         interval: 4000
         repeat: true
-        running: root.visible && !root.inRoom && root.lobbyMode === 1
+        running: root.visible
+                 && !root.inRoom
+                 && root.lobbyMode === 1
+                 && !AppCtrl.networkManager.connectionPending
         onTriggered: AppCtrl.refreshOnlineRooms()
     }
 
@@ -694,7 +697,7 @@ Page {
                                 visible: root.isSurvivorLobby()
                                 text: "本地试玩 MVP"
                                 secondary: true
-                                onClicked: AppCtrl.startLocalGame("survivor")
+                                onClicked: AppCtrl.startSoloSurvivorSession()
                             }
 
                             ActionButton {
@@ -961,7 +964,8 @@ Page {
 
                             ActionButton {
                                 Layout.fillWidth: true
-                                text: "创建在线房间"
+                                text: AppCtrl.networkManager.connectionPending ? "创建中..." : "创建在线房间"
+                                enabled: !AppCtrl.networkManager.connectionPending
                                 onClicked: root.createOnlineRoom()
                             }
 
@@ -980,6 +984,7 @@ Page {
                                     Layout.preferredWidth: 88
                                     text: "刷新"
                                     secondary: true
+                                    enabled: !AppCtrl.networkManager.connectionPending
                                     onClicked: AppCtrl.refreshOnlineRooms()
                                 }
                             }
@@ -1053,8 +1058,11 @@ Page {
 
                                             ActionButton {
                                                 Layout.fillWidth: true
-                                                text: root.roomJoinEnabled(modelData) ? "加入房间" : root.roomAvailabilityText(modelData)
+                                                text: AppCtrl.networkManager.connectionPending
+                                                    ? "连接中..."
+                                                    : (root.roomJoinEnabled(modelData) ? "加入房间" : root.roomAvailabilityText(modelData))
                                                 enabled: root.roomJoinEnabled(modelData)
+                                                         && !AppCtrl.networkManager.connectionPending
                                                 secondary: !root.roomJoinEnabled(modelData)
                                                 onClicked: root.joinOnlineRoomEntry(modelData.roomId)
                                             }

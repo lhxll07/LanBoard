@@ -51,6 +51,17 @@ Page {
         return slot.title.length <= 2 ? slot.title : slot.title.slice(0, 2)
     }
 
+    function slotSummary(model) {
+        if (!model)
+            return ""
+        var parts = []
+        for (var i = 0; i < model.length; ++i) {
+            if (model[i] && model[i].filled && model[i].title)
+                parts.push(model[i].title)
+        }
+        return parts.join(" · ")
+    }
+
     background: Rectangle {
         gradient: Gradient {
             GradientStop { position: 0.0; color: "#13221D" }
@@ -253,8 +264,8 @@ Page {
             anchors.top: parent.top
             anchors.leftMargin: 12
             anchors.topMargin: 42
-            width: compactLayout ? 158 : 174
-            height: compactLayout ? 54 : 58
+            width: compactLayout ? 186 : 204
+            height: compactLayout ? 82 : 86
 
             Row {
                 anchors.left: parent.left
@@ -315,20 +326,46 @@ Page {
                     }
                 }
             }
+
+            Text {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.topMargin: compactLayout ? 50 : 52
+                text: root.slotSummary(root.weaponModel)
+                color: "#D7CCB8"
+                font.pixelSize: 10
+                elide: Text.ElideRight
+                renderType: Text.QtRendering
+                renderTypeQuality: Text.HighRenderTypeQuality
+            }
+
+            Text {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.topMargin: compactLayout ? 64 : 67
+                text: root.slotSummary(root.passiveModel)
+                color: "#98AAA1"
+                font.pixelSize: 10
+                elide: Text.ElideRight
+                renderType: Text.QtRendering
+                renderTypeQuality: Text.HighRenderTypeQuality
+            }
         }
 
         Item {
             id: centerHudGroup
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
-            anchors.topMargin: 46
-            width: 176
-            height: 58
+            anchors.topMargin: 44
+            width: compactLayout ? 214 : 238
+            height: compactLayout ? 90 : 96
 
             Column {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: parent.top
-                spacing: 1
+                spacing: 2
 
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -361,6 +398,20 @@ Page {
                         + (AppCtrl.survivorController.networkSession ? "online" : "local")
                     color: "#708278"
                     font.pixelSize: 11
+                    elide: Text.ElideRight
+                    renderType: Text.QtRendering
+                    renderTypeQuality: Text.HighRenderTypeQuality
+                }
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: centerHudGroup.width
+                    horizontalAlignment: Text.AlignHCenter
+                    text: AppCtrl.survivorController.upgradeSummary
+                    color: "#AAB7B0"
+                    font.pixelSize: compactLayout ? 10 : 11
+                    wrapMode: Text.Wrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
                     renderType: Text.QtRendering
                     renderTypeQuality: Text.HighRenderTypeQuality

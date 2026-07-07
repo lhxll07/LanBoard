@@ -128,6 +128,7 @@ void ServerApp::handleDisconnect(ENetPeer *peer)
         return;
     }
 
+    const PlayerSession disconnectedSession = *session;
     const QString roomId = session->roomId;
     RoomState *room = roomForPlayer(session);
     const QString playerName = session->name;
@@ -169,7 +170,7 @@ void ServerApp::handleDisconnect(ENetPeer *peer)
 
         room = roomById(roomId);
         if (room) {
-            handlePlayerDisconnectInRoom(room, *session, disconnectedPiece);
+            handlePlayerDisconnectInRoom(room, disconnectedSession, disconnectedPiece);
             normalizeSeats(room);
             broadcastRoomState(room);
             removeRoomIfEmpty(roomId);

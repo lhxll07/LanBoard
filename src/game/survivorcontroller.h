@@ -8,6 +8,7 @@
 #include <QVector2D>
 
 #include "src/common/gamecontrollerbase.h"
+#include "survivorsimulation.h"
 #include "survivorworld.h"
 
 class SurvivorController : public GameControllerBase
@@ -92,6 +93,10 @@ public:
     QString waveLabel() const { return m_matchState.waveLabel; }
     QString statusText() const { return m_statusText; }
     QString upgradeSummary() const { return m_upgradeSummary; }
+    bool garlicAuraEvolved() const {
+        const PlayerState *player = hudPlayerState();
+        return player && player->garlicEvolved;
+    }
     bool waitingForOtherPlayer() const {
         return m_matchState.pendingInteractionPlayerId >= 0
             && !m_matchState.levelUpPending
@@ -145,8 +150,15 @@ private:
     void gainExp(PlayerState &player, int amount);
     void prepareLevelUpChoices(PlayerState &player);
     void applyUpgrade(PlayerState &player, const QString &upgradeId);
+    void applyWeaponUpgradeLevel(PlayerState &player,
+                                 LanBoard::Survivor::WeaponType type,
+                                 int newLevel);
+    void applyPassiveUpgradeLevel(PlayerState &player,
+                                  LanBoard::Survivor::PassiveType type,
+                                  int newLevel);
     void addDamageNumber(const QVector2D &position, int amount, bool elite);
     void damageEnemy(int enemyIndex, int damage);
+    int healPlayer(PlayerState &player, int amount);
     void refreshDerivedStats();
     void refreshFrameCache();
     void syncHudState();
@@ -159,7 +171,7 @@ private:
     void openChest(PlayerState &player, const Pickup &pickup);
     void enqueueChest(PlayerState &player, const Pickup &pickup);
     void tryOpenQueuedChest();
-    int rollChestRewardCount() const;
+    int rollChestRewardCount(const PlayerState *player = nullptr) const;
     QList<QString> currentChestUpgradeCandidates(const PlayerState &player) const;
     QList<QString> currentEvolutionCandidates(const PlayerState &player) const;
     bool canEvolveWeapon(const PlayerState &player, const QString &weaponId) const;
@@ -184,28 +196,34 @@ private:
     qreal currentDamageMultiplier(const PlayerState &player) const;
     qreal currentAreaMultiplier(const PlayerState &player) const;
     qreal currentCooldownMultiplier(const PlayerState &player) const;
-    qreal currentDurationMultiplier() const;
-    qreal currentProjectileSpeedMultiplier() const;
+    qreal currentDurationMultiplier(const PlayerState &player) const;
+    qreal currentProjectileSpeedMultiplier(const PlayerState &player) const;
     qreal currentMoveSpeed(const PlayerState &player) const;
     qreal currentMagnetRange(const PlayerState &player) const;
     int currentMaxHpValue(const PlayerState &player) const;
+    qreal currentRecoveryPerSecond(const PlayerState &player) const;
+    qreal currentLuckMultiplier(const PlayerState &player) const;
+    bool isWeaponEvolved(const PlayerState &player, LanBoard::Survivor::WeaponType type) const;
+    qreal heavenSwordCritChance(const PlayerState &player) const;
     QString titleForUpgrade(const QString &upgradeId) const;
     QString categoryForUpgrade(const QString &upgradeId) const;
     QString descriptionForUpgrade(const QString &upgradeId, int currentLevel) const;
     void refreshUpgradeSummary();
     void refreshWaveLabel();
     void updateStatusText();
-    void triggerWaveEvents();
+    const LanBoard::Survivor::WaveTemplate &currentWaveTemplate() const;
+    int rollSpawnKind(const LanBoard::Survivor::SpawnWeight *weights, int count) const;
+    void processWaveEvents();
     void spawnBatSwarm(int count, qreal speedMultiplier);
     void spawnFlowerWall(int count, qreal ringRadius, qreal inwardSpeed, int hpOverride);
     int currentSpawnIntervalMs() const;
     int currentSpawnBurstCount() const;
     int currentEnemyCap() const;
     int currentEliteSpawnIntervalMs() const;
+    int currentEliteSpawnBurstCount() const;
     int currentWaveIndex() const;
     int currentEnemyKind() const;
     int currentEliteKind() const;
-    int currentBossKind() const;
     bool hasLivingBoss() const;
     QVector2D playerAnchor() const;
     QVector2D cameraAnchor() const;
@@ -265,6 +283,7 @@ private:
     QList<ChestReward> m_chestRewardEntries;
     QString m_statusText;
     QString m_upgradeSummary;
+    bool m_networkHudDirty = false;
 
     static constexpr int NetworkSnapshotIntervalMs = 25;
     static constexpr int NetworkHudSnapshotIntervalMs = 200;

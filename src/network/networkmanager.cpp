@@ -114,17 +114,29 @@ void NetworkManager::startServer(quint16 port)
 {
     disconnectAll();
 
-    ENetAddress address {};
-    address.host = ENET_HOST_ANY;
-    address.port = port;
-    m_hostServer = enet_host_create(&address, 16, EnetChannelCount, 0, 0);
+    ENetHost *createdHost = nullptr;
+    quint16 boundPort = 0;
+
+    constexpr int HostPortRetryCount = 8;
+    for (int attempt = 0; attempt < HostPortRetryCount; ++attempt) {
+        ENetAddress address {};
+        address.host = ENET_HOST_ANY;
+        address.port = static_cast<quint16>(port + attempt);
+        createdHost = enet_host_create(&address, 16, EnetChannelCount, 0, 0);
+        if (!createdHost)
+            continue;
+        boundPort = address.port;
+        break;
+    }
+
+    m_hostServer = createdHost;
     if (!m_hostServer) {
         emit errorOccurred(QStringLiteral("无法监听端口 %1").arg(port));
         return;
     }
 
     m_isHost = true;
-    m_serverPort = port;
+    m_serverPort = boundPort > 0 ? boundPort : port;
     if (!m_hostAnnouncementTimer.isActive())
         m_hostAnnouncementTimer.start();
     if (!m_enetServiceTimer.isActive())
@@ -180,6 +192,13 @@ bool NetworkManager::isConnected() const
     if (LanBoard::Enet::isConnected(m_serverPeer))
         return true;
     return false;
+}
+
+bool NetworkManager::connectionPending() const
+{
+    return !m_isHost
+        && !m_pendingConnectAction.isEmpty()
+        && m_pendingConnectAction != QStringLiteral("online_list_rooms");
 }
 
 QString NetworkManager::localIp() const
@@ -643,6 +662,8 @@ void NetworkManager::connectDedicatedPeer(const QString &host, quint16 port,
 
     if (!m_enetServiceTimer.isActive())
         m_enetServiceTimer.start();
+    if (!lobbyOnly)
+        emit connectionChanged();
 }
 
 void NetworkManager::disconnectEnetPeer(ENetPeer *&peer, ENetHost *&host, bool graceful)
@@ -918,6 +939,7 @@ void NetworkManager::serviceEnet()
                     if (event.peer == m_serverPeer)
                         m_serverPeer = nullptr;
                     const bool hadConnection = m_enetActiveConnection;
+                    m_pendingConnectAction.clear();
                     m_enetActiveConnection = false;
                     if (hadConnection)
                         emit connectionChanged();
@@ -941,6 +963,10 @@ void NetworkManager::processDedicatedServerMessage(const QJsonObject &msg)
 {
     const QString type = msg.value(QStringLiteral("type")).toString();
     if (type == LanBoard::Protocol::RoomState) {
+        if (!m_pendingConnectAction.isEmpty()) {
+            m_pendingConnectAction.clear();
+            emit connectionChanged();
+        }
         emit roomStateReceived(msg);
     } else if (type == LanBoard::Protocol::RoomsList) {
         applyOnlineRooms(msg.value(QStringLiteral("rooms")).toArray());
@@ -961,6 +987,13 @@ void NetworkManager::processDedicatedServerMessage(const QJsonObject &msg)
         emit flightMoveReceived(msg.value(QStringLiteral("player")).toInt(),
                                 msg.value(QStringLiteral("planeIndex")).toInt(-1));
     } else if (type == LanBoard::Protocol::Error) {
+        const bool wasPendingConnection = connectionPending();
+        if (wasPendingConnection) {
+            m_pendingConnectAction.clear();
+            disconnectEnetPeer(m_serverPeer, m_clientHost, false);
+            m_enetActiveConnection = false;
+            emit connectionChanged();
+        }
         emit errorOccurred(msg.value(QStringLiteral("message")).toString(QStringLiteral("Network error")));
     }
 }

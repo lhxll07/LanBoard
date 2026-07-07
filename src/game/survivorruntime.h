@@ -23,11 +23,13 @@ QVector2D playerAnchor(const MatchState &state, int localPlayerId);
 qreal currentDamageMultiplier(const PlayerState &player);
 qreal currentAreaMultiplier(const PlayerState &player);
 qreal currentCooldownMultiplier(const PlayerState &player);
-qreal currentDurationMultiplier();
-qreal currentProjectileSpeedMultiplier();
+qreal currentDurationMultiplier(const PlayerState &player);
+qreal currentProjectileSpeedMultiplier(const PlayerState &player);
 qreal currentMoveSpeed(const PlayerState &player);
 qreal currentMagnetRange(const PlayerState &player);
 int currentMaxHpValue(const PlayerState &player);
+qreal currentRecoveryPerSecond(const PlayerState &player);
+qreal currentLuckMultiplier(const PlayerState &player);
 
 void syncPlayerMaxHp(MatchState &state);
 RenderSnapshot buildRenderSnapshot(const MatchState &state);
