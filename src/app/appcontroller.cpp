@@ -171,11 +171,11 @@ AppController::AppController(QObject *parent)
             return;
 
         m_isDedicatedServerRoom = false;
-        m_roomManager->reset();
-        m_roomManager->setLocalPlayerId(-1);
+        resetRoomSession(QStringLiteral("gomoku"));
         setModeState(false, false, 0);
         m_activeGuestPlayerId = -1;
         m_networkManager->setDiscoveryGameInProgress(false);
+        emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Room));
     });
     connect(m_networkManager, &NetworkManager::gameOverReceived,
             this, [this](int winner) {
@@ -744,8 +744,7 @@ void AppController::resetGameControllers()
 {
     m_networkManager->setDiscoveryGameInProgress(false);
     m_gameController->reset();
-    m_douDiZhuController->startNewGame();
-    m_douDiZhuController->setLocalPlayer(0);
+    m_douDiZhuController->reset();
     m_flightChessController->reset();
     m_survivorController->configureNetworkSession({}, 0, false, true);
     m_survivorController->stopRun();

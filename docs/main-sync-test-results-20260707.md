@@ -180,11 +180,50 @@ PASS online server ENet E2E
 - 新 Observer 在游戏开始后拉取房间列表，房间 `inGame = true`。
 - Host 和 Guest 的五子棋落子均能广播给双方。
 
-## 7. 当前仍未覆盖
+## 7. GUI 多实例人工复查补充
+
+人工复查结果：
+
+- 五子棋：通过。
+- 飞行棋：通过。
+- 斗地主：不完全通过。
+- Survivor：通过。
+
+斗地主问题：
+
+- 房主退出房间后，客户端仍停留在斗地主对局页。
+- 底层连接和房间状态实际已经断开并清空，但 `DouDiZhuController` 仍保留旧手牌和三人对局状态。
+- 因此界面看起来像房间未正常解散；此时客户端点击“返回”才回到已退出房间后的页面。
+
+修复：
+
+- 客户端连接断开时改为完整重置房间会话，并请求导航回房间页。
+- 通用控制器重置时，斗地主改为清空状态，不再立即发一局本地牌。
+
+补充回归：
+
+```powershell
+cmake --build build\codex-appcontroller-e2e\build
+build\codex-appcontroller-e2e\build\appControllerE2E.exe
+cmake --build --preset qt-mingw-desktop
+build\codex-lan-discovery-check\build\lanDiscoveryCheck.exe
+build\codex-online-server-e2e\build\onlineServerEnetE2E.exe
+```
+
+结果：通过。
+
+新增临时 E2E 覆盖：
+
+- 斗地主三人联机开局后，房主退出房间。
+- 两个客户端连接断开。
+- 两个客户端房间列表清空。
+- 两个客户端斗地主手牌清空。
+
+## 8. 当前仍未覆盖
 
 以下项目仍需要人工或外部环境：
 
-- 桌面 GUI 多实例人工复查。
+- 斗地主房主退出修复后的 GUI 单点复测。
 - Android 真机安装和运行。
 - 跨设备同 Wi-Fi UDP 广播发现。
 - 远端 ECS 在线房间真实公网流程。
@@ -193,9 +232,9 @@ PASS online server ENet E2E
 说明：
 
 - Survivor 相关代码已参与主项目构建。
-- 本轮自动 E2E 重点覆盖五子棋、飞行棋、斗地主三款回合制联机闭环，以及本地 ENet 在线服务端最小流程。
+- 本轮自动 E2E 重点覆盖五子棋、飞行棋、斗地主三款回合制联机闭环、斗地主房主退出清理，以及本地 ENet 在线服务端最小流程。
 
-## 8. 当前判断
+## 9. 当前判断
 
 从本机自动验证看，本次同步最新 `origin/main` 后：
 
@@ -204,6 +243,7 @@ PASS online server ENet E2E
 - 网络拆分仍可用。
 - `RoomDiscoveryService` 服务级行为仍可用。
 - 三款回合制游戏的控制层联机闭环仍可用。
+- 斗地主房主退出后，客户端连接、房间状态和斗地主运行态会被清理。
 - 本地在线服务端 ENet 最小端到端流程可用。
 
-建议下一步执行桌面 GUI 多实例人工复查，通过后再推送分支并更新 PR。
+建议下一步对斗地主房主退出场景做一次 GUI 单点复测，通过后再推送分支并更新 PR。
