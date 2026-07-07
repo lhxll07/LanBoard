@@ -199,7 +199,9 @@ RenderSnapshot buildRenderSnapshot(const MatchState &state)
             player.maxHp,
             player.alive,
             player.local,
-            player.colorIndex
+            player.colorIndex,
+            player.garlicLevel > 0 ? state.worldRuntime.garlicRadius * currentAreaMultiplier(player) : 0.0,
+            player.garlicEvolved
         });
     }
 

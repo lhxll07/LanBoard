@@ -908,51 +908,54 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
             }
         }
 
-        const qreal auraRadius = m_controller->auraRadius();
-        if (auraRadius > 0.001) {
-            const qreal radius = qMax(20.0, auraRadius * scale);
-            const bool soulEater = m_controller->garlicAuraEvolved();
+        for (const SurvivorController::RenderPlayer &player : currentSnapshot.players) {
+            if (!player.alive || player.auraRadius <= 0.001)
+                continue;
+
+            const QPointF point(screenX(player.x), screenY(player.y));
+            const qreal radius = qMax(20.0, player.auraRadius * scale);
+            const bool soulEater = player.auraEvolved;
             const QColor outerGlow = soulEater ? QColor(78, 132, 136, 18) : QColor(110, 142, 86, 14);
             const QColor midRing = soulEater ? QColor(136, 222, 214, 28) : QColor(186, 216, 126, 22);
             const QColor innerRing = soulEater ? QColor(224, 250, 244, 36) : QColor(246, 244, 196, 30);
             const QColor outline = soulEater ? QColor(182, 236, 232, 88) : QColor(214, 226, 158, 68);
 
-            appendRegularPolygon(fillVertices, QPointF(px, py), radius * 1.08, 28, QColor(8, 14, 12, 18));
+            appendRegularPolygon(fillVertices, point, radius * 1.08, 28, QColor(8, 14, 12, 18));
             appendRing(fillVertices,
-                       QPointF(px, py),
+                       point,
                        radius * (1.00 + 0.02 * pulse),
                        radius * (0.88 + 0.02 * pulse),
                        36,
                        outerGlow);
             appendRing(fillVertices,
-                       QPointF(px, py),
+                       point,
                        radius * (0.78 + 0.02 * reversePulse),
                        radius * (0.67 + 0.02 * reversePulse),
                        34,
                        midRing);
             appendRing(fillVertices,
-                       QPointF(px, py),
+                       point,
                        radius * (0.54 + 0.03 * pulse),
                        radius * (0.42 + 0.02 * pulse),
                        30,
                        innerRing);
             appendRegularPolygon(fillVertices,
-                                 QPointF(px, py),
+                                 point,
                                  radius * (0.16 + 0.02 * reversePulse),
                                  18,
                                  soulEater ? QColor(230, 248, 244, 26) : QColor(250, 244, 212, 18));
             appendRegularPolygonOutline(lineVertices,
-                                        QPointF(px, py),
+                                        point,
                                         radius * (0.99 + 0.02 * pulse),
                                         30,
                                         outline);
             appendRegularPolygonOutline(lineVertices,
-                                        QPointF(px, py),
+                                        point,
                                         radius * (0.76 + 0.02 * reversePulse),
                                         28,
                                         withAlpha(outline, soulEater ? 88 : 62));
             appendRegularPolygonOutline(lineVertices,
-                                        QPointF(px, py),
+                                        point,
                                         radius * (0.52 + 0.03 * pulse),
                                         24,
                                         withAlpha(innerRing, soulEater ? 92 : 70));
@@ -961,8 +964,8 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
             for (int moteIndex = 0; moteIndex < moteCount; ++moteIndex) {
                 const qreal angle = m_frameCounter * (soulEater ? 2.0 : 1.4) + moteIndex * (360.0 / moteCount);
                 const qreal orbitRadius = radius * (soulEater ? 0.63 : 0.70);
-                const QPointF motePoint(px + qCos(qDegreesToRadians(angle)) * orbitRadius,
-                                        py + qSin(qDegreesToRadians(angle)) * orbitRadius);
+                const QPointF motePoint(point.x() + qCos(qDegreesToRadians(angle)) * orbitRadius,
+                                        point.y() + qSin(qDegreesToRadians(angle)) * orbitRadius);
                 appendRegularPolygon(fillVertices,
                                      motePoint,
                                      soulEater ? 2.6 : 2.2,

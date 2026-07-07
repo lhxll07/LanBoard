@@ -228,6 +228,8 @@ private:
     QVector2D playerAnchor() const;
     QVector2D cameraAnchor() const;
     QVector2D cameraAnchorForPlayer(int playerId) const;
+    QVector2D combatAnchorForPosition(const QVector2D &position) const;
+    QVector2D nextSpawnAnchor();
     PlayerState *playerStateById(int playerId);
     const PlayerState *playerStateById(int playerId) const;
     PlayerState *hudPlayerState();
@@ -256,6 +258,7 @@ private:
     QList<UpgradeChoice> m_levelUpChoices;
     bool m_networkSession = false;
     bool m_networkAuthoritative = true;
+    int m_spawnAnchorCursor = 0;
     qreal m_networkAuraRadius = 0.0f;
     int m_networkBroadcastAccumulatorMs = 0;
     int m_networkHudBroadcastAccumulatorMs = 0;
