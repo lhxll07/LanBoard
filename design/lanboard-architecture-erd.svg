@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980">
+  <defs>
+    <style>
+      .bg { fill: #f6f3ee; }
+      .panel { fill: #fffdf9; stroke: #26221d; stroke-width: 2; rx: 18; ry: 18; }
+      .core { fill: #f1e4cf; }
+      .net { fill: #dcebf3; }
+      .game { fill: #e5efdf; }
+      .data { fill: #efe4f6; }
+      .title { font: 700 24px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #1d1a16; }
+      .label { font: 700 18px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #1d1a16; }
+      .text { font: 14px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #4a433c; }
+      .small { font: 13px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #5b544d; }
+      .edge { stroke: #3d372f; stroke-width: 2.5; fill: none; }
+      .edge-dashed { stroke: #5c554d; stroke-width: 2; stroke-dasharray: 8 6; fill: none; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3d372f"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="980"/>
+  <text class="title" x="46" y="52">LanBoard 架构实体关系图</text>
+  <text class="text" x="46" y="82">按真实代码组织：QML 壳层 -> AppController -> 房间 / 网络 / 游戏控制器 -> ECS 独立服务端</text>
+
+  <rect class="panel core" x="50" y="120" width="280" height="120" rx="18" ry="18"/>
+  <text class="label" x="74" y="158">QML Shell</text>
+  <text class="text" x="74" y="186">Main.qml</text>
+  <text class="text" x="74" y="208">pages/*.qml</text>
+  <text class="text" x="74" y="230">components/*.qml</text>
+
+  <rect class="panel core" x="390" y="110" width="330" height="150" rx="18" ry="18"/>
+  <text class="label" x="416" y="148">AppController</text>
+  <text class="text" x="416" y="176">导航 / 设置持久化 / 房间流转</text>
+  <text class="text" x="416" y="198">网络事件分发 / 开局 / 结算</text>
+  <text class="text" x="416" y="220">统一持有 RoomManager / NetworkManager / 各控制器</text>
+
+  <rect class="panel core" x="780" y="110" width="290" height="170" rx="18" ry="18"/>
+  <text class="label" x="806" y="148">RoomManager</text>
+  <text class="text" x="806" y="176">玩家列表 / 房主 / 准备状态</text>
+  <text class="text" x="806" y="198">游戏位 / 旁观位 / 当前游戏</text>
+  <text class="text" x="806" y="220">开局人数校验 / 座位整理</text>
+  <text class="text" x="806" y="242">输出 RoomSnapshot</text>
+
+  <rect class="panel data" x="1140" y="110" width="340" height="170" rx="18" ry="18"/>
+  <text class="label" x="1166" y="148">RoomSnapshot / RoomPlayerState</text>
+  <text class="text" x="1166" y="176">roomId / roomName / gameId</text>
+  <text class="text" x="1166" y="198">localPlayerId / gameInProgress</text>
+  <text class="text" x="1166" y="220">players[] / activePlayers()</text>
+  <text class="text" x="1166" y="242">allActivePlayersReady()</text>
+
+  <rect class="panel net" x="390" y="330" width="330" height="220" rx="18" ry="18"/>
+  <text class="label" x="416" y="368">NetworkManager</text>
+  <text class="text" x="416" y="396">UDP 广播发现</text>
+  <text class="text" x="416" y="418">Host/Client ENet 会话</text>
+  <text class="text" x="416" y="440">ECS 在线大厅 / 在线房间</text>
+  <text class="text" x="416" y="462">Survivor 二进制快照与输入包</text>
+  <text class="small" x="416" y="492">m_hostServer / m_clientHost / m_lobbyHost</text>
+  <text class="small" x="416" y="514">discoveredRooms / onlineRooms</text>
+
+  <rect class="panel net" x="780" y="350" width="290" height="180" rx="18" ry="18"/>
+  <text class="label" x="806" y="388">Protocol + ENet Utils</text>
+  <text class="text" x="806" y="416">protocolids.h</text>
+  <text class="text" x="806" y="438">enetutils.*</text>
+  <text class="text" x="806" y="460">JSON 控制消息</text>
+  <text class="text" x="806" y="482">ENet channel 1/2/3</text>
+
+  <rect class="panel game" x="50" y="620" width="330" height="250" rx="18" ry="18"/>
+  <text class="label" x="76" y="658">GameControllerBase</text>
+  <text class="text" x="76" y="686">统一生命周期接口：</text>
+  <text class="text" x="76" y="708">startNewGame / reset</text>
+  <text class="text" x="76" y="730">isGameOver / winner</text>
+  <text class="text" x="76" y="762">派生：</text>
+  <text class="text" x="76" y="784">GameController（五子棋）</text>
+  <text class="text" x="76" y="806">DouDiZhuController</text>
+  <text class="text" x="76" y="828">FlightChessController</text>
+  <text class="text" x="76" y="850">SurvivorController</text>
+
+  <rect class="panel game" x="430" y="610" width="360" height="270" rx="18" ry="18"/>
+  <text class="label" x="456" y="648">SurvivorController</text>
+  <text class="text" x="456" y="676">驱动 tick / 输入 / 升级 / 宝箱 / HUD / 结算</text>
+  <text class="text" x="456" y="698">本地模式、局域网 Host、ECS 在线房间共用</text>
+  <text class="text" x="456" y="730">依赖：</text>
+  <text class="text" x="456" y="752">Survivor::Runtime</text>
+  <text class="text" x="456" y="774">Survivor::Simulation</text>
+  <text class="text" x="456" y="796">Survivor::NetCodec</text>
+  <text class="text" x="456" y="818">SurvivorRenderItem</text>
+  <text class="text" x="456" y="850">核心状态：MatchState</text>
+
+  <rect class="panel data" x="840" y="610" width="300" height="270" rx="18" ry="18"/>
+  <text class="label" x="866" y="648">MatchState</text>
+  <text class="text" x="866" y="676">players[]</text>
+  <text class="text" x="866" y="698">enemies[]</text>
+  <text class="text" x="866" y="720">projectiles[]</text>
+  <text class="text" x="866" y="742">pickups[]</text>
+  <text class="text" x="866" y="764">zones[]</text>
+  <text class="text" x="866" y="786">damageNumbers[]</text>
+  <text class="text" x="866" y="808">worldRuntime</text>
+  <text class="text" x="866" y="830">level / exp / wave / timers</text>
+
+  <rect class="panel game" x="1180" y="610" width="340" height="270" rx="18" ry="18"/>
+  <text class="label" x="1206" y="648">Survivor 子模块</text>
+  <text class="text" x="1206" y="676">survivorworld.h：结构体</text>
+  <text class="text" x="1206" y="698">survivorruntime.*：派生属性 / 渲染快照</text>
+  <text class="text" x="1206" y="720">survivorsimulation.*：武器表 / 波次 / Boss / 事件</text>
+  <text class="text" x="1206" y="742">survivornetcodec.*：FastState / HudState / Input</text>
+  <text class="text" x="1206" y="764">survivorrenderitem.*：Scene Graph 渲染</text>
+
+  <rect class="panel net" x="1140" y="330" width="380" height="200" rx="18" ry="18"/>
+  <text class="label" x="1166" y="368">ServerApp（ECS 独立服务端）</text>
+  <text class="text" x="1166" y="396">维护 PlayerSession[] 与 RoomState[]</text>
+  <text class="text" x="1166" y="418">每个 RoomState 内含 RoomManager + 各游戏控制器</text>
+  <text class="text" x="1166" y="440">在线大厅列房 / 在线房间创建 / 加入 / 状态同步</text>
+  <text class="text" x="1166" y="462">Survivor 在线战斗快照由服务端控制器发出</text>
+
+  <path class="edge" marker-end="url(#arrow)" d="M 330 180 L 390 180"/>
+  <path class="edge" marker-end="url(#arrow)" d="M 720 185 L 780 185"/>
+  <path class="edge" marker-end="url(#arrow)" d="M 1070 195 L 1140 195"/>
+
+  <path class="edge" marker-end="url(#arrow)" d="M 555 260 L 555 330"/>
+  <path class="edge" marker-end="url(#arrow)" d="M 720 430 L 780 430"/>
+  <path class="edge-dashed" marker-end="url(#arrow)" d="M 925 280 L 925 350"/>
+
+  <path class="edge" marker-end="url(#arrow)" d="M 555 550 L 555 610"/>
+  <path class="edge" marker-end="url(#arrow)" d="M 790 745 L 840 745"/>
+  <path class="edge" marker-end="url(#arrow)" d="M 1140 745 L 1180 745"/>
+
+  <path class="edge-dashed" marker-end="url(#arrow)" d="M 1300 530 L 1300 610"/>
+  <path class="edge-dashed" marker-end="url(#arrow)" d="M 1140 430 L 720 430"/>
+
+  <text class="small" x="345" y="170">QML 调用</text>
+  <text class="small" x="734" y="174">房间规则</text>
+  <text class="small" x="1083" y="186">快照导出</text>
+  <text class="small" x="568" y="300">网络事件桥接</text>
+  <text class="small" x="741" y="420">协议 / 通道</text>
+  <text class="small" x="570" y="585">统一生命周期</text>
+  <text class="small" x="798" y="734">核心状态</text>
+  <text class="small" x="1149" y="734">算法 / 渲染 / 编解码</text>
+  <text class="small" x="1312" y="570">在线房间复用同套控制器</text>
+</svg>
