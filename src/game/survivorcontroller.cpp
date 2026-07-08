@@ -549,6 +549,8 @@ void SurvivorController::stopRun()
     m_networkTargetPlayers.clear();
     m_networkBaseSnapshot = {};
     m_networkTargetSnapshot = {};
+    m_enemyQueryBuckets.clear();
+    m_enemyIndexById.clear();
     m_lastAppliedNetworkStateSeq = 0;
     m_lastAppliedFastStateSeq = 0;
     m_lastAppliedHudStateSeq = 0;
@@ -733,6 +735,7 @@ void SurvivorController::resetState()
     m_localAuthoritativePosition = QVector2D();
     m_hasLocalPrediction = false;
     m_networkHudDirty = true;
+    m_pickupCompactionCooldownMs = 0;
     m_frameTimer.invalidate();
     refreshDerivedStats();
     refreshWaveLabel();
@@ -1336,6 +1339,8 @@ SurvivorController::RenderSnapshot SurvivorController::buildNetworkRenderSnapsho
     for (const RenderDamageNumber &number : m_renderSnapshot.damageNumbers) {
         if (insideRange(number.x, number.y, 0.16))
             snapshot.damageNumbers.append(number);
+        if (snapshot.damageNumbers.size() >= 24)
+            break;
     }
 
     return snapshot;
@@ -1514,6 +1519,9 @@ void SurvivorController::spawnEnemy(bool elite, int forcedKind, bool forceChestC
     const qreal lateGameAlpha = qBound<qreal>(0.0,
                                               (static_cast<qreal>(waveIndex) - 7.0) / 7.0,
                                               1.0);
+    const qreal endgameWaveAlpha = qBound<qreal>(0.0,
+                                                 (static_cast<qreal>(waveIndex) - 9.0) / 5.0,
+                                                 1.0);
     int baseHp = 0;
     int baseTouchDamage = 0;
     int baseExpReward = 1;
@@ -1602,6 +1610,40 @@ void SurvivorController::spawnEnemy(bool elite, int forcedKind, bool forceChestC
         enemy.maxHp = baseHp;
         enemy.touchDamage = baseTouchDamage;
         enemy.expReward = baseExpReward;
+        if (waveIndex >= 10) {
+            qreal hpMultiplier = 1.0f;
+            qreal damageMultiplier = 1.0f;
+            qreal resistanceMultiplier = 1.0f;
+            switch (enemy.kind) {
+            case SkeletonEnemy:
+                hpMultiplier += endgameWaveAlpha * 0.28f;
+                damageMultiplier += endgameWaveAlpha * 0.10f;
+                resistanceMultiplier -= endgameWaveAlpha * 0.08f;
+                break;
+            case WerewolfEnemy:
+            case FlowerEnemy:
+                hpMultiplier += endgameWaveAlpha * 0.55f;
+                damageMultiplier += endgameWaveAlpha * 0.18f;
+                resistanceMultiplier -= endgameWaveAlpha * 0.16f;
+                break;
+            case OgreEnemy:
+            case GiantBatEnemy:
+                hpMultiplier += endgameWaveAlpha * 0.90f;
+                damageMultiplier += endgameWaveAlpha * 0.24f;
+                resistanceMultiplier -= endgameWaveAlpha * 0.22f;
+                break;
+            case BatEnemy:
+            case ZombieEnemy:
+            default:
+                hpMultiplier += endgameWaveAlpha * 0.10f;
+                damageMultiplier += endgameWaveAlpha * 0.06f;
+                resistanceMultiplier -= endgameWaveAlpha * 0.04f;
+                break;
+            }
+            enemy.maxHp = qMax(1, qRound(enemy.maxHp * hpMultiplier));
+            enemy.touchDamage = qMax(1, qRound(enemy.touchDamage * damageMultiplier));
+            enemy.knockbackFactor *= qMax<qreal>(0.10f, resistanceMultiplier);
+        }
     }
     enemy.hp = enemy.maxHp;
     m_matchState.enemies.append(enemy);
@@ -1727,6 +1769,7 @@ void SurvivorController::tick()
 void SurvivorController::simulateStep(int elapsedMs)
 {
     const qreal deltaSec = elapsedMs / 1000.0;
+    m_pickupCompactionCooldownMs = qMax(0, m_pickupCompactionCooldownMs - elapsedMs);
     m_matchState.survivalTimeMs += elapsedMs;
     m_matchState.spawnAccumulatorMs += elapsedMs;
     m_matchState.eliteSpawnAccumulatorMs += elapsedMs;
@@ -1858,12 +1901,14 @@ void SurvivorController::simulateStep(int elapsedMs)
         ++m_matchState.nextBossSpawnIndex;
     }
 
+    rebuildEnemyQueryGrid();
     applyAutoAttack();
     updateGarlicAura();
     updateOrbitals(deltaSec, elapsedMs);
     updateProjectiles(deltaSec, elapsedMs);
     updateZones(deltaSec, elapsedMs);
     collectPickups(deltaSec);
+    compactPickupPopulation();
 
     if (survivalTimeSec() >= SurvivorRunDurationSec) {
         finalizeGameOver(1);
@@ -1921,15 +1966,7 @@ void SurvivorController::applyAutoAttack()
 
         if (player.fireWandLevel > 0 && player.fireWandCooldownMs <= 0) {
             player.fireWandCooldownMs = qMax(420, qRound(player.fireWandCooldownBaseMs * cooldownMultiplier));
-            int bestIndex = -1;
-            qreal bestDistance = std::numeric_limits<qreal>::max();
-            for (int enemyIndex = 0; enemyIndex < m_matchState.enemies.size(); ++enemyIndex) {
-                const qreal distanceSquared = (m_matchState.enemies.at(enemyIndex).position - player.position).lengthSquared();
-                if (distanceSquared >= bestDistance)
-                    continue;
-                bestDistance = distanceSquared;
-                bestIndex = enemyIndex;
-            }
+            const int bestIndex = nearestEnemyIndex(player.position);
             if (bestIndex < 0)
                 continue;
 
@@ -2071,19 +2108,13 @@ void SurvivorController::applyAutoAttack()
                 * profile.areaMultiplier;
             QVector2D targetCenter = player.position;
             if (!player.santaWaterEvolved) {
-                int nearestIndex = -1;
-                qreal nearestDistance = std::numeric_limits<qreal>::max();
-                for (int enemyIndex = 0; enemyIndex < m_matchState.enemies.size(); ++enemyIndex) {
-                    const qreal distanceSquared =
-                        (m_matchState.enemies.at(enemyIndex).position - player.position).lengthSquared();
-                    if (distanceSquared >= nearestDistance)
-                        continue;
-                    nearestDistance = distanceSquared;
-                    nearestIndex = enemyIndex;
-                }
+                const int nearestIndex = nearestEnemyIndex(player.position);
                 if (nearestIndex >= 0)
                     targetCenter = m_matchState.enemies.at(nearestIndex).position;
             }
+            const int maxActiveZones = player.santaWaterEvolved
+                ? qMax(4, player.santaWaterAmount * 2)
+                : qMax(3, player.santaWaterAmount * 2 - 1);
             for (int i = 0; i < player.santaWaterAmount; ++i) {
                 const qreal angle = player.santaWaterEvolved
                     ? (360.0 / qMax(1, player.santaWaterAmount)) * i
@@ -2104,6 +2135,21 @@ void SurvivorController::applyAutoAttack()
                 zone.tickCooldownMs = 0;
                 zone.knockback = profile.knockback;
                 zone.damageVariance = profile.damageVariance;
+                int activeZoneCount = 0;
+                int removalIndex = -1;
+                int lowestLifeMs = std::numeric_limits<int>::max();
+                for (int existingIndex = 0; existingIndex < m_matchState.zones.size(); ++existingIndex) {
+                    const Zone &existing = m_matchState.zones.at(existingIndex);
+                    if (existing.ownerPlayerId != player.playerId || existing.kind != zone.kind)
+                        continue;
+                    ++activeZoneCount;
+                    if (existing.lifeMs < lowestLifeMs) {
+                        lowestLifeMs = existing.lifeMs;
+                        removalIndex = existingIndex;
+                    }
+                }
+                if (activeZoneCount >= maxActiveZones && removalIndex >= 0)
+                    m_matchState.zones.removeAt(removalIndex);
                 m_matchState.zones.append(zone);
             }
         }
@@ -2199,6 +2245,55 @@ void SurvivorController::trimEnemyPopulation()
     }
 }
 
+void SurvivorController::rebuildEnemyQueryGrid()
+{
+    m_enemyQueryBuckets.clear();
+    m_enemyIndexById.clear();
+    if (m_matchState.enemies.isEmpty())
+        return;
+
+    m_enemyQueryBuckets.reserve(m_matchState.enemies.size() * 2);
+    m_enemyIndexById.reserve(m_matchState.enemies.size());
+    for (int i = 0; i < m_matchState.enemies.size(); ++i) {
+        const Enemy &enemy = m_matchState.enemies.at(i);
+        const int cellX = qFloor(enemy.position.x() / EnemySeparationCellSize);
+        const int cellY = qFloor(enemy.position.y() / EnemySeparationCellSize);
+        m_enemyQueryBuckets[spatialCellKey(cellX, cellY)].append(enemy.id);
+        m_enemyIndexById.insert(enemy.id, i);
+    }
+}
+
+void SurvivorController::appendEnemyCandidateIdsNear(const QVector2D &position,
+                                                     qreal radius,
+                                                     QVector<int> &out) const
+{
+    out.clear();
+    if (m_matchState.enemies.isEmpty())
+        return;
+
+    if (m_enemyQueryBuckets.isEmpty()) {
+        out.reserve(m_matchState.enemies.size());
+        for (const Enemy &enemy : std::as_const(m_matchState.enemies))
+            out.append(enemy.id);
+        return;
+    }
+
+    const int baseCellX = qFloor(position.x() / EnemySeparationCellSize);
+    const int baseCellY = qFloor(position.y() / EnemySeparationCellSize);
+    const int cellRadius = qMax(1, qCeil((radius + 0.08f) / EnemySeparationCellSize));
+    for (int offsetX = -cellRadius; offsetX <= cellRadius; ++offsetX) {
+        for (int offsetY = -cellRadius; offsetY <= cellRadius; ++offsetY) {
+            const auto it = m_enemyQueryBuckets.constFind(spatialCellKey(baseCellX + offsetX,
+                                                                         baseCellY + offsetY));
+            if (it == m_enemyQueryBuckets.cend())
+                continue;
+            out += it.value();
+        }
+    }
+    std::sort(out.begin(), out.end());
+    out.erase(std::unique(out.begin(), out.end()), out.end());
+}
+
 void SurvivorController::resolveEnemySeparation()
 {
     if (m_matchState.enemies.size() < 2)
@@ -2279,6 +2374,7 @@ void SurvivorController::updateOrbitals(qreal deltaSec, int elapsedMs)
 
     Q_UNUSED(elapsedMs)
     const auto &orbitProfile = LanBoard::Survivor::weaponHitProfile(LanBoard::Survivor::AttackProfileOrbitBlade);
+    QVector<int> nearbyEnemies;
     for (const PlayerState &player : std::as_const(m_matchState.players)) {
         if (!player.alive
             || player.orbitBladeCount <= 0
@@ -2295,7 +2391,11 @@ void SurvivorController::updateOrbitals(qreal deltaSec, int elapsedMs)
             const QVector2D offset = rotatedVector(QVector2D(orbitRadius, 0.0f),
                                                    m_matchState.worldRuntime.orbitAngleDeg + angleStep * orbitalIndex);
             const QVector2D orbitalPos = player.position + offset;
-            for (int enemyIndex = m_matchState.enemies.size() - 1; enemyIndex >= 0; --enemyIndex) {
+            appendEnemyCandidateIdsNear(orbitalPos, orbitalRadius + 0.08f, nearbyEnemies);
+            for (int idx = nearbyEnemies.size() - 1; idx >= 0; --idx) {
+                const int enemyIndex = enemyIndexForId(nearbyEnemies.at(idx));
+                if (enemyIndex < 0 || enemyIndex >= m_matchState.enemies.size())
+                    continue;
                 if (!circlesOverlap(m_matchState.enemies.at(enemyIndex).position, orbitalPos,
                                     m_matchState.enemies.at(enemyIndex).radius + orbitalRadius)) {
                     continue;
@@ -2315,6 +2415,7 @@ void SurvivorController::updateOrbitals(qreal deltaSec, int elapsedMs)
 
 void SurvivorController::updateProjectiles(qreal deltaSec, int elapsedMs)
 {
+    QVector<int> nearbyEnemies;
     for (int i = m_matchState.projectiles.size() - 1; i >= 0; --i) {
         Projectile &projectile = m_matchState.projectiles[i];
         if (projectile.kind == 2) {
@@ -2337,7 +2438,11 @@ void SurvivorController::updateProjectiles(qreal deltaSec, int elapsedMs)
         projectile.lifeMs -= elapsedMs;
 
         bool projectileConsumed = false;
-        for (int enemyIndex = m_matchState.enemies.size() - 1; enemyIndex >= 0; --enemyIndex) {
+        appendEnemyCandidateIdsNear(projectile.position, projectile.radius + 0.10f, nearbyEnemies);
+        for (int idx = nearbyEnemies.size() - 1; idx >= 0; --idx) {
+            const int enemyIndex = enemyIndexForId(nearbyEnemies.at(idx));
+            if (enemyIndex < 0 || enemyIndex >= m_matchState.enemies.size())
+                continue;
             Enemy &enemy = m_matchState.enemies[enemyIndex];
             const int enemyId = enemy.id;
             if (!circlesOverlap(enemy.position, projectile.position, enemy.radius + projectile.radius))
@@ -2389,6 +2494,7 @@ void SurvivorController::updateProjectiles(qreal deltaSec, int elapsedMs)
 
 void SurvivorController::updateZones(qreal deltaSec, int elapsedMs)
 {
+    QVector<int> nearbyEnemies;
     for (int zoneIndex = m_matchState.zones.size() - 1; zoneIndex >= 0; --zoneIndex) {
         Zone &zone = m_matchState.zones[zoneIndex];
         if (zone.kind == 1) {
@@ -2402,7 +2508,11 @@ void SurvivorController::updateZones(qreal deltaSec, int elapsedMs)
 
         if (zone.tickCooldownMs == 0) {
             zone.tickCooldownMs = zone.tickIntervalMs;
-            for (int enemyIndex = m_matchState.enemies.size() - 1; enemyIndex >= 0; --enemyIndex) {
+            appendEnemyCandidateIdsNear(zone.position, zone.radius + 0.08f, nearbyEnemies);
+            for (int idx = nearbyEnemies.size() - 1; idx >= 0; --idx) {
+                const int enemyIndex = enemyIndexForId(nearbyEnemies.at(idx));
+                if (enemyIndex < 0 || enemyIndex >= m_matchState.enemies.size())
+                    continue;
                 if (!circlesOverlap(m_matchState.enemies.at(enemyIndex).position, zone.position,
                                     m_matchState.enemies.at(enemyIndex).radius + zone.radius)) {
                     continue;
@@ -2468,6 +2578,55 @@ void SurvivorController::collectPickups(qreal deltaSec)
 
     if (m_matchState.pendingInteractionPlayerId < 0)
         tryOpenQueuedChest();
+}
+
+void SurvivorController::compactPickupPopulation()
+{
+    if (m_pickupCompactionCooldownMs > 0 || m_matchState.pickups.size() < 180)
+        return;
+    m_pickupCompactionCooldownMs = 220;
+
+    struct AggregatedPickup {
+        QVector2D weightedPosition;
+        int exp = 0;
+        int count = 0;
+    };
+
+    constexpr qreal PickupMergeCellSize = 0.065f;
+    QHash<quint64, AggregatedPickup> buckets;
+    QVector<Pickup> mergedPickups;
+    mergedPickups.reserve(m_matchState.pickups.size());
+    buckets.reserve(m_matchState.pickups.size());
+
+    auto appendAggregatedPickup = [&mergedPickups](const AggregatedPickup &bucket) {
+        if (bucket.exp <= 0 || bucket.count <= 0)
+            return;
+        Pickup pickup;
+        pickup.exp = bucket.exp;
+        pickup.kind = pickupKindForExp(bucket.exp);
+        pickup.radius = pickupRadiusForKind(pickup.kind);
+        pickup.position = bucket.weightedPosition / static_cast<float>(bucket.exp);
+        mergedPickups.append(pickup);
+    };
+
+    for (const Pickup &pickup : std::as_const(m_matchState.pickups)) {
+        if (pickup.kind == ChestPickup) {
+            mergedPickups.append(pickup);
+            continue;
+        }
+
+        const int cellX = qFloor(pickup.position.x() / PickupMergeCellSize);
+        const int cellY = qFloor(pickup.position.y() / PickupMergeCellSize);
+        AggregatedPickup &bucket = buckets[spatialCellKey(cellX, cellY)];
+        bucket.weightedPosition += pickup.position * static_cast<float>(pickup.exp);
+        bucket.exp += pickup.exp;
+        ++bucket.count;
+    }
+
+    for (auto it = buckets.cbegin(); it != buckets.cend(); ++it)
+        appendAggregatedPickup(it.value());
+
+    m_matchState.pickups = std::move(mergedPickups);
 }
 
 void SurvivorController::defeatEnemy(int index, int ownerPlayerId)
@@ -2747,10 +2906,10 @@ bool SurvivorController::applyEvolution(PlayerState &player, const QString &weap
         m_matchState.worldRuntime.crossSpeed = qMax<qreal>(m_matchState.worldRuntime.crossSpeed, 1.46f);
     } else if (weaponId == QStringLiteral("santawater_weapon")) {
         player.santaWaterEvolved = true;
-        player.santaWaterDamage = qMax(player.santaWaterDamage, 50);
-        player.santaWaterDurationMs = qMax(player.santaWaterDurationMs, 3500);
-        m_matchState.worldRuntime.santaWaterRadius = qMax<qreal>(m_matchState.worldRuntime.santaWaterRadius, 0.132f);
-        player.santaWaterCooldownBaseMs = qMin(player.santaWaterCooldownBaseMs, 4500);
+        player.santaWaterDamage = qMax(player.santaWaterDamage, 42);
+        player.santaWaterDurationMs = qMax(player.santaWaterDurationMs, 3000);
+        m_matchState.worldRuntime.santaWaterRadius = qMax<qreal>(m_matchState.worldRuntime.santaWaterRadius, 0.118f);
+        player.santaWaterCooldownBaseMs = qMin(player.santaWaterCooldownBaseMs, 4800);
     } else {
         return false;
     }
@@ -3026,6 +3185,47 @@ void SurvivorController::refreshFrameCache()
     m_cachedDamageNumbers = exportDamageNumberVariantList();
 }
 
+int SurvivorController::nearestEnemyIndex(const QVector2D &position) const
+{
+    QVector<int> nearbyEnemies;
+    appendEnemyCandidateIdsNear(position, 3.8f, nearbyEnemies);
+
+    int bestIndex = -1;
+    qreal bestDistance = std::numeric_limits<qreal>::max();
+    auto scanEnemy = [this, &position, &bestIndex, &bestDistance](int enemyIndex) {
+        if (enemyIndex < 0 || enemyIndex >= m_matchState.enemies.size())
+            return;
+        const qreal distanceSquared = (m_matchState.enemies.at(enemyIndex).position - position).lengthSquared();
+        if (distanceSquared >= bestDistance)
+            return;
+        bestDistance = distanceSquared;
+        bestIndex = enemyIndex;
+    };
+
+    for (int enemyId : std::as_const(nearbyEnemies))
+        scanEnemy(enemyIndexForId(enemyId));
+
+    if (bestIndex >= 0)
+        return bestIndex;
+
+    for (int enemyIndex = 0; enemyIndex < m_matchState.enemies.size(); ++enemyIndex)
+        scanEnemy(enemyIndex);
+    return bestIndex;
+}
+
+int SurvivorController::enemyIndexForId(int enemyId) const
+{
+    const auto it = m_enemyIndexById.constFind(enemyId);
+    if (it == m_enemyIndexById.cend())
+        return -1;
+    const int enemyIndex = it.value();
+    if (enemyIndex < 0 || enemyIndex >= m_matchState.enemies.size())
+        return -1;
+    if (m_matchState.enemies.at(enemyIndex).id != enemyId)
+        return -1;
+    return enemyIndex;
+}
+
 bool SurvivorController::tryApplyHit(int enemyIndex,
                                      const QVector2D &sourcePosition,
                                      int sourceId,
@@ -3269,7 +3469,7 @@ void SurvivorController::addDamageNumber(const QVector2D &position, int amount, 
     number.elite = elite;
     m_matchState.damageNumbers.append(number);
 
-    while (m_matchState.damageNumbers.size() > 72)
+    while (m_matchState.damageNumbers.size() > 60)
         m_matchState.damageNumbers.removeFirst();
 }
 

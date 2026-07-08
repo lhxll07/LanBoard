@@ -23,6 +23,7 @@ Page {
     property real arenaScale: Math.max(renderCanvas.width * (compactLayout ? 0.64 : 0.56), 220)
     property real hudHeight: compactLayout ? 82 : 78
     property real radarCardSize: compactLayout ? 76 : 82
+    readonly property bool mobilePerformanceMode: Qt.platform.os === "android"
     property var weaponModel: AppCtrl.survivorController.weaponSlots
     property var passiveModel: AppCtrl.survivorController.passiveSlots
     readonly property bool touchInputBlocked: exitConfirmVisible
@@ -194,9 +195,9 @@ Page {
             anchors.bottom: parent.bottom
             controller: AppCtrl.survivorController
             compactLayout: root.compactLayout
-            layer.enabled: true
-            layer.smooth: true
-            layer.samples: 8
+            layer.enabled: !root.mobilePerformanceMode
+            layer.smooth: !root.mobilePerformanceMode
+            layer.samples: root.mobilePerformanceMode ? 0 : 4
         }
 
         Item {
@@ -234,12 +235,11 @@ Page {
                         text: "-" + modelData.amount
                         color: Qt.rgba(10 / 255, 12 / 255, 11 / 255, parent.textAlpha * 0.78)
                         font.family: "STSong"
-                        font.pixelSize: modelData.elite ? 28 : 22
+                        font.pixelSize: modelData.elite ? 26 : 20
                         font.weight: Font.Black
                         x: 2
                         y: 2
-                        renderType: Text.QtRendering
-                        renderTypeQuality: Text.HighRenderTypeQuality
+                        renderType: Text.NativeRendering
                     }
 
                     Text {
@@ -250,10 +250,9 @@ Page {
                             ? Qt.rgba(255 / 255, 232 / 255, 154 / 255, parent.textAlpha)
                             : Qt.rgba(250 / 255, 214 / 255, 122 / 255, parent.textAlpha)
                         font.family: "STSong"
-                        font.pixelSize: modelData.elite ? 28 : 22
+                        font.pixelSize: modelData.elite ? 26 : 20
                         font.weight: Font.Black
-                        renderType: Text.QtRendering
-                        renderTypeQuality: Text.HighRenderTypeQuality
+                        renderType: Text.NativeRendering
                     }
                 }
             }
@@ -535,9 +534,9 @@ Page {
                 controller: AppCtrl.survivorController
                 radarMode: true
                 compactLayout: root.compactLayout
-                layer.enabled: true
-                layer.smooth: true
-                layer.samples: 8
+                layer.enabled: !root.mobilePerformanceMode
+                layer.smooth: !root.mobilePerformanceMode
+                layer.samples: root.mobilePerformanceMode ? 0 : 4
             }
         }
 

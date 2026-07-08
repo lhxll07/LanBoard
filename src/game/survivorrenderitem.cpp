@@ -796,115 +796,124 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
                 : 1.0;
             const qreal zonePulse = 0.5 + 0.5 * qSin(m_frameCounter * 0.19 + i * 0.82);
             const qreal zoneSpin = m_frameCounter * (zone.kind == 1 ? 1.7 : 1.2) + i * 41.0;
+            const qreal spawnFlash = qBound(0.0, (lifeRatio - 0.72) / 0.28, 1.0);
             if (zone.kind == 1) {
                 appendRegularPolygon(fillVertices,
                                      point,
-                                     radius * (1.10 + 0.04 * zonePulse),
-                                     28,
-                                     QColor(10, 18, 26, qRound(18 + 14 * lifeRatio)));
+                                     radius * (1.04 + 0.03 * zonePulse),
+                                     18,
+                                     QColor(10, 18, 24, qRound(14 + 10 * lifeRatio)));
                 appendRing(fillVertices,
                            point,
-                           radius * (1.00 + 0.03 * zonePulse),
-                           radius * 0.78,
-                           36,
-                           QColor(64, 116, 194, qRound(28 + 14 * zonePulse)));
+                           radius * (0.96 + 0.02 * zonePulse),
+                           radius * 0.76,
+                           20,
+                           QColor(52, 102, 176, qRound(22 + 10 * zonePulse)));
                 appendRegularPolygon(fillVertices,
                                      point,
-                                     radius * 0.78,
-                                     28,
-                                     QColor(78, 138, 224, qRound(32 + 18 * lifeRatio)));
+                                     radius * 0.74,
+                                     16,
+                                     QColor(64, 124, 212, qRound(24 + 14 * lifeRatio)));
                 appendRing(fillVertices,
                            point,
-                           radius * (0.72 + 0.04 * reversePulse),
-                           radius * (0.62 + 0.03 * reversePulse),
-                           32,
-                           QColor(164, 218, 255, qRound(30 + 16 * zonePulse)));
+                           radius * (0.68 + 0.03 * reversePulse),
+                           radius * (0.58 + 0.02 * reversePulse),
+                           18,
+                           QColor(132, 192, 246, qRound(24 + 10 * zonePulse)));
                 appendRing(fillVertices,
                            point,
-                           radius * (0.48 + 0.05 * zonePulse),
-                           radius * (0.40 + 0.03 * zonePulse),
-                           28,
-                           QColor(226, 246, 255, qRound(22 + 10 * reversePulse)));
+                           radius * (0.44 + 0.04 * zonePulse),
+                           radius * (0.36 + 0.02 * reversePulse),
+                           16,
+                           QColor(218, 238, 252, qRound(18 + 8 * reversePulse)));
                 appendRegularPolygon(fillVertices,
                                      QPointF(point.x() - radius * 0.06, point.y() - radius * 0.04),
-                                     radius * (0.28 + 0.04 * zonePulse),
-                                     18,
-                                     QColor(236, 248, 255, qRound(36 + 20 * zonePulse)));
-                for (int droplet = 0; droplet < 5; ++droplet) {
-                    const qreal angle = zoneSpin + droplet * 72.0;
+                                     radius * (0.24 + 0.03 * zonePulse),
+                                     12,
+                                     QColor(230, 242, 252, qRound(28 + 14 * zonePulse)));
+                for (int droplet = 0; droplet < 3; ++droplet) {
+                    const qreal angle = zoneSpin + droplet * 120.0;
                     const QPointF splashPoint(point.x() + qCos(qDegreesToRadians(angle)) * radius * 0.66,
                                               point.y() + qSin(qDegreesToRadians(angle)) * radius * 0.66);
                     appendSplashDroplet(fillVertices,
                                         lineVertices,
                                         splashPoint,
-                                        radius * 0.12,
+                                        radius * 0.10,
                                         angle - 90.0,
-                                        QColor(138, 204, 255, 58),
-                                        QColor(246, 251, 255, 120),
-                                        QColor(196, 232, 255, 78),
+                                        QColor(122, 190, 242, 48),
+                                        QColor(232, 244, 252, 92),
+                                        QColor(178, 220, 248, 60),
                                         QColor(10, 16, 20, 28));
                 }
                 appendRegularPolygonOutline(lineVertices,
                                             point,
-                                            radius * (0.96 + 0.02 * zonePulse),
-                                            28,
-                                            QColor(150, 214, 255, qRound(104 + 24 * zonePulse)));
+                                            radius * (0.92 + 0.02 * zonePulse),
+                                            18,
+                                            QColor(138, 206, 248, qRound(82 + 16 * zonePulse)));
                 appendRegularPolygonOutline(lineVertices,
                                             point,
-                                            radius * (0.68 + 0.03 * reversePulse),
-                                            24,
-                                            QColor(220, 242, 255, qRound(92 + 18 * reversePulse)));
+                                            radius * (0.64 + 0.02 * reversePulse),
+                                            14,
+                                            QColor(212, 234, 248, qRound(66 + 12 * reversePulse)));
             } else {
+                if (spawnFlash > 0.0) {
+                    appendRing(fillVertices,
+                               point,
+                               radius * (1.05 + 0.12 * spawnFlash),
+                               radius * (0.86 + 0.06 * spawnFlash),
+                               18,
+                               QColor(174, 214, 246, qRound(18 + 30 * spawnFlash)));
+                }
                 appendRegularPolygon(fillVertices,
                                      point,
-                                     radius * 1.04,
-                                     26,
-                                     QColor(8, 14, 20, qRound(14 + 10 * lifeRatio)));
+                                     radius * 1.00,
+                                     18,
+                                     QColor(8, 14, 20, qRound(12 + 8 * lifeRatio)));
                 appendRegularPolygon(fillVertices,
                                      point,
-                                     radius * 0.94,
-                                     24,
-                                     QColor(88, 136, 208, qRound(26 + 12 * zonePulse)));
+                                     radius * 0.88,
+                                     16,
+                                     QColor(64, 116, 184, qRound(24 + 10 * zonePulse)));
                 appendRegularPolygon(fillVertices,
                                      QPointF(point.x() - radius * 0.04, point.y() - radius * 0.05),
-                                     radius * 0.54,
-                                     20,
-                                     QColor(186, 224, 255, qRound(24 + 12 * reversePulse)));
+                                     radius * (0.48 + 0.05 * spawnFlash),
+                                     12,
+                                     QColor(172, 210, 236, qRound(18 + 20 * reversePulse)));
                 appendRegularPolygon(fillVertices,
                                      QPointF(point.x(), point.y() - radius * 0.04),
-                                     radius * (0.20 + 0.03 * zonePulse),
-                                     16,
-                                     QColor(246, 250, 255, qRound(68 + 22 * zonePulse)));
+                                     radius * (0.18 + 0.04 * zonePulse),
+                                     10,
+                                     QColor(238, 244, 248, qRound(40 + 14 * zonePulse)));
                 appendRing(fillVertices,
                            point,
-                           radius * (0.78 + 0.03 * zonePulse),
-                           radius * (0.70 + 0.02 * zonePulse),
-                           30,
-                           QColor(214, 236, 255, qRound(24 + 16 * zonePulse)));
-                for (int droplet = 0; droplet < 4; ++droplet) {
-                    const qreal angle = zoneSpin + droplet * 90.0;
+                           radius * (0.74 + 0.02 * zonePulse),
+                           radius * (0.66 + 0.02 * zonePulse),
+                           16,
+                           QColor(206, 228, 246, qRound(18 + 10 * zonePulse)));
+                for (int droplet = 0; droplet < 2; ++droplet) {
+                    const qreal angle = zoneSpin + droplet * 180.0;
                     const QPointF splashPoint(point.x() + qCos(qDegreesToRadians(angle)) * radius * 0.58,
                                               point.y() + qSin(qDegreesToRadians(angle)) * radius * 0.58);
                     appendSplashDroplet(fillVertices,
                                         lineVertices,
                                         splashPoint,
-                                        radius * 0.10,
+                                        radius * (0.10 + 0.02 * spawnFlash),
                                         angle - 90.0,
-                                        QColor(142, 192, 242, 48),
-                                        QColor(246, 251, 255, 104),
-                                        QColor(196, 224, 252, 60),
+                                        QColor(128, 182, 228, 40),
+                                        QColor(236, 244, 250, 86),
+                                        QColor(182, 214, 240, 54),
                                         QColor(10, 16, 20, 24));
                 }
                 appendRegularPolygonOutline(lineVertices,
                                             point,
-                                            radius * 0.92,
-                                            24,
-                                            QColor(162, 210, 255, qRound(88 + 12 * zonePulse)));
+                                            radius * 0.88,
+                                            16,
+                                            QColor(150, 198, 238, qRound(72 + 10 * zonePulse)));
                 appendRegularPolygonOutline(lineVertices,
                                             point,
-                                            radius * (0.56 + 0.02 * reversePulse),
-                                            18,
-                                            QColor(228, 242, 255, qRound(64 + 10 * reversePulse)));
+                                            radius * (0.52 + 0.02 * reversePulse),
+                                            12,
+                                            QColor(220, 236, 248, qRound(52 + 8 * reversePulse)));
             }
         }
 

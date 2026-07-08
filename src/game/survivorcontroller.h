@@ -150,10 +150,13 @@ private:
     void updateGarlicAura();
     void trimEnemyPopulation();
     void resolveEnemySeparation();
+    void rebuildEnemyQueryGrid();
+    void appendEnemyCandidateIdsNear(const QVector2D &position, qreal radius, QVector<int> &out) const;
     void updateOrbitals(qreal deltaSec, int elapsedMs);
     void updateProjectiles(qreal deltaSec, int elapsedMs);
     void updateZones(qreal deltaSec, int elapsedMs);
     void collectPickups(qreal deltaSec);
+    void compactPickupPopulation();
     void defeatEnemy(int index, int ownerPlayerId = -1);
     void gainExp(PlayerState &player, int amount);
     void prepareLevelUpChoices(PlayerState &player);
@@ -236,6 +239,8 @@ private:
     int currentWaveIndex() const;
     int currentEnemyKind() const;
     int currentEliteKind() const;
+    int nearestEnemyIndex(const QVector2D &position) const;
+    int enemyIndexForId(int enemyId) const;
     bool hasLivingBoss() const;
     QVector2D playerAnchor() const;
     QVector2D cameraAnchor() const;
@@ -283,6 +288,8 @@ private:
     QVector<PlayerState> m_networkTargetPlayers;
     RenderSnapshot m_networkBaseSnapshot;
     RenderSnapshot m_networkTargetSnapshot;
+    QHash<quint64, QVector<int>> m_enemyQueryBuckets;
+    QHash<int, int> m_enemyIndexById;
     quint64 m_lastAppliedNetworkStateSeq = 0;
     quint64 m_lastAppliedFastStateSeq = 0;
     quint64 m_lastAppliedHudStateSeq = 0;
@@ -304,9 +311,10 @@ private:
     QString m_statusText;
     QString m_upgradeSummary;
     bool m_networkHudDirty = false;
+    int m_pickupCompactionCooldownMs = 0;
 
-    static constexpr int NetworkSnapshotIntervalMs = 16;
-    static constexpr int NetworkHudSnapshotIntervalMs = 150;
-    static constexpr int NetworkInterpolationMinMs = 8;
-    static constexpr int NetworkInterpolationMaxMs = 20;
+    static constexpr int NetworkSnapshotIntervalMs = 33;
+    static constexpr int NetworkHudSnapshotIntervalMs = 180;
+    static constexpr int NetworkInterpolationMinMs = 16;
+    static constexpr int NetworkInterpolationMaxMs = 48;
 };

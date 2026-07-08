@@ -206,11 +206,11 @@ const WaveTemplate kWaveTemplates[] = {
     {"鬼花开场", 420, 3, 16500, 1, 130, kWave7Spawns, static_cast<int>(std::size(kWave7Spawns)), kWave5Elites, static_cast<int>(std::size(kWave5Elites))},
     {"进化节点", 370, 4, 14000, 2, 154, kWave8Spawns, static_cast<int>(std::size(kWave8Spawns)), kWave6Elites, static_cast<int>(std::size(kWave6Elites))},
     {"骨环收束", 330, 4, 11800, 2, 180, kWave9Spawns, static_cast<int>(std::size(kWave9Spawns)), kWave7Elites, static_cast<int>(std::size(kWave7Elites))},
-    {"狼鬼混编", 285, 5, 9800, 2, 212, kWave10Spawns, static_cast<int>(std::size(kWave10Spawns)), kWave8Elites, static_cast<int>(std::size(kWave8Elites))},
-    {"巨压过渡", 245, 5, 8400, 2, 246, kWave11Spawns, static_cast<int>(std::size(kWave11Spawns)), kWave9Elites, static_cast<int>(std::size(kWave9Elites))},
-    {"花墙与棺群", 210, 6, 7200, 3, 286, kWave12Spawns, static_cast<int>(std::size(kWave12Spawns)), kWave12Elites, static_cast<int>(std::size(kWave12Elites))},
-    {"墓潮回涌", 180, 7, 6000, 3, 336, kWave13Spawns, static_cast<int>(std::size(kWave13Spawns)), kWave13Elites, static_cast<int>(std::size(kWave13Elites))},
-    {"血月终曲", 150, 8, 4800, 4, 392, kWave14Spawns, static_cast<int>(std::size(kWave14Spawns)), kWave14Elites, static_cast<int>(std::size(kWave14Elites))}
+    {"狼鬼混编", 300, 4, 10200, 2, 196, kWave10Spawns, static_cast<int>(std::size(kWave10Spawns)), kWave8Elites, static_cast<int>(std::size(kWave8Elites))},
+    {"巨压过渡", 272, 4, 9000, 2, 224, kWave11Spawns, static_cast<int>(std::size(kWave11Spawns)), kWave9Elites, static_cast<int>(std::size(kWave9Elites))},
+    {"花墙与棺群", 244, 5, 7900, 2, 252, kWave12Spawns, static_cast<int>(std::size(kWave12Spawns)), kWave12Elites, static_cast<int>(std::size(kWave12Elites))},
+    {"墓潮回涌", 214, 5, 6900, 3, 286, kWave13Spawns, static_cast<int>(std::size(kWave13Spawns)), kWave13Elites, static_cast<int>(std::size(kWave13Elites))},
+    {"血月终曲", 188, 6, 5900, 3, 324, kWave14Spawns, static_cast<int>(std::size(kWave14Spawns)), kWave14Elites, static_cast<int>(std::size(kWave14Elites))}
 };
 
 const BossSpawnTemplate kBossSpawnSchedule[] = {
@@ -221,8 +221,9 @@ const BossSpawnTemplate kBossSpawnSchedule[] = {
     {510, OgreEnemy},
     {600, FlowerEnemy},
     {690, OgreEnemy},
-    {780, FlowerEnemy},
-    {870, GiantBatEnemy}
+    {780, GiantBatEnemy},
+    {840, FlowerEnemy},
+    {894, GiantBatEnemy}
 };
 
 const WaveEventTemplate kWaveEventSchedule[] = {
@@ -231,7 +232,8 @@ const WaveEventTemplate kWaveEventSchedule[] = {
     {540, WaveEventBatSwarm, 56, 1.30f, 0.0f, 0},
     {660, WaveEventFlowerWall, 32, 1.12f, 0.074f, 148},
     {780, WaveEventBatSwarm, 76, 1.40f, 0.0f, 0},
-    {840, WaveEventFlowerWall, 38, 1.20f, 0.086f, 196}
+    {840, WaveEventFlowerWall, 38, 1.20f, 0.086f, 196},
+    {885, WaveEventBatSwarm, 54, 1.48f, 0.0f, 0}
 };
 
 }  // namespace
@@ -314,14 +316,14 @@ const WeaponLevelInfo kCrossLevels[8] = {
 };
 
 const WeaponLevelInfo kSantaWaterLevels[8] = {
-    {10, 4500, 1, 0, 2000, 0.08f, 0.0f, 0.0f, "解锁圣水，在最近敌人周围投下持续伤害圣池。"},
-    {0, 4500, 1, 0, 0, 0.08f, 0.0f, 0.0f, "圣水数量 +1。"},
-    {10, 4500, 0, 0, 500, 0.08f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长。"},
-    {0, 4500, 1, 0, 0, 0.10f, 0.0f, 0.0f, "圣水数量 +1，半径扩大。"},
-    {10, 4500, 0, 0, 500, 0.10f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长。"},
-    {0, 4500, 1, 0, 0, 0.112f, 0.0f, 0.0f, "圣水数量 +1，半径扩大。"},
-    {10, 4500, 0, 0, 500, 0.112f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长。"},
-    {10, 4500, 0, 0, 0, 0.124f, 0.0f, 0.0f, "圣水伤害提升，半径扩大。"},
+    {8, 5200, 1, 0, 1500, 0.072f, 0.0f, 0.0f, "解锁圣水，在最近敌人周围投下持续伤害圣池。"},
+    {4, 5200, 0, 0, 300, 0.072f, 0.0f, 0.0f, "圣水伤害提升，持续时间略延长。"},
+    {0, 5000, 1, 0, 0, 0.082f, 0.0f, 0.0f, "圣水数量 +1，半径扩大。"},
+    {6, 5000, 0, 0, 400, 0.082f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长。"},
+    {0, 4800, 1, 0, 0, 0.092f, 0.0f, 0.0f, "圣水数量 +1，投放间隔略缩短。"},
+    {8, 4800, 0, 0, 500, 0.100f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长，半径扩大。"},
+    {0, 4600, 1, 0, 0, 0.108f, 0.0f, 0.0f, "圣水数量 +1，投放间隔继续缩短。"},
+    {10, 4500, 0, 0, 500, 0.116f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长，半径扩大。"},
 };
 
 const WeaponLevelInfo *kWeaponTables[WeaponCount] = {
@@ -422,8 +424,8 @@ const WeaponHitProfile kAttackProfiles[LanBoard::Survivor::AttackProfileCount] =
     {0.014f, 1.0f, 0.020f, 0.08f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 2600, 0, 1},
     {0.016f, 1.22f, 0.024f, 0.06f, 1.0f, 1.20f, 1.0f, 1.0f, 0.0f, 3200, 0, 2},
     {0.018f, 1.0f, 0.060f, 0.12f, 1.0f, 1.0f, 1.0f, 1.05f, 0.0f, 1620, 0, 1000},
-    {0.0f, 1.0f, 0.018f, 0.10f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0, 500, 1},
-    {0.0f, 1.0f, 0.026f, 0.06f, 1.12f, 1.30f, 1.20f, 1.0f, 0.16f, 0, 360, 1},
+    {0.0f, 1.0f, 0.016f, 0.10f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0, 560, 1},
+    {0.0f, 1.0f, 0.020f, 0.06f, 1.05f, 1.18f, 1.10f, 1.0f, 0.11f, 0, 420, 1},
     {0.0f, 1.0f, 0.040f, 0.10f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0, 0, 1},
     {0.0f, 1.0f, 0.028f, 0.08f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0, 1700, 1}
 };
