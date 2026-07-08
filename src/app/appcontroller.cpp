@@ -646,8 +646,6 @@ void AppController::onRemoteSeatChanged(int playerId, const QString &seatType)
     if (!m_roomManager->setPlayerSeatById(playerId, normalizedSeatType))
         return;
 
-    if (normalizedSeatType == QStringLiteral("active"))
-        normalizeRoomSeatsForCurrentGame();
     syncActiveGuestPlayerId();
     broadcastCurrentRoomState();
 }
