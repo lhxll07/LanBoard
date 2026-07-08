@@ -724,6 +724,35 @@ void SurvivorController::setRemoteMoveInput(int playerId, qreal horizontal, qrea
     }
 }
 
+void SurvivorController::finalizeGameOver(int winner)
+{
+    const bool previousRunning = m_matchState.running;
+    const bool previousGameOver = m_matchState.gameOver;
+
+    m_tickTimer.stop();
+    m_matchState.running = false;
+    m_matchState.gameOver = true;
+    m_matchWinner = winner;
+    m_matchState.pendingInteractionPlayerId = -1;
+    m_matchState.pendingInteractionElapsedMs = 0;
+    m_matchState.levelUpPending = false;
+    m_matchState.chestPending = false;
+    m_levelUpChoices.clear();
+    m_chestRewardEntries.clear();
+    m_matchState.chestTitle.clear();
+    refreshLevelUpChoiceCache();
+    refreshChestRewardCache();
+    syncHudState();
+    refreshFrameCache();
+
+    if (previousRunning != m_matchState.running)
+        emit runningChanged();
+    if (previousGameOver != m_matchState.gameOver)
+        emit gameOverChanged();
+    emit stateChanged();
+    emit frameChanged();
+}
+
 void SurvivorController::applyFastNetworkPacket(const QByteArray &payload)
 {
     if (!m_networkSession || m_networkAuthoritative)
@@ -1091,15 +1120,27 @@ const SurvivorController::PlayerState *SurvivorController::playerStateById(int p
 
 SurvivorController::PlayerState *SurvivorController::hudPlayerState()
 {
-    if (PlayerState *player = localPlayerState())
-        return player;
+    if (PlayerState *player = localPlayerState()) {
+        if (player->alive || livingPlayerIndices().isEmpty())
+            return player;
+    }
+    for (PlayerState &player : m_matchState.players) {
+        if (player.alive)
+            return &player;
+    }
     return m_matchState.players.isEmpty() ? nullptr : &m_matchState.players[0];
 }
 
 const SurvivorController::PlayerState *SurvivorController::hudPlayerState() const
 {
-    if (const PlayerState *player = localPlayerState())
-        return player;
+    if (const PlayerState *player = localPlayerState()) {
+        if (player->alive || livingPlayerIndices().isEmpty())
+            return player;
+    }
+    for (const PlayerState &player : m_matchState.players) {
+        if (player.alive)
+            return &player;
+    }
     return m_matchState.players.isEmpty() ? nullptr : &m_matchState.players.first();
 }
 
@@ -1145,9 +1186,7 @@ QVector2D SurvivorController::cameraAnchor() const
 
 QVector2D SurvivorController::cameraAnchorForPlayer(int playerId) const
 {
-    if (const PlayerState *player = playerStateById(playerId))
-        return player->position;
-    return cameraAnchor();
+    return LanBoard::Survivor::Runtime::cameraAnchor(m_matchState, playerId);
 }
 
 QVector2D SurvivorController::combatAnchorForPosition(const QVector2D &position) const
@@ -1557,10 +1596,6 @@ void SurvivorController::tick()
 
     refreshFrameCache();
     emitNetworkSyncIfNeeded();
-    if (m_matchState.gameOver) {
-        emit runningChanged();
-        emit gameOverChanged();
-    }
     const bool shouldEmitStateChanged =
         previousHp != hp()
         || previousMaxHp != maxHp()
@@ -1665,11 +1700,7 @@ void SurvivorController::simulateStep(int elapsedMs)
     }
 
     if (!anyAlive) {
-        m_matchState.gameOver = true;
-        m_matchWinner = 0;
-        m_matchState.running = false;
-        m_tickTimer.stop();
-        updateStatusText();
+        finalizeGameOver(0);
         return;
     }
 
@@ -1680,6 +1711,7 @@ void SurvivorController::simulateStep(int elapsedMs)
             player->moveInput = QVector2D();
     }
 
+    trimEnemyPopulation();
     resolveEnemySeparation();
 
     const int spawnIntervalMs = currentSpawnIntervalMs();
@@ -1719,11 +1751,7 @@ void SurvivorController::simulateStep(int elapsedMs)
     collectPickups(deltaSec);
 
     if (survivalTimeSec() >= SurvivorRunDurationSec) {
-        m_matchState.gameOver = true;
-        m_matchWinner = 1;
-        m_matchState.running = false;
-        m_tickTimer.stop();
-        updateStatusText();
+        finalizeGameOver(1);
     }
 }
 void SurvivorController::applyAutoAttack()
@@ -2001,6 +2029,52 @@ void SurvivorController::updateGarlicAura()
                         enemy.elite ? 0.022f : garlicProfile.knockback,
                         true);
         }
+    }
+}
+
+void SurvivorController::trimEnemyPopulation()
+{
+    const int enemyCap = currentEnemyCap();
+    const int softCap = enemyCap + qMax(10, enemyCap / 12);
+    if (m_matchState.enemies.size() <= softCap)
+        return;
+
+    struct Candidate {
+        int index = -1;
+        int priority = 0;
+        qreal distanceSquared = 0.0;
+    };
+
+    QVector<Candidate> candidates;
+    candidates.reserve(m_matchState.enemies.size());
+    const QVector2D anchor = playerAnchor();
+    for (int i = 0; i < m_matchState.enemies.size(); ++i) {
+        const Enemy &enemy = m_matchState.enemies.at(i);
+        Candidate candidate;
+        candidate.index = i;
+        candidate.priority = enemy.chestCarrier ? 3 : (enemy.elite ? 2 : 1);
+        candidate.distanceSquared = (enemy.position - anchor).lengthSquared();
+        candidates.append(candidate);
+    }
+
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Candidate &lhs, const Candidate &rhs) {
+        if (lhs.priority != rhs.priority)
+            return lhs.priority < rhs.priority;
+        return lhs.distanceSquared > rhs.distanceSquared;
+    });
+
+    QVector<int> removalIndices;
+    const int targetCount = qMax(enemyCap, softCap);
+    const int removeCount = qMax(0, m_matchState.enemies.size() - targetCount);
+    removalIndices.reserve(removeCount);
+    for (int i = 0; i < removeCount && i < candidates.size(); ++i)
+        removalIndices.append(candidates.at(i).index);
+
+    std::sort(removalIndices.begin(), removalIndices.end(), std::greater<int>());
+    for (int index : std::as_const(removalIndices)) {
+        if (index >= 0 && index < m_matchState.enemies.size())
+            m_matchState.enemies.removeAt(index);
     }
 }
 
@@ -3301,7 +3375,7 @@ int SurvivorController::scaledEnemyCount(int baseCount, qreal extraPerPlayer) co
     if (baseCount <= 0)
         return 0;
 
-    const int playerCount = qMax(1, m_matchState.players.size());
+    const int playerCount = qMax(1, livingPlayerIndices().size());
     if (playerCount <= 1)
         return baseCount;
 

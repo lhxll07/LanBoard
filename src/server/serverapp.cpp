@@ -967,16 +967,31 @@ void ServerApp::concludeRoomGame(RoomState *room, int winner, bool broadcastRoom
     if (!room)
         return;
 
+    if (LanBoard::controllerKindForGame(room->gameId) == LanBoard::GameControllerKind::Survivor
+        && room->survivorController) {
+        if (!room->survivorController->isGameOver())
+            room->survivorController->finalizeGameOver(winner);
+
+        for (const PlayerSession *player : activePlayersInRoom(room->roomId)) {
+            if (!player || !player->peer)
+                continue;
+            sendRaw(player->peer,
+                    room->survivorController->buildFastNetworkPacket(player->playerId),
+                    kSurvivorFrameChannel,
+                    ENET_PACKET_FLAG_RELIABLE);
+            sendRaw(player->peer,
+                    room->survivorController->buildHudNetworkPacket(player->playerId),
+                    kSurvivorHudChannel,
+                    ENET_PACKET_FLAG_RELIABLE);
+        }
+    }
+
     QJsonObject msg;
     msg[QStringLiteral("type")] = LanBoard::Protocol::GameOver;
     msg[QStringLiteral("winner")] = winner;
     broadcastJsonToRoom(room->roomId, msg);
 
     room->gameActive = false;
-    if (LanBoard::controllerKindForGame(room->gameId) == LanBoard::GameControllerKind::Survivor
-        && room->survivorController) {
-        room->survivorController->stopRun();
-    }
     clearReadyStates(room);
     if (broadcastRoomStateAfterward)
         broadcastRoomState(room);

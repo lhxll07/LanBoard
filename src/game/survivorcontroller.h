@@ -67,8 +67,8 @@ public:
     bool isGameOver() const override { return m_matchState.gameOver; }
     int winner() const override { return m_matchWinner; }
     bool isNetworkSession() const { return m_networkSession; }
-    int hp() const { const PlayerState *player = localPlayerState(); return player ? player->hp : 0; }
-    int maxHp() const { const PlayerState *player = localPlayerState(); return player ? player->maxHp : 0; }
+    int hp() const { const PlayerState *player = hudPlayerState(); return player ? player->hp : 0; }
+    int maxHp() const { const PlayerState *player = hudPlayerState(); return player ? player->maxHp : 0; }
     int level() const { return m_matchState.level; }
     int exp() const { return m_matchState.exp; }
     int expToNext() const { return m_matchState.expToNext; }
@@ -103,6 +103,7 @@ public:
     }
     bool waitingForOtherPlayer() const {
         return m_matchState.pendingInteractionPlayerId >= 0
+            && m_matchState.pendingInteractionPlayerId != m_localPlayerId
             && !m_matchState.levelUpPending
             && !m_matchState.chestPending;
     }
@@ -126,6 +127,7 @@ public:
     void applyFastNetworkPacket(const QByteArray &payload);
     void applyHudNetworkPacket(const QByteArray &payload);
     void setRemoteMoveInput(int playerId, qreal horizontal, qreal vertical);
+    void finalizeGameOver(int winner = 0);
 
 signals:
     void stateChanged();
@@ -145,6 +147,7 @@ private:
     void simulateStep(int elapsedMs);
     void applyAutoAttack();
     void updateGarlicAura();
+    void trimEnemyPopulation();
     void resolveEnemySeparation();
     void updateOrbitals(qreal deltaSec, int elapsedMs);
     void updateProjectiles(qreal deltaSec, int elapsedMs);

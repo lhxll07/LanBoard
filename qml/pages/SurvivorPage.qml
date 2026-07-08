@@ -14,6 +14,7 @@ Page {
     property bool keyLeft: false
     property bool keyRight: false
     property bool compactLayout: width < 460
+    property bool exitConfirmVisible: false
     property real arenaScale: Math.max(renderCanvas.width * (compactLayout ? 0.64 : 0.56), 220)
     property real hudHeight: compactLayout ? 82 : 78
     property real radarCardSize: compactLayout ? 76 : 82
@@ -33,6 +34,15 @@ Page {
     }
 
     function leaveCurrentGame() {
+        if (AppCtrl.survivorController.gameOver) {
+            AppCtrl.returnFromSurvivorGame()
+            return
+        }
+        exitConfirmVisible = true
+    }
+
+    function confirmLeaveCurrentGame() {
+        exitConfirmVisible = false
         AppCtrl.survivorController.stopRun()
         if (AppCtrl.networkManager.isHost || AppCtrl.networkManager.isConnected)
             AppCtrl.leaveRoom()
@@ -768,7 +778,7 @@ Page {
             visible: AppCtrl.survivorController.gameOver
             anchors.centerIn: parent
             width: Math.min(parent.width - 36, 300)
-            height: 164
+            height: 212
             radius: 24
             color: "#F2E8D8"
             border.width: 1
@@ -797,12 +807,75 @@ Page {
                     wrapMode: Text.WordWrap
                 }
 
+                Text {
+                    Layout.fillWidth: true
+                    text: AppCtrl.survivorController.statusText
+                    color: AppTheme.textSecondary
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
                 Item { Layout.fillHeight: true }
 
                 ActionButton {
                     Layout.fillWidth: true
                     text: "返回房间页"
-                    onClicked: root.leaveCurrentGame()
+                    onClicked: AppCtrl.returnFromSurvivorGame()
+                }
+            }
+        }
+
+        Rectangle {
+            visible: root.exitConfirmVisible
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 44, 292)
+            height: 176
+            radius: 24
+            color: "#F2E8D8"
+            border.width: 1
+            border.color: "#D1C2AA"
+            z: 40
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 10
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "确认退出本局？"
+                    color: AppTheme.textPrimary
+                    font.pixelSize: 20
+                    font.weight: Font.DemiBold
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: AppCtrl.networkManager.isHost || AppCtrl.networkManager.isConnected
+                        ? "退出后会离开当前对局并返回联机房间。"
+                        : "退出后会结束当前对局并返回房间页。"
+                    color: AppTheme.textSecondary
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
+                Item { Layout.fillHeight: true }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    ActionButton {
+                        Layout.fillWidth: true
+                        text: "继续游戏"
+                        onClicked: root.exitConfirmVisible = false
+                    }
+
+                    ActionButton {
+                        Layout.fillWidth: true
+                        text: "确认退出"
+                        onClicked: root.confirmLeaveCurrentGame()
+                    }
                 }
             }
         }

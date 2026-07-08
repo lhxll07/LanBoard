@@ -58,9 +58,10 @@ AppController::AppController(QObject *parent)
             && m_roomManager->isHost()
             && (m_networkManager->isHost() || m_networkManager->isConnected())) {
             m_networkManager->sendGameOverResult(0);
+            m_networkManager->setDiscoveryGameInProgress(false);
+            m_roomManager->clearReadyStates();
+            broadcastCurrentRoomState();
         }
-        if (m_networkManager->isHost() || m_networkManager->isConnected())
-            finishCurrentGameSession(0, false);
     });
 
     // Network signals
@@ -411,6 +412,24 @@ void AppController::openLobbyForGame(const QString &gameId)
     emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Room));
 }
 
+void AppController::returnFromSurvivorGame()
+{
+    if (!isCurrentGame(LanBoard::GameControllerKind::Survivor))
+        return;
+
+    m_networkManager->setDiscoveryGameInProgress(false);
+    m_survivorController->stopRun();
+
+    if (m_networkManager->isHost()) {
+        m_roomManager->clearReadyStates();
+        broadcastCurrentRoomState();
+    } else if (!m_networkManager->isConnected()) {
+        m_roomManager->clearReadyStates();
+    }
+
+    emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Room));
+}
+
 void AppController::toggleLocalReady()
 {
     m_roomManager->toggleReady();
@@ -726,7 +745,8 @@ void AppController::applyReceivedGameOver(int winner)
 {
     switch (currentControllerKind()) {
     case LanBoard::GameControllerKind::Survivor:
-        finishCurrentGameSession(winner, false);
+        m_networkManager->setDiscoveryGameInProgress(false);
+        m_survivorController->finalizeGameOver(winner);
         return;
     case LanBoard::GameControllerKind::FlightChess:
         m_flightChessController->setGameOver(winner);
