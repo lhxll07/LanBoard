@@ -123,7 +123,6 @@ private:
     bool isCurrentGame(LanBoard::GameControllerKind kind) const;
     void navigateToCurrentGame();
     void configureRoomGame(const QString &gameId);
-    void normalizeRoomSeatsForCurrentGame();
     int roomCapacity() const;
 
     RoomManager *m_roomManager = nullptr;

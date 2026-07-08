@@ -16,6 +16,7 @@
 #include "../game/doudizhucontroller.h"
 #include "../game/flightchesscontroller.h"
 #include "../game/survivorcontroller.h"
+#include "../lobby/roommanager.h"
 
 class ServerApp : public QObject
 {
@@ -30,20 +31,12 @@ public:
 private:
     struct PlayerSession {
         int playerId = -1;
-        int piece = 0;
-        QString name;
         QString roomId;
-        bool isHost = false;
-        bool isReady = false;
-        LanBoard::SeatKind seatKind = LanBoard::SeatKind::Active;
         ENetPeer *peer = nullptr;
     };
 
     struct RoomState {
-        QString roomId;
-        QString roomName;
-        QString gameId = QStringLiteral("gomoku");
-        bool gameActive = false;
+        std::unique_ptr<RoomManager> roomManager;
         std::unique_ptr<GameController> gameController;
         std::unique_ptr<DouDiZhuController> douDiZhuController;
         std::unique_ptr<FlightChessController> flightChessController;
@@ -83,11 +76,9 @@ private:
     bool processBinaryPacket(ENetPeer *peer, const QByteArray &payload);
     void broadcastRoomState(RoomState *room);
     void broadcastDouDiZhuStates(RoomState *room);
-    void clearReadyStates(RoomState *room);
     void startRoomGame(RoomState *room, const QList<PlayerSession *> &activePlayers);
     void handlePlayerDisconnectInRoom(RoomState *room,
-                                      const PlayerSession &session,
-                                      int disconnectedPiece);
+                                      const PlayerSession &session);
     void resetGame(RoomState *room);
     bool isGameFinished(const RoomState *room) const;
     void concludeRoomGame(RoomState *room, int winner, bool broadcastRoomStateAfterward = true);
@@ -117,11 +108,9 @@ private:
     QList<PlayerSession *> activePlayersInRoom(const QString &roomId);
     QList<const PlayerSession *> activePlayersInRoom(const QString &roomId) const;
     QString hostNameForRoom(const QString &roomId) const;
-    int nextPlayerIdForRoom(const QString &roomId, const QString &gameId) const;
     QString createRoomId() const;
     int otherPiece(int piece) const;
     int roomCapacity() const;
-    void normalizeSeats(RoomState *room, bool fillMissingActiveSeats = true);
 
     ENetHost *m_host = nullptr;
     QTimer m_serviceTimer;
