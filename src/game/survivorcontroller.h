@@ -116,8 +116,8 @@ public:
     Q_INVOKABLE void startRun(bool networkSession = false);
     Q_INVOKABLE void stopRun();
     Q_INVOKABLE void setMoveInput(qreal horizontal, qreal vertical);
-    Q_INVOKABLE void chooseLevelUp(const QString &upgradeId);
-    Q_INVOKABLE void closeChestRewards();
+    Q_INVOKABLE bool chooseLevelUp(const QString &upgradeId);
+    Q_INVOKABLE bool closeChestRewards();
     void configureNetworkSession(const QVariantList &activePlayers,
                                  int localPlayerId,
                                  bool networkSession,
@@ -128,6 +128,7 @@ public:
     void applyHudNetworkPacket(const QByteArray &payload);
     void setRemoteMoveInput(int playerId, qreal horizontal, qreal vertical);
     void finalizeGameOver(int winner = 0);
+    void forceNetworkResync(bool includeHudDetails = true);
 
 signals:
     void stateChanged();
@@ -282,10 +283,13 @@ private:
     QVector<PlayerState> m_networkTargetPlayers;
     RenderSnapshot m_networkBaseSnapshot;
     RenderSnapshot m_networkTargetSnapshot;
+    quint64 m_lastAppliedNetworkStateSeq = 0;
     quint64 m_lastAppliedFastStateSeq = 0;
     quint64 m_lastAppliedHudStateSeq = 0;
+    QElapsedTimer m_networkFastPacketTimer;
+    int m_recentNetworkFastIntervalMs = 16;
     int m_networkInterpolationElapsedMs = 0;
-    int m_networkInterpolationDurationMs = 33;
+    int m_networkInterpolationDurationMs = 16;
     bool m_hasNetworkInterpolationTarget = false;
     QVector2D m_localPredictedPosition;
     QVector2D m_localAuthoritativePosition;
@@ -301,6 +305,8 @@ private:
     QString m_upgradeSummary;
     bool m_networkHudDirty = false;
 
-    static constexpr int NetworkSnapshotIntervalMs = 25;
-    static constexpr int NetworkHudSnapshotIntervalMs = 200;
+    static constexpr int NetworkSnapshotIntervalMs = 16;
+    static constexpr int NetworkHudSnapshotIntervalMs = 150;
+    static constexpr int NetworkInterpolationMinMs = 8;
+    static constexpr int NetworkInterpolationMaxMs = 20;
 };

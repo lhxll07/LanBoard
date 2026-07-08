@@ -549,8 +549,12 @@ void SurvivorController::stopRun()
     m_networkTargetPlayers.clear();
     m_networkBaseSnapshot = {};
     m_networkTargetSnapshot = {};
+    m_lastAppliedNetworkStateSeq = 0;
     m_lastAppliedFastStateSeq = 0;
     m_lastAppliedHudStateSeq = 0;
+    m_networkFastPacketTimer.invalidate();
+    m_recentNetworkFastIntervalMs = NetworkSnapshotIntervalMs;
+    m_networkInterpolationDurationMs = NetworkSnapshotIntervalMs;
     m_networkInterpolationElapsedMs = 0;
     m_hasNetworkInterpolationTarget = false;
     m_localPredictedPosition = QVector2D();
@@ -581,19 +585,38 @@ void SurvivorController::setMoveInput(qreal horizontal, qreal vertical)
         emit localInputChanged(input.x(), input.y());
 }
 
-void SurvivorController::chooseLevelUp(const QString &upgradeId)
+bool SurvivorController::chooseLevelUp(const QString &upgradeId)
 {
     const QString normalizedUpgradeId = upgradeId.trimmed();
     if (m_networkSession && !m_networkAuthoritative) {
-        if (m_matchState.levelUpPending && !normalizedUpgradeId.isEmpty())
-            emit levelUpChoiceRequested(normalizedUpgradeId);
-        return;
+        if (!m_matchState.levelUpPending || normalizedUpgradeId.isEmpty())
+            return false;
+
+        bool found = false;
+        for (const UpgradeChoice &choice : std::as_const(m_levelUpChoices)) {
+            if (choice.id == normalizedUpgradeId) {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            return false;
+
+        emit levelUpChoiceRequested(normalizedUpgradeId);
+
+        if (PlayerState *player = localPlayerState())
+            player->levelUpChoices.clear();
+        m_levelUpChoices.clear();
+        syncHudState();
+        emit stateChanged();
+        emit frameChanged();
+        return true;
     }
     PlayerState *player = interactionPlayerState();
     if (!player)
         player = hudPlayerState();
     if (!player || player->levelUpChoices.isEmpty() || normalizedUpgradeId.isEmpty())
-        return;
+        return false;
 
     bool found = false;
     for (const UpgradeChoice &choice : std::as_const(player->levelUpChoices)) {
@@ -603,7 +626,7 @@ void SurvivorController::chooseLevelUp(const QString &upgradeId)
         }
     }
     if (!found)
-        return;
+        return false;
 
     applyUpgrade(*player, normalizedUpgradeId);
     if (player->pendingLevelUps > 0)
@@ -625,18 +648,30 @@ void SurvivorController::chooseLevelUp(const QString &upgradeId)
     emitNetworkSyncIfNeeded(true);
     emit stateChanged();
     emit frameChanged();
+    return true;
 }
 
-void SurvivorController::closeChestRewards()
+bool SurvivorController::closeChestRewards()
 {
     if (m_networkSession && !m_networkAuthoritative) {
-        if (m_matchState.chestPending)
-            emit chestRewardsCloseRequested();
-        return;
+        if (!m_matchState.chestPending)
+            return false;
+
+        emit chestRewardsCloseRequested();
+        if (PlayerState *player = localPlayerState()) {
+            player->chestRewardEntries.clear();
+            player->chestTitle.clear();
+        }
+        m_chestRewardEntries.clear();
+        m_matchState.chestTitle.clear();
+        syncHudState();
+        emit stateChanged();
+        emit frameChanged();
+        return true;
     }
     PlayerState *player = interactionPlayerState();
     if (!player || player->chestRewardEntries.isEmpty())
-        return;
+        return false;
 
     player->chestRewardEntries.clear();
     player->chestTitle.clear();
@@ -654,6 +689,21 @@ void SurvivorController::closeChestRewards()
     emitNetworkSyncIfNeeded(true);
     emit stateChanged();
     emit frameChanged();
+    return true;
+}
+
+void SurvivorController::forceNetworkResync(bool includeHudDetails)
+{
+    if (!m_networkSession || !m_networkAuthoritative)
+        return;
+
+    m_networkBroadcastAccumulatorMs = 0;
+    if (includeHudDetails) {
+        m_networkHudBroadcastAccumulatorMs = 0;
+        m_networkHudDirty = false;
+    }
+    ++m_networkStateSequence;
+    emit networkSyncRequested(includeHudDetails);
 }
 
 void SurvivorController::resetState()
@@ -671,8 +721,12 @@ void SurvivorController::resetState()
     m_networkTargetPlayers.clear();
     m_networkBaseSnapshot = {};
     m_networkTargetSnapshot = {};
+    m_lastAppliedNetworkStateSeq = 0;
     m_lastAppliedFastStateSeq = 0;
     m_lastAppliedHudStateSeq = 0;
+    m_networkFastPacketTimer.invalidate();
+    m_recentNetworkFastIntervalMs = NetworkSnapshotIntervalMs;
+    m_networkInterpolationDurationMs = NetworkSnapshotIntervalMs;
     m_networkInterpolationElapsedMs = 0;
     m_hasNetworkInterpolationTarget = false;
     m_localPredictedPosition = QVector2D();
@@ -765,9 +819,31 @@ void SurvivorController::applyFastNetworkPacket(const QByteArray &payload)
                                                               m_localPlayerId)) {
         return;
     }
-    if (decoded.seq <= m_lastAppliedFastStateSeq)
+    // Fast/HUD state packets share the same authoritative sequence id.
+    // Ignore any packet older than the newest state applied from either channel,
+    // otherwise a delayed HUD packet can reopen an already-resolved level-up dialog.
+    if (decoded.seq < m_lastAppliedNetworkStateSeq
+        || decoded.seq <= m_lastAppliedFastStateSeq) {
         return;
+    }
     m_lastAppliedFastStateSeq = decoded.seq;
+    m_lastAppliedNetworkStateSeq = qMax(m_lastAppliedNetworkStateSeq, decoded.seq);
+    if (!m_networkFastPacketTimer.isValid()) {
+        m_networkFastPacketTimer.start();
+        m_recentNetworkFastIntervalMs = NetworkSnapshotIntervalMs;
+        m_networkInterpolationDurationMs = NetworkSnapshotIntervalMs;
+    } else {
+        const int arrivalIntervalMs = qBound(1,
+                                             static_cast<int>(m_networkFastPacketTimer.restart()),
+                                             80);
+        m_recentNetworkFastIntervalMs = qRound(m_recentNetworkFastIntervalMs * 0.45
+                                               + arrivalIntervalMs * 0.55);
+        const int targetInterpolationMs = qBound(NetworkInterpolationMinMs,
+                                                 qRound(m_recentNetworkFastIntervalMs * 0.72),
+                                                 NetworkInterpolationMaxMs);
+        m_networkInterpolationDurationMs = qRound(m_networkInterpolationDurationMs * 0.35
+                                                  + targetInterpolationMs * 0.65);
+    }
 
     const bool previousRunning = m_matchState.running;
     const bool previousGameOver = m_matchState.gameOver;
@@ -881,9 +957,12 @@ void SurvivorController::applyHudNetworkPacket(const QByteArray &payload)
     LanBoard::Survivor::NetCodec::HudNetworkState decoded;
     if (!LanBoard::Survivor::NetCodec::decodeHudNetworkState(payload, decoded))
         return;
-    if (decoded.seq <= m_lastAppliedHudStateSeq)
+    if (decoded.seq < m_lastAppliedNetworkStateSeq
+        || decoded.seq <= m_lastAppliedHudStateSeq) {
         return;
+    }
     m_lastAppliedHudStateSeq = decoded.seq;
+    m_lastAppliedNetworkStateSeq = qMax(m_lastAppliedNetworkStateSeq, decoded.seq);
 
     const bool previousLevelUpPending = m_matchState.levelUpPending;
     const bool previousChestPending = m_matchState.chestPending;
@@ -1092,10 +1171,10 @@ void SurvivorController::stepRemoteInterpolation(int elapsedMs)
         }
 
         const QVector2D error = m_localAuthoritativePosition - m_localPredictedPosition;
-        if (error.lengthSquared() > 0.18f * 0.18f) {
+        if (error.lengthSquared() > 0.14f * 0.14f) {
             m_localPredictedPosition = m_localAuthoritativePosition;
         } else {
-            m_localPredictedPosition += error * static_cast<float>(qMin<qreal>(1.0, elapsedMs / 1000.0 * 10.0));
+            m_localPredictedPosition += error * static_cast<float>(qMin<qreal>(1.0, elapsedMs / 1000.0 * 16.0));
         }
         local->position = m_localPredictedPosition;
         for (RenderPlayer &renderPlayer : m_renderSnapshot.players) {
@@ -1228,8 +1307,18 @@ SurvivorController::RenderSnapshot SurvivorController::buildNetworkRenderSnapsho
     }
 
     snapshot.orbitals = m_renderSnapshot.orbitals;
+    for (auto it = snapshot.orbitals.begin(); it != snapshot.orbitals.end(); ) {
+        if (!insideRange(it->x, it->y, it->radius))
+            it = snapshot.orbitals.erase(it);
+        else
+            ++it;
+    }
 
-    snapshot.projectiles = m_renderSnapshot.projectiles;
+    snapshot.projectiles.reserve(m_renderSnapshot.projectiles.size());
+    for (const RenderProjectile &projectile : m_renderSnapshot.projectiles) {
+        if (insideRange(projectile.x, projectile.y, projectile.radius))
+            snapshot.projectiles.append(projectile);
+    }
 
     snapshot.pickups.reserve(m_renderSnapshot.pickups.size());
     for (const RenderPickup &pickup : m_renderSnapshot.pickups) {
@@ -1237,9 +1326,17 @@ SurvivorController::RenderSnapshot SurvivorController::buildNetworkRenderSnapsho
             snapshot.pickups.append(pickup);
     }
 
-    snapshot.zones = m_renderSnapshot.zones;
+    snapshot.zones.reserve(m_renderSnapshot.zones.size());
+    for (const RenderZone &zone : m_renderSnapshot.zones) {
+        if (insideRange(zone.x, zone.y, zone.radius))
+            snapshot.zones.append(zone);
+    }
 
-    snapshot.damageNumbers = m_renderSnapshot.damageNumbers;
+    snapshot.damageNumbers.reserve(m_renderSnapshot.damageNumbers.size());
+    for (const RenderDamageNumber &number : m_renderSnapshot.damageNumbers) {
+        if (insideRange(number.x, number.y, 0.16))
+            snapshot.damageNumbers.append(number);
+    }
 
     return snapshot;
 }

@@ -130,6 +130,8 @@ if (LANBOARD_BUILD_SERVER)
         src/common/roomtypes.h
         src/network/enetutils.cpp
         src/network/enetutils.h
+        src/lobby/roommanager.cpp
+        src/lobby/roommanager.h
         src/game/survivornetcodec.cpp
         src/game/survivornetcodec.h
         src/game/survivorruntime.cpp

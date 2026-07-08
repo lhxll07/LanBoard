@@ -41,6 +41,7 @@ struct RoomPlayerState {
     bool isHost = false;
     bool isReady = false;
     SeatKind seatKind = SeatKind::Active;
+    int piece = 0;
 
     QString seatType() const
     {
@@ -60,6 +61,7 @@ struct RoomPlayerState {
         map[QStringLiteral("isHost")] = isHost;
         map[QStringLiteral("isReady")] = isReady;
         map[QStringLiteral("seatType")] = seatType();
+        map[QStringLiteral("piece")] = piece;
         return map;
     }
 
@@ -71,6 +73,7 @@ struct RoomPlayerState {
         obj[QStringLiteral("isHost")] = isHost;
         obj[QStringLiteral("isReady")] = isReady;
         obj[QStringLiteral("seatType")] = seatType();
+        obj[QStringLiteral("piece")] = piece;
         return obj;
     }
 
@@ -83,6 +86,7 @@ struct RoomPlayerState {
         player.isReady = obj.value(QStringLiteral("isReady")).toBool();
         player.seatKind = normalizedSeatKind(
             obj.value(QStringLiteral("seatType")).toString(QStringLiteral("active")));
+        player.piece = obj.value(QStringLiteral("piece")).toInt();
         return player;
     }
 };
@@ -160,6 +164,9 @@ struct RoomSnapshot {
 
     bool canStartForLocalHost() const
     {
+        if (gameInProgress)
+            return false;
+
         if (!localPlayerIsHost())
             return false;
 
