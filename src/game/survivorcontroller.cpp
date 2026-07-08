@@ -1510,6 +1510,10 @@ void SurvivorController::spawnEnemy(bool elite, int forcedKind, bool forceChestC
     enemy.kind = forcedKind >= 0 ? forcedKind : currentEnemyKind();
     enemy.elite = elite;
     enemy.chestCarrier = forceChestCarrier;
+    const int waveIndex = currentWaveIndex();
+    const qreal lateGameAlpha = qBound<qreal>(0.0,
+                                              (static_cast<qreal>(waveIndex) - 7.0) / 7.0,
+                                              1.0);
     int baseHp = 0;
     int baseTouchDamage = 0;
     int baseExpReward = 1;
@@ -1575,17 +1579,25 @@ void SurvivorController::spawnEnemy(bool elite, int forcedKind, bool forceChestC
 
     enemy.speedScale = 1.0f;
     if (enemy.chestCarrier) {
-        enemy.maxHp = baseHp;
-        enemy.touchDamage = baseTouchDamage;
+        const qreal bossHpMultiplier = 1.0f + lateGameAlpha * 1.10f;
+        const qreal bossDamageMultiplier = 1.0f + lateGameAlpha * 0.32f;
+        enemy.maxHp = qRound(baseHp * bossHpMultiplier);
+        enemy.touchDamage = qRound(baseTouchDamage * bossDamageMultiplier);
         enemy.expReward = 0;
         enemy.elite = true;
+        enemy.speed *= 1.0f + lateGameAlpha * 0.08f;
+        enemy.knockbackFactor *= 1.0f - lateGameAlpha * 0.30f;
     } else if (enemy.elite) {
-        enemy.maxHp = qMax(8, qRound(baseHp * 2.5));
-        enemy.touchDamage = qRound(baseTouchDamage * 1.4);
-        enemy.expReward = qMin(9, qMax(baseExpReward + 2, baseExpReward * 3));
+        const qreal eliteHpMultiplier = 2.5f + lateGameAlpha * 1.7f;
+        const qreal eliteDamageMultiplier = 1.4f + lateGameAlpha * 0.45f;
+        enemy.maxHp = qMax(8, qRound(baseHp * eliteHpMultiplier));
+        enemy.touchDamage = qRound(baseTouchDamage * eliteDamageMultiplier);
+        enemy.expReward = qMin(12,
+                               qMax(baseExpReward + 2 + qRound(lateGameAlpha * 2.0f),
+                                    baseExpReward * 3));
         enemy.radius *= 1.12f;
-        enemy.speed *= 1.06f;
-        enemy.knockbackFactor *= 0.7f;
+        enemy.speed *= 1.06f + lateGameAlpha * 0.08f;
+        enemy.knockbackFactor *= 0.70f - lateGameAlpha * 0.20f;
     } else {
         enemy.maxHp = baseHp;
         enemy.touchDamage = baseTouchDamage;
@@ -1815,11 +1827,17 @@ void SurvivorController::simulateStep(int elapsedMs)
     while (m_matchState.spawnAccumulatorMs >= spawnIntervalMs) {
         m_matchState.spawnAccumulatorMs -= spawnIntervalMs;
         int spawnBurst = currentSpawnBurstCount();
-        if (m_matchState.enemies.size() > currentEnemyCap())
+        const int enemyCap = currentEnemyCap();
+        const int enemyCount = m_matchState.enemies.size();
+        const bool latePressure = currentWaveIndex() >= 10;
+        const bool finalPressure = currentWaveIndex() >= 12;
+        if (enemyCount > enemyCap)
             spawnBurst = qMax(1, spawnBurst - 1);
-        if (m_matchState.enemies.size() > currentEnemyCap() * 3 / 2
-            && QRandomGenerator::global()->bounded(100) < 70) {
-            spawnBurst = 0;
+        const int overflowThreshold = enemyCap * (latePressure ? 17 : 15) / 10;
+        const int overflowSkipChance = finalPressure ? 18 : (latePressure ? 35 : 70);
+        if (enemyCount > overflowThreshold
+            && QRandomGenerator::global()->bounded(100) < overflowSkipChance) {
+            spawnBurst = latePressure ? qMax(1, spawnBurst - 1) : 0;
         }
         for (int spawnIndex = 0; spawnIndex < spawnBurst; ++spawnIndex)
             spawnEnemy(false);
@@ -2132,7 +2150,13 @@ void SurvivorController::updateGarlicAura()
 void SurvivorController::trimEnemyPopulation()
 {
     const int enemyCap = currentEnemyCap();
-    const int softCap = enemyCap + qMax(10, enemyCap / 12);
+    const int waveIndex = currentWaveIndex();
+    const bool latePressure = waveIndex >= 10;
+    const bool finalPressure = waveIndex >= 12;
+    const int softCap = finalPressure
+        ? enemyCap + qMax(52, enemyCap / 2)
+        : (latePressure ? enemyCap + qMax(32, enemyCap / 3)
+                        : enemyCap + qMax(10, enemyCap / 12));
     if (m_matchState.enemies.size() <= softCap)
         return;
 
@@ -2884,6 +2908,7 @@ void SurvivorController::applyWeaponUpgradeLevel(PlayerState &player,
             player.fireWandAmount = info.count;
         } else {
             player.fireWandDamage += info.damage;
+            player.fireWandAmount = qMin(6, player.fireWandAmount + info.count);
         }
         if (info.cooldownMs > 0)
             player.fireWandCooldownBaseMs = info.cooldownMs;
