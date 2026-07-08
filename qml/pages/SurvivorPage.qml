@@ -360,7 +360,7 @@ Page {
             anchors.top: parent.top
             anchors.topMargin: 44
             width: compactLayout ? 214 : 238
-            height: compactLayout ? 90 : 96
+            height: compactLayout ? 104 : 112
 
             Column {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -393,7 +393,8 @@ Page {
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: centerHudGroup.width
                     horizontalAlignment: Text.AlignHCenter
-                    text: "击杀 " + AppCtrl.survivorController.killCount
+                    text: "个人 " + AppCtrl.survivorController.localKillCount
+                        + " · 总击杀 " + AppCtrl.survivorController.killCount
                         + " · "
                         + (AppCtrl.survivorController.networkSession ? "online" : "local")
                     color: "#708278"
@@ -403,18 +404,26 @@ Page {
                     renderTypeQuality: Text.HighRenderTypeQuality
                 }
 
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: centerHudGroup.width
-                    horizontalAlignment: Text.AlignHCenter
-                    text: AppCtrl.survivorController.upgradeSummary
-                    color: "#AAB7B0"
-                    font.pixelSize: compactLayout ? 10 : 11
-                    wrapMode: Text.Wrap
-                    maximumLineCount: 2
-                    elide: Text.ElideRight
-                    renderType: Text.QtRendering
-                    renderTypeQuality: Text.HighRenderTypeQuality
+                Repeater {
+                    model: AppCtrl.survivorController.leaderboard
+
+                    Text {
+                        visible: index < 3
+                        height: visible ? implicitHeight : 0
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: centerHudGroup.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: (index + 1) + ". "
+                            + modelData.name
+                            + (modelData.local ? " · 你" : "")
+                            + " · Lv." + modelData.level
+                            + " · " + modelData.kills + "杀"
+                        color: modelData.local ? "#E5D0A3" : "#AAB7B0"
+                        font.pixelSize: compactLayout ? 10 : 11
+                        elide: Text.ElideRight
+                        renderType: Text.QtRendering
+                        renderTypeQuality: Text.HighRenderTypeQuality
+                    }
                 }
             }
         }
@@ -781,7 +790,8 @@ Page {
                 Text {
                     Layout.fillWidth: true
                     text: "生存 " + AppCtrl.survivorController.survivalTimeSec
-                        + " 秒 · 击杀 " + AppCtrl.survivorController.killCount
+                        + " 秒 · 个人 " + AppCtrl.survivorController.localKillCount
+                        + " · 总击杀 " + AppCtrl.survivorController.killCount
                     color: AppTheme.textSecondary
                     font.pixelSize: 13
                     wrapMode: Text.WordWrap
