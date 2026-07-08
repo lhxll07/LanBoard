@@ -10,7 +10,7 @@ namespace LanBoard::Survivor::NetCodec {
 namespace {
 
 constexpr quint32 PacketMagic = 0x5642534Cu;  // LSBV
-constexpr quint8 PacketVersion = 1;
+constexpr quint8 PacketVersion = 2;
 constexpr qreal PositionScale = 1024.0;
 constexpr qreal RadiusScale = 4096.0;
 constexpr qreal ScalarScale = 1000.0;
@@ -247,6 +247,7 @@ PacketKind packetKind(const char *data, qsizetype size)
 
 void writePlayerCore(PacketWriter &writer,
                      const PlayerState &player,
+                     const RenderPlayer &renderPlayer,
                      const QVector2D &origin)
 {
     writer.writeInt16(static_cast<qint16>(player.playerId));
@@ -256,6 +257,8 @@ void writePlayerCore(PacketWriter &writer,
     writer.writeInt16(static_cast<qint16>(player.maxHp));
     writer.writeUInt8(player.alive ? 1 : 0);
     writer.writeUInt8(static_cast<quint8>(qBound(0, player.colorIndex, 255)));
+    writer.writeUInt16(encodeRadius(renderPlayer.auraRadius));
+    writer.writeBool(renderPlayer.auraEvolved);
 }
 
 void writePlayerProgression(PacketWriter &writer, const PlayerState &player)
@@ -263,6 +266,8 @@ void writePlayerProgression(PacketWriter &writer, const PlayerState &player)
     writer.writeInt16(static_cast<qint16>(player.playerId));
     writer.writeInt16(static_cast<qint16>(player.hp));
     writer.writeInt16(static_cast<qint16>(player.maxHp));
+    writer.writeInt16(static_cast<qint16>(player.soulEaterHealedHp));
+    writer.writeInt16(static_cast<qint16>(player.soulEaterBonusDamage));
     writer.writeBool(player.alive);
     writer.writeUInt8(static_cast<quint8>(qBound(0, player.colorIndex, 255)));
     writer.writeInt16(static_cast<qint16>(player.level));
@@ -275,17 +280,25 @@ void writePlayerProgression(PacketWriter &writer, const PlayerState &player)
     writer.writeUInt8(static_cast<quint8>(player.orbitBladeLevel));
     writer.writeUInt8(static_cast<quint8>(player.orbitBladeCount));
     writer.writeInt16(static_cast<qint16>(player.orbitBladeDamage));
+    writer.writeBool(player.orbitBladeEvolved);
     writer.writeUInt8(static_cast<quint8>(player.fireWandLevel));
     writer.writeInt16(static_cast<qint16>(player.fireWandDamage));
+    writer.writeUInt8(static_cast<quint8>(player.fireWandAmount));
     writer.writeInt16(static_cast<qint16>(player.fireWandCooldownBaseMs));
     writer.writeInt16(encodeScalar(player.fireWandProjectileSpeedMultiplier));
+    writer.writeUInt8(static_cast<quint8>(player.magicWandLevel));
+    writer.writeInt16(static_cast<qint16>(player.magicWandDamage));
+    writer.writeUInt8(static_cast<quint8>(player.magicWandAmount));
+    writer.writeInt16(static_cast<qint16>(player.magicWandCooldownBaseMs));
     writer.writeUInt8(static_cast<quint8>(player.garlicLevel));
     writer.writeInt16(static_cast<qint16>(player.garlicDamage));
     writer.writeInt16(static_cast<qint16>(player.garlicCooldownBaseMs));
+    writer.writeBool(player.garlicEvolved);
     writer.writeUInt8(static_cast<quint8>(player.crossLevel));
     writer.writeInt16(static_cast<qint16>(player.crossDamage));
     writer.writeUInt8(static_cast<quint8>(player.crossAmount));
     writer.writeUInt16(static_cast<quint16>(player.crossPierce));
+    writer.writeBool(player.crossEvolved);
     writer.writeUInt8(static_cast<quint8>(player.santaWaterLevel));
     writer.writeInt16(static_cast<qint16>(player.santaWaterDamage));
     writer.writeUInt8(static_cast<quint8>(player.santaWaterAmount));
@@ -297,7 +310,13 @@ void writePlayerProgression(PacketWriter &writer, const PlayerState &player)
     writer.writeUInt8(static_cast<quint8>(player.attractorbPassiveLevel));
     writer.writeUInt8(static_cast<quint8>(player.hollowHeartPassiveLevel));
     writer.writeUInt8(static_cast<quint8>(player.spinachPassiveLevel));
+    writer.writeUInt8(static_cast<quint8>(player.bracerPassiveLevel));
+    writer.writeUInt8(static_cast<quint8>(player.spellbinderPassiveLevel));
+    writer.writeUInt8(static_cast<quint8>(player.pummarolaPassiveLevel));
+    writer.writeUInt8(static_cast<quint8>(player.cloverPassiveLevel));
+    writer.writeBool(player.bladeWeaponEvolved);
     writer.writeBool(player.fireWandEvolved);
+    writer.writeBool(player.magicWandEvolved);
     writer.writeBool(player.santaWaterEvolved);
     writer.writeUInt16(static_cast<quint16>(player.orbitBladeDurationMs));
     writer.writeUInt16(static_cast<quint16>(player.orbitBladeCooldownBaseMs));
@@ -308,15 +327,24 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
     qint16 playerId = 0;
     qint16 hp = 0;
     qint16 maxHp = 0;
+    qint16 soulEaterHealedHp = 0;
+    qint16 soulEaterBonusDamage = 0;
     quint8 colorIndex = 0;
     qint16 level = 0;
     qint16 attackDamage = 0;
     qint16 orbitBladeDamage = 0;
+    bool orbitBladeEvolved = false;
     qint16 fireWandDamage = 0;
+    quint8 fireWandAmount = 0;
     qint16 fireWandCooldownBaseMs = 0;
     qint16 fireWandProjectileSpeed = 0;
+    quint8 magicWandLevel = 0;
+    qint16 magicWandDamage = 0;
+    quint8 magicWandAmount = 0;
+    qint16 magicWandCooldownBaseMs = 0;
     qint16 garlicDamage = 0;
     qint16 garlicCooldownBaseMs = 0;
+    bool garlicEvolved = false;
     qint16 crossDamage = 0;
     qint16 santaWaterDamage = 0;
     quint8 bladeWeaponLevel = 0;
@@ -329,6 +357,7 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
     quint8 crossLevel = 0;
     quint8 crossAmount = 0;
     quint16 crossPierce = 0;
+    bool crossEvolved = false;
     quint8 santaWaterLevel = 0;
     quint8 santaWaterAmount = 0;
     quint16 santaWaterDurationMs = 0;
@@ -339,8 +368,14 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
     quint8 attractorbPassiveLevel = 0;
     quint8 hollowHeartPassiveLevel = 0;
     quint8 spinachPassiveLevel = 0;
+    quint8 bracerPassiveLevel = 0;
+    quint8 spellbinderPassiveLevel = 0;
+    quint8 pummarolaPassiveLevel = 0;
+    quint8 cloverPassiveLevel = 0;
     bool alive = false;
+    bool bladeWeaponEvolved = false;
     bool fireWandEvolved = false;
+    bool magicWandEvolved = false;
     bool santaWaterEvolved = false;
     quint16 orbitBladeDurationMs = 0;
     quint16 orbitBladeCooldownBaseMs = 0;
@@ -348,6 +383,8 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
     if (!reader.readInt16(playerId)
         || !reader.readInt16(hp)
         || !reader.readInt16(maxHp)
+        || !reader.readInt16(soulEaterHealedHp)
+        || !reader.readInt16(soulEaterBonusDamage)
         || !reader.readBool(alive)
         || !reader.readUInt8(colorIndex)
         || !reader.readInt16(level)
@@ -360,17 +397,25 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
         || !reader.readUInt8(orbitBladeLevel)
         || !reader.readUInt8(orbitBladeCount)
         || !reader.readInt16(orbitBladeDamage)
+        || !reader.readBool(orbitBladeEvolved)
         || !reader.readUInt8(fireWandLevel)
         || !reader.readInt16(fireWandDamage)
+        || !reader.readUInt8(fireWandAmount)
         || !reader.readInt16(fireWandCooldownBaseMs)
         || !reader.readInt16(fireWandProjectileSpeed)
+        || !reader.readUInt8(magicWandLevel)
+        || !reader.readInt16(magicWandDamage)
+        || !reader.readUInt8(magicWandAmount)
+        || !reader.readInt16(magicWandCooldownBaseMs)
         || !reader.readUInt8(garlicLevel)
         || !reader.readInt16(garlicDamage)
         || !reader.readInt16(garlicCooldownBaseMs)
+        || !reader.readBool(garlicEvolved)
         || !reader.readUInt8(crossLevel)
         || !reader.readInt16(crossDamage)
         || !reader.readUInt8(crossAmount)
         || !reader.readUInt16(crossPierce)
+        || !reader.readBool(crossEvolved)
         || !reader.readUInt8(santaWaterLevel)
         || !reader.readInt16(santaWaterDamage)
         || !reader.readUInt8(santaWaterAmount)
@@ -382,7 +427,13 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
         || !reader.readUInt8(attractorbPassiveLevel)
         || !reader.readUInt8(hollowHeartPassiveLevel)
         || !reader.readUInt8(spinachPassiveLevel)
+        || !reader.readUInt8(bracerPassiveLevel)
+        || !reader.readUInt8(spellbinderPassiveLevel)
+        || !reader.readUInt8(pummarolaPassiveLevel)
+        || !reader.readUInt8(cloverPassiveLevel)
+        || !reader.readBool(bladeWeaponEvolved)
         || !reader.readBool(fireWandEvolved)
+        || !reader.readBool(magicWandEvolved)
         || !reader.readBool(santaWaterEvolved)
         || !reader.readUInt16(orbitBladeDurationMs)
         || !reader.readUInt16(orbitBladeCooldownBaseMs)) {
@@ -392,6 +443,8 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
     player.playerId = playerId;
     player.hp = hp;
     player.maxHp = maxHp;
+    player.soulEaterHealedHp = soulEaterHealedHp;
+    player.soulEaterBonusDamage = soulEaterBonusDamage;
     player.alive = alive;
     player.colorIndex = colorIndex;
     player.level = level;
@@ -402,17 +455,25 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
     player.orbitBladeLevel = orbitBladeLevel;
     player.orbitBladeCount = orbitBladeCount;
     player.orbitBladeDamage = orbitBladeDamage;
+    player.orbitBladeEvolved = orbitBladeEvolved;
     player.fireWandLevel = fireWandLevel;
     player.fireWandDamage = fireWandDamage;
+    player.fireWandAmount = fireWandAmount;
     player.fireWandCooldownBaseMs = fireWandCooldownBaseMs;
     player.fireWandProjectileSpeedMultiplier = decodeScalar(fireWandProjectileSpeed);
+    player.magicWandLevel = magicWandLevel;
+    player.magicWandDamage = magicWandDamage;
+    player.magicWandAmount = magicWandAmount;
+    player.magicWandCooldownBaseMs = magicWandCooldownBaseMs;
     player.garlicLevel = garlicLevel;
     player.garlicDamage = garlicDamage;
     player.garlicCooldownBaseMs = garlicCooldownBaseMs;
+    player.garlicEvolved = garlicEvolved;
     player.crossLevel = crossLevel;
     player.crossDamage = crossDamage;
     player.crossAmount = crossAmount;
     player.crossPierce = crossPierce;
+    player.crossEvolved = crossEvolved;
     player.santaWaterLevel = santaWaterLevel;
     player.santaWaterDamage = santaWaterDamage;
     player.santaWaterAmount = santaWaterAmount;
@@ -424,7 +485,13 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
     player.attractorbPassiveLevel = attractorbPassiveLevel;
     player.hollowHeartPassiveLevel = hollowHeartPassiveLevel;
     player.spinachPassiveLevel = spinachPassiveLevel;
+    player.bracerPassiveLevel = bracerPassiveLevel;
+    player.spellbinderPassiveLevel = spellbinderPassiveLevel;
+    player.pummarolaPassiveLevel = pummarolaPassiveLevel;
+    player.cloverPassiveLevel = cloverPassiveLevel;
+    player.bladeWeaponEvolved = bladeWeaponEvolved;
     player.fireWandEvolved = fireWandEvolved;
+    player.magicWandEvolved = magicWandEvolved;
     player.santaWaterEvolved = santaWaterEvolved;
     player.orbitBladeDurationMs = orbitBladeDurationMs;
     player.orbitBladeCooldownBaseMs = orbitBladeCooldownBaseMs;
@@ -471,6 +538,42 @@ bool readReward(PacketReader &reader, ChestReward &reward)
         && reader.readBool(reward.evolved);
 }
 
+void writeDamageNumber(PacketWriter &writer,
+                       const RenderDamageNumber &number,
+                       const QVector2D &origin)
+{
+    writer.writeInt16(encodeRelativeCoord(number.x, origin.x()));
+    writer.writeInt16(encodeRelativeCoord(number.y, origin.y()));
+    writer.writeUInt16(static_cast<quint16>(qBound(0, number.amount, 0xffff)));
+    writer.writeUInt16(static_cast<quint16>(qBound(0, number.lifeMs, 0xffff)));
+    writer.writeUInt16(static_cast<quint16>(qBound(0, number.totalLifeMs, 0xffff)));
+    writer.writeBool(number.elite);
+}
+
+bool readDamageNumber(PacketReader &reader,
+                      RenderDamageNumber &number,
+                      const QVector2D &origin)
+{
+    qint16 x = 0;
+    qint16 y = 0;
+    quint16 amount = 0;
+    quint16 lifeMs = 0;
+    quint16 totalLifeMs = 0;
+    bool elite = false;
+    return reader.readInt16(x)
+        && reader.readInt16(y)
+        && reader.readUInt16(amount)
+        && reader.readUInt16(lifeMs)
+        && reader.readUInt16(totalLifeMs)
+        && reader.readBool(elite)
+        && (number.x = decodeRelativeCoord(x, origin.x()), true)
+        && (number.y = decodeRelativeCoord(y, origin.y()), true)
+        && (number.amount = amount, true)
+        && (number.lifeMs = lifeMs, true)
+        && (number.totalLifeMs = totalLifeMs, true)
+        && (number.elite = elite, true);
+}
+
 }  // namespace
 
 PacketKind packetKind(const QByteArray &payload)
@@ -504,12 +607,13 @@ QByteArray encodeFastNetworkState(const FastNetworkState &state)
     writer.writeUInt16(static_cast<quint16>(qMin(state.snapshot.projectiles.size(), 0xffff)));
     writer.writeUInt16(static_cast<quint16>(qMin(state.snapshot.pickups.size(), 0xffff)));
     writer.writeUInt16(static_cast<quint16>(qMin(state.snapshot.zones.size(), 0xffff)));
+    writer.writeUInt16(static_cast<quint16>(qMin(state.snapshot.damageNumbers.size(), 0xffff)));
 
     if (state.hasLocalPlayer)
         writePlayerProgression(writer, state.localPlayer);
 
-    for (const PlayerState &player : state.players)
-        writePlayerCore(writer, player, state.origin);
+    for (int i = 0; i < state.players.size() && i < state.snapshot.players.size(); ++i)
+        writePlayerCore(writer, state.players.at(i), state.snapshot.players.at(i), state.origin);
 
     for (const RenderEnemy &enemy : state.snapshot.enemies) {
         writer.writeInt32(enemy.id);
@@ -558,6 +662,9 @@ QByteArray encodeFastNetworkState(const FastNetworkState &state)
         writer.writeUInt8(static_cast<quint8>(qBound(0, zone.kind, 255)));
     }
 
+    for (const RenderDamageNumber &number : state.snapshot.damageNumbers)
+        writeDamageNumber(writer, number, state.origin);
+
     return writer.take();
 }
 
@@ -582,6 +689,7 @@ bool decodeFastNetworkState(const QByteArray &payload,
     quint16 projectileCount = 0;
     quint16 pickupCount = 0;
     quint16 zoneCount = 0;
+    quint16 damageNumberCount = 0;
     if (!reader.readUInt64(decoded.seq)
         || !reader.readUInt8(flags)
         || !reader.readInt32(decoded.survivalTimeMs)
@@ -596,7 +704,8 @@ bool decodeFastNetworkState(const QByteArray &payload,
         || !reader.readUInt16(orbitalCount)
         || !reader.readUInt16(projectileCount)
         || !reader.readUInt16(pickupCount)
-        || !reader.readUInt16(zoneCount)) {
+        || !reader.readUInt16(zoneCount)
+        || !reader.readUInt16(damageNumberCount)) {
         return false;
     }
 
@@ -633,12 +742,16 @@ bool decodeFastNetworkState(const QByteArray &payload,
         qint16 maxHp = 0;
         quint8 alive = 0;
         quint8 colorIndex = 0;
+        quint16 auraRadius = 0;
+        bool auraEvolved = false;
         if (!reader.readInt16(relX)
             || !reader.readInt16(relY)
             || !reader.readInt16(hp)
             || !reader.readInt16(maxHp)
             || !reader.readUInt8(alive)
-            || !reader.readUInt8(colorIndex)) {
+            || !reader.readUInt8(colorIndex)
+            || !reader.readUInt16(auraRadius)
+            || !reader.readBool(auraEvolved)) {
             return false;
         }
         player.position = QVector2D(decodeRelativeCoord(relX, decoded.origin.x()),
@@ -656,7 +769,9 @@ bool decodeFastNetworkState(const QByteArray &payload,
             player.maxHp,
             player.alive,
             player.local,
-            player.colorIndex
+            player.colorIndex,
+            decodeRadius(auraRadius),
+            auraEvolved
         });
     }
 
@@ -778,6 +893,14 @@ bool decodeFastNetworkState(const QByteArray &payload,
         zone.totalLifeMs = totalLifeMs;
         zone.kind = kind;
         decoded.snapshot.zones.append(zone);
+    }
+
+    decoded.snapshot.damageNumbers.reserve(damageNumberCount);
+    for (int i = 0; i < damageNumberCount; ++i) {
+        RenderDamageNumber number;
+        if (!readDamageNumber(reader, number, decoded.origin))
+            return false;
+        decoded.snapshot.damageNumbers.append(number);
     }
 
     return true;

@@ -120,6 +120,40 @@ void appendRegularPolygonOutline(QVector<Vertex> &vertices,
     appendLine(vertices, previousPoint, firstPoint, color);
 }
 
+void appendRing(QVector<Vertex> &vertices,
+                const QPointF &center,
+                qreal outerRadius,
+                qreal innerRadius,
+                int sides,
+                const QColor &color,
+                qreal rotationDeg = 0.0)
+{
+    if (sides < 3 || outerRadius <= 0.0 || innerRadius <= 0.0 || outerRadius <= innerRadius)
+        return;
+
+    QVector<QPointF> outerPoints;
+    QVector<QPointF> innerPoints;
+    outerPoints.reserve(sides);
+    innerPoints.reserve(sides);
+
+    const qreal step = 360.0 / sides;
+    for (int index = 0; index < sides; ++index) {
+        const qreal angle = qDegreesToRadians(rotationDeg + step * index);
+        const qreal cosValue = qCos(angle);
+        const qreal sinValue = qSin(angle);
+        outerPoints.append(QPointF(center.x() + cosValue * outerRadius,
+                                   center.y() + sinValue * outerRadius));
+        innerPoints.append(QPointF(center.x() + cosValue * innerRadius,
+                                   center.y() + sinValue * innerRadius));
+    }
+
+    for (int index = 0; index < sides; ++index) {
+        const int next = (index + 1) % sides;
+        appendTriangle(vertices, outerPoints[index], innerPoints[index], outerPoints[next], color);
+        appendTriangle(vertices, outerPoints[next], innerPoints[index], innerPoints[next], color);
+    }
+}
+
 void appendDiamond(QVector<Vertex> &vertices,
                    const QPointF &center,
                    qreal radius,
@@ -209,6 +243,34 @@ void appendLayeredDiamond(QVector<Vertex> &fillVertices,
     appendDiamondOutline(lineVertices, center, radius, outlineColor);
 }
 
+void appendSplashDroplet(QVector<Vertex> &fillVertices,
+                         QVector<Vertex> &lineVertices,
+                         const QPointF &center,
+                         qreal radius,
+                         qreal rotationDeg,
+                         const QColor &baseColor,
+                         const QColor &innerColor,
+                         const QColor &outlineColor,
+                         const QColor &shadowColor)
+{
+    appendLayeredPolygon(fillVertices,
+                         lineVertices,
+                         center,
+                         radius,
+                         7,
+                         rotationDeg,
+                         baseColor,
+                         innerColor,
+                         outlineColor,
+                         shadowColor);
+    appendRegularPolygon(fillVertices,
+                         QPointF(center.x(), center.y() - radius * 0.48),
+                         radius * 0.42,
+                         3,
+                         baseColor,
+                         rotationDeg - 90.0);
+}
+
 QColor enemyFillColor(int kind)
 {
     switch (kind) {
@@ -269,6 +331,144 @@ QPointF clampToRadar(qreal dx, qreal dy, qreal range, bool *faded)
     const qreal distance = qSqrt(distanceSquared);
     const qreal ratio = range / qMax(distance, 0.0001);
     return QPointF(dx * ratio, dy * ratio);
+}
+
+QPointF rotatedOffset(qreal radius, qreal angleDeg)
+{
+    const qreal angle = qDegreesToRadians(angleDeg);
+    return QPointF(qCos(angle) * radius, qSin(angle) * radius);
+}
+
+void appendRotatedRect(QVector<Vertex> &vertices,
+                       const QPointF &center,
+                       qreal halfWidth,
+                       qreal halfHeight,
+                       qreal rotationDeg,
+                       const QColor &color)
+{
+    const qreal angle = qDegreesToRadians(rotationDeg);
+    const QPointF axisX(qCos(angle), qSin(angle));
+    const QPointF axisY(-qSin(angle), qCos(angle));
+    const QPointF p1 = center - axisX * halfWidth - axisY * halfHeight;
+    const QPointF p2 = center + axisX * halfWidth - axisY * halfHeight;
+    const QPointF p3 = center + axisX * halfWidth + axisY * halfHeight;
+    const QPointF p4 = center - axisX * halfWidth + axisY * halfHeight;
+    appendTriangle(vertices, p1, p2, p3, color);
+    appendTriangle(vertices, p1, p3, p4, color);
+}
+
+void appendRotatedRectOutline(QVector<Vertex> &vertices,
+                              const QPointF &center,
+                              qreal halfWidth,
+                              qreal halfHeight,
+                              qreal rotationDeg,
+                              const QColor &color)
+{
+    const qreal angle = qDegreesToRadians(rotationDeg);
+    const QPointF axisX(qCos(angle), qSin(angle));
+    const QPointF axisY(-qSin(angle), qCos(angle));
+    const QPointF p1 = center - axisX * halfWidth - axisY * halfHeight;
+    const QPointF p2 = center + axisX * halfWidth - axisY * halfHeight;
+    const QPointF p3 = center + axisX * halfWidth + axisY * halfHeight;
+    const QPointF p4 = center - axisX * halfWidth + axisY * halfHeight;
+    appendLine(vertices, p1, p2, color);
+    appendLine(vertices, p2, p3, color);
+    appendLine(vertices, p3, p4, color);
+    appendLine(vertices, p4, p1, color);
+}
+
+void appendOrb(QVector<Vertex> &fillVertices,
+               QVector<Vertex> &lineVertices,
+               const QPointF &center,
+               qreal radius,
+               const QColor &outerColor,
+               const QColor &innerColor,
+               const QColor &outlineColor,
+               const QColor &glowColor)
+{
+    appendRegularPolygon(fillVertices,
+                         QPointF(center.x(), center.y() + radius * 0.14),
+                         radius * 1.08,
+                         18,
+                         glowColor);
+    appendRegularPolygon(fillVertices, center, radius, 18, outerColor);
+    appendRegularPolygon(fillVertices,
+                         QPointF(center.x() - radius * 0.18, center.y() - radius * 0.22),
+                         radius * 0.42,
+                         14,
+                         innerColor);
+    appendRegularPolygonOutline(lineVertices, center, radius, 18, outlineColor);
+}
+
+void appendBook(QVector<Vertex> &fillVertices,
+                QVector<Vertex> &lineVertices,
+                const QPointF &center,
+                qreal width,
+                qreal height,
+                qreal rotationDeg,
+                const QColor &coverColor,
+                const QColor &pageColor,
+                const QColor &outlineColor,
+                const QColor &accentColor)
+{
+    const qreal spread = width * 0.12;
+    const qreal leftRotation = rotationDeg - 10.0;
+    const qreal rightRotation = rotationDeg + 8.0;
+    appendRotatedRect(fillVertices,
+                      QPointF(center.x(), center.y() + height * 0.12),
+                      width * 0.56,
+                      height * 0.52,
+                      rotationDeg,
+                      QColor(10, 14, 16, 42));
+
+    appendRotatedRect(fillVertices,
+                      QPointF(center.x() - spread, center.y()),
+                      width * 0.34,
+                      height * 0.50,
+                      leftRotation,
+                      coverColor);
+    appendRotatedRect(fillVertices,
+                      QPointF(center.x() + spread, center.y()),
+                      width * 0.34,
+                      height * 0.50,
+                      rightRotation,
+                      coverColor);
+
+    appendRotatedRect(fillVertices,
+                      QPointF(center.x() - spread * 0.92, center.y() - height * 0.03),
+                      width * 0.24,
+                      height * 0.36,
+                      leftRotation,
+                      pageColor);
+    appendRotatedRect(fillVertices,
+                      QPointF(center.x() + spread * 0.92, center.y() - height * 0.03),
+                      width * 0.24,
+                      height * 0.36,
+                      rightRotation,
+                      pageColor);
+    appendRotatedRect(fillVertices,
+                      center,
+                      width * 0.05,
+                      height * 0.48,
+                      rotationDeg,
+                      accentColor);
+
+    appendLine(lineVertices,
+               center + rotatedOffset(height * 0.46, rotationDeg - 90.0),
+               center + rotatedOffset(height * 0.46, rotationDeg + 90.0),
+               outlineColor);
+    appendRotatedRectOutline(lineVertices,
+                             QPointF(center.x() - spread, center.y()),
+                             width * 0.34,
+                             height * 0.50,
+                             leftRotation,
+                             outlineColor);
+    appendRotatedRectOutline(lineVertices,
+                             QPointF(center.x() + spread, center.y()),
+                             width * 0.34,
+                             height * 0.50,
+                             rightRotation,
+                             outlineColor);
 }
 
 struct GeometryLayerNode : public QSGGeometryNode
@@ -483,6 +683,8 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
         const qreal px = width() / 2.0;
         const qreal py = height() / 2.0;
         const qreal drawMargin = 36.0;
+        const qreal pulse = 0.5 + 0.5 * qSin(m_frameCounter * 0.16);
+        const qreal reversePulse = 0.5 + 0.5 * qSin(m_frameCounter * 0.11 + 1.8);
 
         auto screenX = [px, playerWorldX, scale](qreal worldX) {
             return px + (worldX - playerWorldX) * scale;
@@ -494,7 +696,7 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
         fillVertices.reserve(2048 + currentSnapshot.enemies.size() * 48 + currentSnapshot.projectiles.size() * 12);
         lineVertices.reserve(1024 + currentSnapshot.enemies.size() * 32);
 
-        appendRect(fillVertices, QRectF(0.0, 0.0, width(), height()), QColor("#D8D1C3"));
+        appendRect(fillVertices, QRectF(0.0, 0.0, width(), height()), QColor("#CFC9BE"));
 
         const qreal leftWorld = playerWorldX - width() / (2.0 * scale);
         const qreal rightWorld = playerWorldX + width() / (2.0 * scale);
@@ -507,25 +709,25 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
             appendLine(lineVertices,
                        QPointF(screenX(worldX), 0.0),
                        QPointF(screenX(worldX), height()),
-                       QColor(174, 165, 153, 78));
+                       QColor(161, 155, 146, 66));
         }
         for (qreal worldY = qFloor(topWorld / minorCell) * minorCell; worldY <= bottomWorld + minorCell; worldY += minorCell) {
             appendLine(lineVertices,
                        QPointF(0.0, screenY(worldY)),
                        QPointF(width(), screenY(worldY)),
-                       QColor(174, 165, 153, 78));
+                       QColor(161, 155, 146, 66));
         }
         for (qreal worldX = qFloor(leftWorld / majorCell) * majorCell; worldX <= rightWorld + majorCell; worldX += majorCell) {
             appendLine(lineVertices,
                        QPointF(screenX(worldX), 0.0),
                        QPointF(screenX(worldX), height()),
-                       QColor(147, 136, 122, 118));
+                       QColor(134, 128, 119, 96));
         }
         for (qreal worldY = qFloor(topWorld / majorCell) * majorCell; worldY <= bottomWorld + majorCell; worldY += majorCell) {
             appendLine(lineVertices,
                        QPointF(0.0, screenY(worldY)),
                        QPointF(width(), screenY(worldY)),
-                       QColor(147, 136, 122, 118));
+                       QColor(134, 128, 119, 96));
         }
 
         for (qreal worldX = qFloor(leftWorld / (majorCell * 2.0)) * (majorCell * 2.0);
@@ -536,9 +738,9 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
                  worldY += majorCell * 2.0) {
                 appendRegularPolygon(fillVertices,
                                      QPointF(screenX(worldX), screenY(worldY)),
-                                     4.8,
+                                     4.2,
                                      4,
-                                     QColor(255, 250, 238, 14),
+                                     QColor(250, 246, 236, 12),
                                      45.0);
             }
         }
@@ -589,40 +791,187 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
                 || point.y() + radius < -drawMargin || point.y() - radius > height() + drawMargin) {
                 continue;
             }
-
-            const QColor fill = zone.kind == 1
-                ? QColor(66, 110, 170, 18)
-                : QColor(62, 104, 156, 14);
-            const QColor outline = zone.kind == 1
-                ? QColor(89, 134, 196, 110)
-                : QColor(82, 122, 178, 84);
-            appendRegularPolygon(fillVertices, point, radius * 1.04, 22, withAlpha(QColor(10, 18, 24), 18));
-            appendRegularPolygon(fillVertices, point, radius, 20, fill);
-            appendRegularPolygon(fillVertices,
-                                 QPointF(point.x() - radius * 0.08, point.y() - radius * 0.08),
-                                 radius * (zone.kind == 1 ? 0.72 : 0.64),
-                                 18,
-                                 zone.kind == 1 ? QColor(118, 154, 204, 24) : QColor(108, 146, 196, 18));
-            appendRegularPolygonOutline(lineVertices, point, radius, 18, outline);
-            appendRegularPolygonOutline(lineVertices, point, radius * (zone.kind == 1 ? 0.74 : 0.56), 16,
-                                        zone.kind == 1
-                                            ? QColor(168, 204, 236, 64)
-                                            : QColor(146, 186, 226, 48));
-            appendRegularPolygonOutline(lineVertices, point, radius * (zone.kind == 1 ? 0.32 : 0.26), 12,
-                                        zone.kind == 1
-                                            ? QColor(214, 230, 248, 52)
-                                            : QColor(200, 220, 242, 40));
+            const qreal lifeRatio = zone.totalLifeMs > 0
+                ? qBound(0.0, static_cast<qreal>(zone.lifeMs) / zone.totalLifeMs, 1.0)
+                : 1.0;
+            const qreal zonePulse = 0.5 + 0.5 * qSin(m_frameCounter * 0.19 + i * 0.82);
+            const qreal zoneSpin = m_frameCounter * (zone.kind == 1 ? 1.7 : 1.2) + i * 41.0;
+            if (zone.kind == 1) {
+                appendRegularPolygon(fillVertices,
+                                     point,
+                                     radius * (1.10 + 0.04 * zonePulse),
+                                     28,
+                                     QColor(10, 18, 26, qRound(18 + 14 * lifeRatio)));
+                appendRing(fillVertices,
+                           point,
+                           radius * (1.00 + 0.03 * zonePulse),
+                           radius * 0.78,
+                           36,
+                           QColor(64, 116, 194, qRound(28 + 14 * zonePulse)));
+                appendRegularPolygon(fillVertices,
+                                     point,
+                                     radius * 0.78,
+                                     28,
+                                     QColor(78, 138, 224, qRound(32 + 18 * lifeRatio)));
+                appendRing(fillVertices,
+                           point,
+                           radius * (0.72 + 0.04 * reversePulse),
+                           radius * (0.62 + 0.03 * reversePulse),
+                           32,
+                           QColor(164, 218, 255, qRound(30 + 16 * zonePulse)));
+                appendRing(fillVertices,
+                           point,
+                           radius * (0.48 + 0.05 * zonePulse),
+                           radius * (0.40 + 0.03 * zonePulse),
+                           28,
+                           QColor(226, 246, 255, qRound(22 + 10 * reversePulse)));
+                appendRegularPolygon(fillVertices,
+                                     QPointF(point.x() - radius * 0.06, point.y() - radius * 0.04),
+                                     radius * (0.28 + 0.04 * zonePulse),
+                                     18,
+                                     QColor(236, 248, 255, qRound(36 + 20 * zonePulse)));
+                for (int droplet = 0; droplet < 5; ++droplet) {
+                    const qreal angle = zoneSpin + droplet * 72.0;
+                    const QPointF splashPoint(point.x() + qCos(qDegreesToRadians(angle)) * radius * 0.66,
+                                              point.y() + qSin(qDegreesToRadians(angle)) * radius * 0.66);
+                    appendSplashDroplet(fillVertices,
+                                        lineVertices,
+                                        splashPoint,
+                                        radius * 0.12,
+                                        angle - 90.0,
+                                        QColor(138, 204, 255, 58),
+                                        QColor(246, 251, 255, 120),
+                                        QColor(196, 232, 255, 78),
+                                        QColor(10, 16, 20, 28));
+                }
+                appendRegularPolygonOutline(lineVertices,
+                                            point,
+                                            radius * (0.96 + 0.02 * zonePulse),
+                                            28,
+                                            QColor(150, 214, 255, qRound(104 + 24 * zonePulse)));
+                appendRegularPolygonOutline(lineVertices,
+                                            point,
+                                            radius * (0.68 + 0.03 * reversePulse),
+                                            24,
+                                            QColor(220, 242, 255, qRound(92 + 18 * reversePulse)));
+            } else {
+                appendRegularPolygon(fillVertices,
+                                     point,
+                                     radius * 1.04,
+                                     26,
+                                     QColor(8, 14, 20, qRound(14 + 10 * lifeRatio)));
+                appendRegularPolygon(fillVertices,
+                                     point,
+                                     radius * 0.94,
+                                     24,
+                                     QColor(88, 136, 208, qRound(26 + 12 * zonePulse)));
+                appendRegularPolygon(fillVertices,
+                                     QPointF(point.x() - radius * 0.04, point.y() - radius * 0.05),
+                                     radius * 0.54,
+                                     20,
+                                     QColor(186, 224, 255, qRound(24 + 12 * reversePulse)));
+                appendRegularPolygon(fillVertices,
+                                     QPointF(point.x(), point.y() - radius * 0.04),
+                                     radius * (0.20 + 0.03 * zonePulse),
+                                     16,
+                                     QColor(246, 250, 255, qRound(68 + 22 * zonePulse)));
+                appendRing(fillVertices,
+                           point,
+                           radius * (0.78 + 0.03 * zonePulse),
+                           radius * (0.70 + 0.02 * zonePulse),
+                           30,
+                           QColor(214, 236, 255, qRound(24 + 16 * zonePulse)));
+                for (int droplet = 0; droplet < 4; ++droplet) {
+                    const qreal angle = zoneSpin + droplet * 90.0;
+                    const QPointF splashPoint(point.x() + qCos(qDegreesToRadians(angle)) * radius * 0.58,
+                                              point.y() + qSin(qDegreesToRadians(angle)) * radius * 0.58);
+                    appendSplashDroplet(fillVertices,
+                                        lineVertices,
+                                        splashPoint,
+                                        radius * 0.10,
+                                        angle - 90.0,
+                                        QColor(142, 192, 242, 48),
+                                        QColor(246, 251, 255, 104),
+                                        QColor(196, 224, 252, 60),
+                                        QColor(10, 16, 20, 24));
+                }
+                appendRegularPolygonOutline(lineVertices,
+                                            point,
+                                            radius * 0.92,
+                                            24,
+                                            QColor(162, 210, 255, qRound(88 + 12 * zonePulse)));
+                appendRegularPolygonOutline(lineVertices,
+                                            point,
+                                            radius * (0.56 + 0.02 * reversePulse),
+                                            18,
+                                            QColor(228, 242, 255, qRound(64 + 10 * reversePulse)));
+            }
         }
 
-        const qreal auraRadius = m_controller->auraRadius();
-        if (auraRadius > 0.001) {
-            const qreal radius = qMax(20.0, auraRadius * scale);
-            appendRegularPolygon(fillVertices, QPointF(px, py), radius * 1.03, 24, QColor(14, 20, 12, 16));
-            appendRegularPolygon(fillVertices, QPointF(px, py), radius, 22, QColor(103, 128, 82, 10));
-            appendRegularPolygon(fillVertices, QPointF(px, py), radius * 0.72, 20, QColor(128, 156, 104, 12));
-            appendRegularPolygonOutline(lineVertices, QPointF(px, py), radius, 22, QColor(136, 168, 112, 72));
-            appendRegularPolygonOutline(lineVertices, QPointF(px, py), radius * 0.74, 20, QColor(160, 188, 132, 48));
-            appendRegularPolygonOutline(lineVertices, QPointF(px, py), radius * 0.42, 16, QColor(182, 206, 154, 36));
+        for (const SurvivorController::RenderPlayer &player : currentSnapshot.players) {
+            if (!player.alive || player.auraRadius <= 0.001)
+                continue;
+
+            const QPointF point(screenX(player.x), screenY(player.y));
+            const qreal radius = qMax(20.0, player.auraRadius * scale);
+            const bool soulEater = player.auraEvolved;
+            const QColor outerGlow = soulEater ? QColor(78, 132, 136, 18) : QColor(110, 142, 86, 14);
+            const QColor midRing = soulEater ? QColor(136, 222, 214, 28) : QColor(186, 216, 126, 22);
+            const QColor innerRing = soulEater ? QColor(224, 250, 244, 36) : QColor(246, 244, 196, 30);
+            const QColor outline = soulEater ? QColor(182, 236, 232, 88) : QColor(214, 226, 158, 68);
+
+            appendRegularPolygon(fillVertices, point, radius * 1.08, 28, QColor(8, 14, 12, 18));
+            appendRing(fillVertices,
+                       point,
+                       radius * (1.00 + 0.02 * pulse),
+                       radius * (0.88 + 0.02 * pulse),
+                       36,
+                       outerGlow);
+            appendRing(fillVertices,
+                       point,
+                       radius * (0.78 + 0.02 * reversePulse),
+                       radius * (0.67 + 0.02 * reversePulse),
+                       34,
+                       midRing);
+            appendRing(fillVertices,
+                       point,
+                       radius * (0.54 + 0.03 * pulse),
+                       radius * (0.42 + 0.02 * pulse),
+                       30,
+                       innerRing);
+            appendRegularPolygon(fillVertices,
+                                 point,
+                                 radius * (0.16 + 0.02 * reversePulse),
+                                 18,
+                                 soulEater ? QColor(230, 248, 244, 26) : QColor(250, 244, 212, 18));
+            appendRegularPolygonOutline(lineVertices,
+                                        point,
+                                        radius * (0.99 + 0.02 * pulse),
+                                        30,
+                                        outline);
+            appendRegularPolygonOutline(lineVertices,
+                                        point,
+                                        radius * (0.76 + 0.02 * reversePulse),
+                                        28,
+                                        withAlpha(outline, soulEater ? 88 : 62));
+            appendRegularPolygonOutline(lineVertices,
+                                        point,
+                                        radius * (0.52 + 0.03 * pulse),
+                                        24,
+                                        withAlpha(innerRing, soulEater ? 92 : 70));
+
+            const int moteCount = soulEater ? 6 : 4;
+            for (int moteIndex = 0; moteIndex < moteCount; ++moteIndex) {
+                const qreal angle = m_frameCounter * (soulEater ? 2.0 : 1.4) + moteIndex * (360.0 / moteCount);
+                const qreal orbitRadius = radius * (soulEater ? 0.63 : 0.70);
+                const QPointF motePoint(point.x() + qCos(qDegreesToRadians(angle)) * orbitRadius,
+                                        point.y() + qSin(qDegreesToRadians(angle)) * orbitRadius);
+                appendRegularPolygon(fillVertices,
+                                     motePoint,
+                                     soulEater ? 2.6 : 2.2,
+                                     8,
+                                     soulEater ? QColor(224, 250, 246, 76) : QColor(244, 236, 182, 60));
+            }
         }
 
         for (int i = 0; i < currentSnapshot.orbitals.size(); ++i) {
@@ -634,16 +983,17 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
             }
 
             const qreal radius = qMax(4.0, orbital.radius * scale);
-            appendLayeredPolygon(fillVertices,
-                                 lineVertices,
-                                 point,
-                                 radius,
-                                 12,
-                                 0.0,
-                                 QColor("#D6A74B"),
-                                 QColor("#FFF0C4"),
-                                 QColor("#8E6D31"),
-                                 QColor(14, 16, 12, 42));
+            const qreal rotationDeg = m_frameCounter * 4.0 + i * 91.0;
+            appendBook(fillVertices,
+                       lineVertices,
+                       point,
+                       radius * 1.9,
+                       radius * 2.4,
+                       rotationDeg,
+                       QColor("#46545E"),
+                       QColor("#E9DEC6"),
+                       QColor("#243039"),
+                       QColor("#9BA9B6"));
         }
 
         for (int i = 0; i < currentSnapshot.projectiles.size(); ++i) {
@@ -654,18 +1004,36 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
                 continue;
             }
 
-            const qreal size = qMax(projectile.kind == 2 ? 5.0 : 4.8,
-                                    projectile.radius * scale * 1.2);
+            const qreal size = qMax(projectile.kind == 2 ? 6.2 : (projectile.kind == 3 ? 7.2 : 6.0),
+                                    projectile.radius * scale * 1.52);
             if (projectile.kind == 0) {
-                appendLayeredDiamond(fillVertices,
-                                     lineVertices,
-                                     point,
-                                     size,
-                                     QColor("#E7CCA0"),
-                                     QColor("#FFF4D4"),
-                                     QColor("#8B6C41"),
-                                     QColor(12, 16, 14, 34));
+                const qreal rotationDeg = 30.0 + (m_frameCounter * 8.0 + i * 17.0);
+                appendRotatedRect(fillVertices,
+                                  QPointF(point.x() + size * 0.12, point.y() + size * 0.12),
+                                  size * 0.96,
+                                  size * 0.18,
+                                  rotationDeg,
+                                  QColor(12, 16, 14, 34));
+                appendRotatedRect(fillVertices,
+                                  point,
+                                  size * 0.96,
+                                  size * 0.18,
+                                  rotationDeg,
+                                  QColor("#C5C1B7"));
+                appendRotatedRect(fillVertices,
+                                  QPointF(point.x() + size * 0.62, point.y()),
+                                  size * 0.26,
+                                  size * 0.09,
+                                  rotationDeg,
+                                  QColor("#8B7C63"));
+                appendRotatedRectOutline(lineVertices,
+                                         point,
+                                         size * 0.96,
+                                         size * 0.18,
+                                         rotationDeg,
+                                         QColor("#4A453B"));
             } else if (projectile.kind == 2) {
+                const qreal rotationDeg = m_frameCounter * 7.0 + i * 29.0;
                 appendLine(lineVertices,
                            QPointF(point.x() - size * 1.4, point.y() + 1.0),
                            QPointF(point.x() + size * 1.4, point.y() + 1.0),
@@ -677,29 +1045,96 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
                 appendLine(lineVertices,
                            QPointF(point.x() - size * 1.4, point.y()),
                            QPointF(point.x() + size * 1.4, point.y()),
-                           QColor("#C5A25D"));
+                           QColor("#F3D38C"));
                 appendLine(lineVertices,
                            QPointF(point.x(), point.y() - size * 1.4),
                            QPointF(point.x(), point.y() + size * 1.4),
-                           QColor("#C5A25D"));
-                appendRegularPolygon(fillVertices, point, size * 0.54, 10, QColor("#F2E0AD"));
+                           QColor("#F3D38C"));
+                appendRegularPolygon(fillVertices, point, size * 0.60, 10, QColor("#FFF0B8"));
                 appendRegularPolygon(fillVertices,
                                      QPointF(point.x() - size * 0.08, point.y() - size * 0.08),
-                                     size * 0.26,
+                                     size * 0.30,
                                      8,
                                      QColor("#FFF5D6"));
+                appendRegularPolygonOutline(lineVertices,
+                                            point,
+                                            size * 0.98,
+                                            8,
+                                            QColor(238, 220, 170, 46),
+                                            rotationDeg);
             } else {
-                const QColor fill = projectile.kind == 3 ? QColor("#F05F47") : QColor("#F28B5D");
-                appendLayeredPolygon(fillVertices,
-                                     lineVertices,
-                                     point,
-                                     size * 0.94,
-                                     12,
-                                     0.0,
-                                     fill,
-                                     projectile.kind == 3 ? QColor("#FFD2B0") : QColor("#FFE1C4"),
-                                     QColor("#7D3528"),
-                                     QColor(18, 12, 10, 40));
+                if (projectile.kind == 1) {
+                    appendOrb(fillVertices,
+                              lineVertices,
+                              point,
+                              size * 0.88,
+                              QColor("#F07A36"),
+                              QColor("#FFF0BF"),
+                              QColor("#7D2D14"),
+                              QColor(22, 12, 8, 42));
+                    appendRegularPolygon(fillVertices,
+                                         QPointF(point.x() - size * 0.84, point.y() + size * 0.10),
+                                         size * 0.44,
+                                         3,
+                                         QColor(245, 122, 56, 58),
+                                         180.0);
+                } else if (projectile.kind == 3) {
+                    appendOrb(fillVertices,
+                              lineVertices,
+                              point,
+                              size * 1.12,
+                              QColor("#E84C22"),
+                              QColor("#FFE3A9"),
+                              QColor("#6A180A"),
+                              QColor(28, 10, 6, 56));
+                    appendRegularPolygon(fillVertices,
+                                         QPointF(point.x() - size * 1.12, point.y()),
+                                         size * 0.70,
+                                         3,
+                                         QColor(255, 112, 54, 64),
+                                         180.0);
+                    appendRegularPolygon(fillVertices,
+                                         QPointF(point.x() - size * 0.56, point.y() + size * 0.08),
+                                         size * 0.44,
+                                         3,
+                                         QColor(255, 198, 112, 56),
+                                         180.0);
+                } else if (projectile.kind == 4) {
+                    appendOrb(fillVertices,
+                              lineVertices,
+                              point,
+                              size * 0.84,
+                              QColor("#73AEF8"),
+                              QColor("#EEF7FF"),
+                              QColor("#2E5286"),
+                              QColor(16, 22, 34, 46));
+                    appendRing(fillVertices,
+                               point,
+                               size * 0.98,
+                               size * 0.86,
+                               18,
+                               QColor(202, 230, 255, 20 + qRound(12 * pulse)));
+                } else if (projectile.kind == 5) {
+                    appendOrb(fillVertices,
+                              lineVertices,
+                              point,
+                              size * 0.88,
+                              QColor("#8E80E8"),
+                              QColor("#EEE9FF"),
+                              QColor("#463E86"),
+                              QColor(16, 16, 28, 34));
+                    appendRing(fillVertices,
+                               point,
+                               size * 1.00,
+                               size * 0.90,
+                               20,
+                               QColor(220, 210, 248, 14 + qRound(8 * reversePulse)));
+                    appendRegularPolygonOutline(lineVertices,
+                                                point,
+                                                size * 0.96,
+                                                16,
+                                                QColor(214, 204, 244, 40));
+                }
             }
         }
 
@@ -847,46 +1282,36 @@ QSGNode *SurvivorRenderItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
             const SurvivorController::RenderPlayer &player = currentSnapshot.players.at(i);
             const QPointF point(screenX(player.x), screenY(player.y));
             const qreal playerRadius = player.local
-                ? (m_compactLayout ? 17.5 : 19.0)
-                : (m_compactLayout ? 14.0 : 15.0);
+                ? (m_compactLayout ? 12.0 : 13.2)
+                : (m_compactLayout ? 11.0 : 12.0);
             const QColor baseColor = player.local
-                ? QColor("#4E827B")
+                ? QColor("#3B6E69")
                 : (player.colorIndex % 3 == 1
-                    ? QColor("#739C95")
-                    : (player.colorIndex % 3 == 2 ? QColor("#A6845D") : QColor("#5F8D86")));
-            const QColor outlineColor = player.local ? QColor("#244E49") : QColor("#304E49");
-            const QColor accentColor = player.alive ? QColor("#D96D58") : QColor("#766A63");
+                    ? QColor("#628881")
+                    : (player.colorIndex % 3 == 2 ? QColor("#907151") : QColor("#567D77")));
+            const QColor outlineColor = player.local ? QColor("#1E4642") : QColor("#274541");
+            const QColor accentColor = player.alive ? QColor("#D9E4DE") : QColor("#766A63");
 
             appendRegularPolygon(fillVertices,
-                                 QPointF(point.x(), point.y() + 3.0),
-                                 playerRadius * 1.04,
-                                 14,
-                                 QColor(10, 16, 14, player.local ? 72 : 54));
-            appendRegularPolygon(fillVertices, point, playerRadius, 14, baseColor);
-            appendRegularPolygon(fillVertices,
-                                 QPointF(point.x() - 2.0, point.y() - 3.0),
-                                 playerRadius * 0.56,
-                                 12,
-                                 QColor("#E7F1EC"));
-            appendRegularPolygonOutline(lineVertices, point, playerRadius, 14, outlineColor);
-            appendRegularPolygonOutline(lineVertices,
-                                        point,
-                                        playerRadius * 0.62,
-                                        12,
-                                        QColor(219, 236, 230, player.local ? 164 : 130));
-            appendLine(lineVertices,
-                       QPointF(point.x() - 6.0, point.y()),
-                       QPointF(point.x() + 6.0, point.y()),
-                       accentColor);
-            appendLine(lineVertices,
-                       QPointF(point.x(), point.y() - 6.0),
-                       QPointF(point.x(), point.y() + 6.0),
-                       accentColor);
-            appendRegularPolygon(fillVertices,
-                                 QPointF(point.x() + playerRadius * 0.52, point.y()),
-                                 playerRadius * 0.16,
+                                 QPointF(point.x(), point.y() + playerRadius * 0.18),
+                                 playerRadius * 1.06,
                                  6,
-                                 accentColor);
+                                 QColor(10, 16, 14, player.local ? 68 : 48),
+                                 -30.0);
+            appendRegularPolygon(fillVertices, point, playerRadius, 6, baseColor, -30.0);
+            appendRegularPolygon(fillVertices,
+                                 QPointF(point.x() - playerRadius * 0.16, point.y() - playerRadius * 0.24),
+                                 playerRadius * 0.44,
+                                 6,
+                                 accentColor,
+                                 -30.0);
+            appendRegularPolygonOutline(lineVertices, point, playerRadius, 6, outlineColor, -30.0);
+            appendRegularPolygonOutline(lineVertices,
+                                        QPointF(point.x() - playerRadius * 0.16, point.y() - playerRadius * 0.24),
+                                        playerRadius * 0.44,
+                                        6,
+                                        QColor(244, 248, 246, 82),
+                                        -30.0);
         }
     }
 

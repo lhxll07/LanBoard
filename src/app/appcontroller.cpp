@@ -167,8 +167,11 @@ AppController::AppController(QObject *parent)
     });
     connect(m_networkManager, &NetworkManager::connectionChanged,
             this, [this]() {
-        if (!m_isClientMode || m_networkManager->isConnected())
+        if (!m_isClientMode
+            || m_networkManager->isConnected()
+            || m_networkManager->connectionPending()) {
             return;
+        }
 
         m_isDedicatedServerRoom = false;
         resetRoomSession(QStringLiteral("gomoku"));
@@ -229,12 +232,31 @@ AppController::AppController(QObject *parent)
 
 void AppController::startLocalGame(const QString &gameId)
 {
+    if (LanBoard::normalizeGameId(gameId) == QStringLiteral("survivor")) {
+        startSoloSurvivorSession();
+        return;
+    }
+
     m_networkManager->disconnectAll();
     m_isDedicatedServerRoom = false;
     setModeState(false, false, 0);
     m_activeGuestPlayerId = -1;
     setLobbyGameId(gameId);
     resetRoomSession(gameId);
+    startCurrentGameRuntime();
+    navigateToCurrentGame();
+}
+
+void AppController::startSoloSurvivorSession()
+{
+    m_networkManager->disconnectAll();
+    m_isDedicatedServerRoom = false;
+    setModeState(false, false, 0);
+    m_activeGuestPlayerId = -1;
+    setLobbyGameId(QStringLiteral("survivor"));
+    resetRoomSession(QStringLiteral("survivor"), 0);
+    m_roomManager->addPlayer(m_nickname, true, false, 0, QStringLiteral("active"));
+    syncActiveGuestPlayerId();
     startCurrentGameRuntime();
     navigateToCurrentGame();
 }
@@ -814,10 +836,11 @@ void AppController::startCurrentGameRuntime(bool waitForRemoteState)
         const bool networked = m_networkManager->isConnected() || m_networkManager->isHost();
         const bool authoritative = !networked
             || (m_roomManager->isHost() && !m_isDedicatedServerRoom);
-        const QVariantList activePlayers = networked
-            ? currentRoomSnapshot().activePlayerVariantList()
-            : QVariantList {};
-        const int localPlayerId = networked ? m_networkPlayerId : 0;
+        const LanBoard::RoomSnapshot room = currentRoomSnapshot();
+        const QVariantList activePlayers = room.activePlayerVariantList();
+        const int localPlayerId = networked
+            ? m_networkPlayerId
+            : (room.localPlayerId >= 0 ? room.localPlayerId : 0);
         m_survivorController->configureNetworkSession(activePlayers,
                                                      localPlayerId,
                                                      networked,

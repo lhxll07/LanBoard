@@ -19,6 +19,7 @@ class NetworkManager : public QObject
     Q_OBJECT
     Q_PROPERTY(bool isHost READ isHost NOTIFY connectionChanged)
     Q_PROPERTY(bool isConnected READ isConnected NOTIFY connectionChanged)
+    Q_PROPERTY(bool connectionPending READ connectionPending NOTIFY connectionChanged)
     Q_PROPERTY(int clientCount READ clientCount NOTIFY clientCountChanged)
     Q_PROPERTY(quint16 serverPort READ serverPort NOTIFY connectionChanged)
     Q_PROPERTY(QString connectedIp READ connectedIp NOTIFY connectionChanged)
@@ -68,6 +69,7 @@ public:
 
     bool isHost() const { return m_isHost; }
     bool isConnected() const;
+    bool connectionPending() const;
     int clientCount() const { return m_peerClients.size(); }
     quint16 serverPort() const { return m_serverPort; }
     QString connectedIp() const { return m_connectedIp; }

@@ -111,6 +111,9 @@ struct PlayerState {
     int hp = 100;
     int maxHp = 100;
     qreal contactDamageCarry = 0.0f;
+    qreal recoveryCarry = 0.0f;
+    int soulEaterHealedHp = 0;
+    int soulEaterBonusDamage = 0;
     bool alive = true;
     bool local = false;
     int colorIndex = 0;
@@ -128,6 +131,8 @@ struct PlayerState {
     int orbitBladeDurationMs = 3100;
     int fireWandCooldownMs = 0;
     int fireWandCooldownBaseMs = 1720;
+    int magicWandCooldownMs = 0;
+    int magicWandCooldownBaseMs = 1200;
     int garlicCooldownBaseMs = 1300;
     int crossCooldownMs = 0;
     int crossCooldownBaseMs = 1080;
@@ -143,7 +148,11 @@ struct PlayerState {
     int orbitBladeDamage = 0;
     int fireWandLevel = 0;
     int fireWandDamage = 24;
+    int fireWandAmount = 1;
     qreal fireWandProjectileSpeedMultiplier = 1.0f;
+    int magicWandLevel = 0;
+    int magicWandDamage = 10;
+    int magicWandAmount = 1;
     int garlicLevel = 1;
     int garlicDamage = 4;
     int crossLevel = 0;
@@ -160,7 +169,16 @@ struct PlayerState {
     int attractorbPassiveLevel = 0;
     int hollowHeartPassiveLevel = 0;
     int spinachPassiveLevel = 0;
+    int bracerPassiveLevel = 0;
+    int spellbinderPassiveLevel = 0;
+    int pummarolaPassiveLevel = 0;
+    int cloverPassiveLevel = 0;
+    bool bladeWeaponEvolved = false;
+    bool orbitBladeEvolved = false;
     bool fireWandEvolved = false;
+    bool magicWandEvolved = false;
+    bool garlicEvolved = false;
+    bool crossEvolved = false;
     bool santaWaterEvolved = false;
 
     QList<UpgradeChoice> levelUpChoices;
@@ -212,11 +230,11 @@ struct MatchState {
     int tickAccumulatorMs = 0;
     int spawnAccumulatorMs = 0;
     int eliteSpawnAccumulatorMs = 0;
-    int spawnedBossCount = 0;
+    int nextBossSpawnIndex = 0;
     int nextEnemyId = 1;
     int nextSourceId = 1;
     int lastWaveIndex = -1;
-    QSet<int> triggeredEventSeconds;
+    int nextWaveEventIndex = 0;
     QString chestTitle;
     QString waveLabel;
 };
@@ -229,6 +247,8 @@ struct RenderPlayer {
     bool alive = true;
     bool local = false;
     int colorIndex = 0;
+    qreal auraRadius = 0.0;
+    bool auraEvolved = false;
 };
 
 struct RenderEnemy {
