@@ -60,6 +60,7 @@ void applyRemoteProgressionSnapshot(LanBoard::Survivor::PlayerState &target,
     target.level = source.level;
     target.exp = source.exp;
     target.expToNext = source.expToNext;
+    target.killCount = source.killCount;
     target.attackDamage = source.attackDamage;
     target.bladeWeaponLevel = source.bladeWeaponLevel;
     target.projectileCount = source.projectileCount;
@@ -131,6 +132,19 @@ int weaponLevelValue(const LanBoard::Survivor::PlayerState &player,
         break;
     }
     return 0;
+}
+
+qreal garlicBaseRadius(const LanBoard::Survivor::PlayerState &player)
+{
+    if (player.garlicLevel <= 0)
+        return 0.0;
+
+    const auto *table = LanBoard::Survivor::weaponLevelTable(LanBoard::Survivor::WeaponGarlic);
+    const int index = qBound(0, player.garlicLevel - 1, 7);
+    qreal radius = table[index].radius;
+    if (player.garlicEvolved)
+        radius = qMax<qreal>(radius, 0.22f);
+    return radius;
 }
 
 int passiveLevelValue(const LanBoard::Survivor::PlayerState &player,
@@ -330,7 +344,7 @@ void SurvivorController::refreshWeaponSlotCache()
                          .arg(player->garlicEvolved ? QStringLiteral("已进化 · ") : QString())
                          .arg(player->garlicLevel)
                          .arg(qRound(player->garlicDamage * currentDamageMultiplier(*player)))
-                         .arg(QString::number(m_matchState.worldRuntime.garlicRadius * currentAreaMultiplier(*player), 'f', 2))
+                         .arg(QString::number(playerAuraRadius(*player), 'f', 2))
                          .arg(player->garlicEvolved && player->soulEaterBonusDamage > 0
                                   ? QStringLiteral(" / 成长 +%1").arg(player->soulEaterBonusDamage)
                                   : QString()),
@@ -469,6 +483,38 @@ void SurvivorController::refreshHudSlotCaches()
     refreshPassiveSlotCache();
 }
 
+void SurvivorController::refreshLeaderboardCache()
+{
+    m_cachedLeaderboard.clear();
+    QVector<const PlayerState *> rankedPlayers;
+    rankedPlayers.reserve(m_matchState.players.size());
+    for (const PlayerState &player : std::as_const(m_matchState.players))
+        rankedPlayers.append(&player);
+
+    std::sort(rankedPlayers.begin(), rankedPlayers.end(),
+              [](const PlayerState *lhs, const PlayerState *rhs) {
+        if (lhs->killCount != rhs->killCount)
+            return lhs->killCount > rhs->killCount;
+        if (lhs->level != rhs->level)
+            return lhs->level > rhs->level;
+        return lhs->playerId < rhs->playerId;
+    });
+
+    for (const PlayerState *player : std::as_const(rankedPlayers)) {
+        if (!player)
+            continue;
+        QVariantMap entry;
+        entry[QStringLiteral("name")] = player->name.isEmpty()
+            ? QStringLiteral("玩家%1").arg(player->playerId + 1)
+            : player->name;
+        entry[QStringLiteral("kills")] = player->killCount;
+        entry[QStringLiteral("level")] = player->level;
+        entry[QStringLiteral("alive")] = player->alive;
+        entry[QStringLiteral("local")] = player->playerId == m_localPlayerId;
+        m_cachedLeaderboard.append(entry);
+    }
+}
+
 void SurvivorController::startRun(bool networkSession)
 {
     m_networkSession = networkSession;
@@ -504,6 +550,7 @@ void SurvivorController::stopRun()
     m_networkBaseSnapshot = {};
     m_networkTargetSnapshot = {};
     m_lastAppliedFastStateSeq = 0;
+    m_lastAppliedHudStateSeq = 0;
     m_networkInterpolationElapsedMs = 0;
     m_hasNetworkInterpolationTarget = false;
     m_localPredictedPosition = QVector2D();
@@ -512,6 +559,7 @@ void SurvivorController::stopRun()
     m_networkHudDirty = true;
     refreshLevelUpChoiceCache();
     refreshChestRewardCache();
+    refreshLeaderboardCache();
     updateStatusText();
     refreshFrameCache();
     emit runningChanged();
@@ -624,6 +672,7 @@ void SurvivorController::resetState()
     m_networkBaseSnapshot = {};
     m_networkTargetSnapshot = {};
     m_lastAppliedFastStateSeq = 0;
+    m_lastAppliedHudStateSeq = 0;
     m_networkInterpolationElapsedMs = 0;
     m_hasNetworkInterpolationTarget = false;
     m_localPredictedPosition = QVector2D();
@@ -704,6 +753,7 @@ void SurvivorController::applyFastNetworkPacket(const QByteArray &payload)
     const QString previousWaveLabel = m_matchState.waveLabel;
     const QString previousStatusText = m_statusText;
     const QString previousUpgradeSummary = m_upgradeSummary;
+    const QVariantList previousLeaderboard = m_cachedLeaderboard;
 
     m_matchState.running = decoded.running;
     m_matchState.gameOver = decoded.gameOver;
@@ -787,7 +837,8 @@ void SurvivorController::applyFastNetworkPacket(const QByteArray &payload)
         || previousChestTitle != m_matchState.chestTitle
         || previousWaveLabel != m_matchState.waveLabel
         || previousStatusText != m_statusText
-        || previousUpgradeSummary != m_upgradeSummary;
+        || previousUpgradeSummary != m_upgradeSummary
+        || previousLeaderboard != m_cachedLeaderboard;
     if (shouldEmitStateChanged)
         emit stateChanged();
     emit frameChanged();
@@ -801,12 +852,16 @@ void SurvivorController::applyHudNetworkPacket(const QByteArray &payload)
     LanBoard::Survivor::NetCodec::HudNetworkState decoded;
     if (!LanBoard::Survivor::NetCodec::decodeHudNetworkState(payload, decoded))
         return;
+    if (decoded.seq <= m_lastAppliedHudStateSeq)
+        return;
+    m_lastAppliedHudStateSeq = decoded.seq;
 
     const bool previousLevelUpPending = m_matchState.levelUpPending;
     const bool previousChestPending = m_matchState.chestPending;
     const QString previousChestTitle = m_matchState.chestTitle;
     const QString previousStatusText = m_statusText;
     const QString previousUpgradeSummary = m_upgradeSummary;
+    const QVariantList previousLeaderboard = m_cachedLeaderboard;
 
     m_matchState.pendingInteractionPlayerId = decoded.interactionPlayerId;
     m_matchState.chestTitle = decoded.chestTitle;
@@ -828,7 +883,8 @@ void SurvivorController::applyHudNetworkPacket(const QByteArray &payload)
         || previousChestPending != m_matchState.chestPending
         || previousChestTitle != m_matchState.chestTitle
         || previousStatusText != m_statusText
-        || previousUpgradeSummary != m_upgradeSummary;
+        || previousUpgradeSummary != m_upgradeSummary
+        || previousLeaderboard != m_cachedLeaderboard;
     if (shouldEmitStateChanged)
         emit stateChanged();
 }
@@ -905,12 +961,18 @@ void SurvivorController::stepRemoteInterpolation(int elapsedMs)
         m_renderSnapshot = m_networkTargetSnapshot;
         m_renderSnapshot.players.clear();
         m_renderSnapshot.players.reserve(m_matchState.players.size());
-        for (const PlayerState &player : m_matchState.players) {
+        const int renderPlayerCount = qMin(m_matchState.players.size(), m_networkTargetSnapshot.players.size());
+        for (int i = 0; i < renderPlayerCount; ++i) {
+            const PlayerState &player = m_matchState.players.at(i);
+            const RenderPlayer &targetRenderPlayer = m_networkTargetSnapshot.players.at(i);
+            qreal auraRadius = targetRenderPlayer.auraRadius;
+            if (i < m_networkBaseSnapshot.players.size())
+                auraRadius = lerpReal(m_networkBaseSnapshot.players.at(i).auraRadius, auraRadius, alpha);
             m_renderSnapshot.players.append({
                 player.position.x(), player.position.y(), player.hp, player.maxHp,
-                player.alive, player.local, player.colorIndex,
-                player.garlicLevel > 0 ? m_matchState.worldRuntime.garlicRadius * currentAreaMultiplier(player) : 0.0,
-                player.garlicEvolved
+                player.alive, player.local, player.colorIndex, player.level, player.killCount,
+                auraRadius,
+                targetRenderPlayer.auraEvolved
             });
         }
 
@@ -1163,7 +1225,7 @@ QByteArray SurvivorController::buildFastNetworkPacket(int playerId) const
         packet.hasLocalPlayer = true;
         packet.localPlayer = *player;
         packet.auraRadius = player->garlicLevel > 0
-            ? m_matchState.worldRuntime.garlicRadius * currentAreaMultiplier(*player)
+            ? playerAuraRadius(*player)
             : 0.0;
     }
     return LanBoard::Survivor::NetCodec::encodeFastNetworkState(packet);
@@ -1175,6 +1237,7 @@ QByteArray SurvivorController::buildHudNetworkPacket(int playerId) const
         return {};
 
     LanBoard::Survivor::NetCodec::HudNetworkState packet;
+    packet.seq = m_networkStateSequence;
     packet.interactionPlayerId = m_matchState.pendingInteractionPlayerId;
     packet.chestTitle = m_matchState.chestTitle;
 
@@ -1193,7 +1256,7 @@ void SurvivorController::syncPlayerMaxHp()
     if (const PlayerState *player = hudPlayerState()) {
         if (!m_networkSession || m_networkAuthoritative)
             m_networkAuraRadius = player->garlicLevel > 0
-                ? m_matchState.worldRuntime.garlicRadius * currentAreaMultiplier(*player)
+                ? playerAuraRadius(*player)
                 : 0.0;
     } else {
         m_networkAuraRadius = 0.0f;
@@ -1223,6 +1286,7 @@ void SurvivorController::syncHudState()
         refreshChestRewardCache();
         refreshUpgradeSummary();
         refreshHudSlotCaches();
+        refreshLeaderboardCache();
         updateStatusText();
         return;
     }
@@ -1239,6 +1303,7 @@ void SurvivorController::syncHudState()
     refreshChestRewardCache();
     refreshUpgradeSummary();
     refreshHudSlotCaches();
+    refreshLeaderboardCache();
     updateStatusText();
 }
 
@@ -1696,6 +1761,7 @@ void SurvivorController::applyAutoAttack()
                 Projectile projectile;
                 projectile.kind = 0;
                 projectile.sourceId = m_matchState.nextSourceId++;
+                projectile.ownerPlayerId = player.playerId;
                 projectile.position = player.position + fireDirection * 0.02f;
                 projectile.velocity = rotatedVector(fireDirection, spreadDegrees)
                     * static_cast<float>(m_matchState.worldRuntime.projectileSpeed * projectileSpeedMultiplier);
@@ -1736,6 +1802,7 @@ void SurvivorController::applyAutoAttack()
                 Projectile projectile;
                 projectile.kind = player.fireWandEvolved ? 3 : 1;
                 projectile.sourceId = m_matchState.nextSourceId++;
+                projectile.ownerPlayerId = player.playerId;
                 projectile.position = player.position + fireDirection * 0.024f;
                 projectile.velocity = rotatedVector(fireDirection, spreadDegrees)
                     * static_cast<float>(m_matchState.worldRuntime.projectileSpeed
@@ -1786,6 +1853,7 @@ void SurvivorController::applyAutoAttack()
                 Projectile projectile;
                 projectile.kind = player.magicWandEvolved ? 5 : 4;
                 projectile.sourceId = m_matchState.nextSourceId++;
+                projectile.ownerPlayerId = player.playerId;
                 projectile.position = player.position + castDirection * 0.022f;
                 projectile.velocity = rotatedVector(castDirection, (i - (player.magicWandAmount - 1) / 2.0) * 4.0)
                     * static_cast<float>(m_matchState.worldRuntime.projectileSpeed
@@ -1833,6 +1901,7 @@ void SurvivorController::applyAutoAttack()
                 Projectile crossProjectile;
                 crossProjectile.kind = 2;
                 crossProjectile.sourceId = m_matchState.nextSourceId++;
+                crossProjectile.ownerPlayerId = player.playerId;
                 crossProjectile.position = player.position + crossDirection * 0.024f;
                 const bool critical = player.crossEvolved
                     && QRandomGenerator::global()->generateDouble() < heavenSwordCritChance(player);
@@ -1882,6 +1951,7 @@ void SurvivorController::applyAutoAttack()
                 Zone zone;
                 zone.kind = player.santaWaterEvolved ? 1 : 0;
                 zone.sourceId = m_matchState.nextSourceId++;
+                zone.ownerPlayerId = player.playerId;
                 zone.position = targetCenter + rotatedVector(QVector2D(distance, 0.0f), angle);
                 zone.radius = zoneRadius;
                 zone.damage = zoneDamage;
@@ -1913,7 +1983,7 @@ void SurvivorController::updateGarlicAura()
     for (const PlayerState &player : std::as_const(m_matchState.players)) {
         if (!player.alive || player.garlicLevel <= 0)
             continue;
-        const qreal auraRadius = m_matchState.worldRuntime.garlicRadius * currentAreaMultiplier(player);
+        const qreal auraRadius = playerAuraRadius(player);
         const int auraDamage = qMax(1, qRound((player.garlicDamage + player.soulEaterBonusDamage)
                                               * currentDamageMultiplier(player)));
         const int auraCooldownMs = qMax(650, qRound(player.garlicCooldownBaseMs * currentCooldownMultiplier(player)));
@@ -1924,6 +1994,7 @@ void SurvivorController::updateGarlicAura()
             tryApplyHit(enemyIndex,
                         player.position,
                         1000 + player.playerId,
+                        player.playerId,
                         auraCooldownMs,
                         auraDamage,
                         garlicProfile.damageVariance,
@@ -2037,6 +2108,7 @@ void SurvivorController::updateOrbitals(qreal deltaSec, int elapsedMs)
                 tryApplyHit(enemyIndex,
                             orbitalPos,
                             2000 + player.playerId * 100 + orbitalIndex,
+                            player.playerId,
                             orbitProfile.tickIntervalMs,
                             orbitalDamage,
                             orbitProfile.damageVariance,
@@ -2081,6 +2153,7 @@ void SurvivorController::updateProjectiles(qreal deltaSec, int elapsedMs)
             if (!tryApplyHit(enemyIndex,
                              projectile.position,
                              projectile.sourceId,
+                             projectile.ownerPlayerId,
                              projectile.hitIntervalMs,
                              projectile.damage,
                              projectile.damageVariance,
@@ -2142,6 +2215,7 @@ void SurvivorController::updateZones(qreal deltaSec, int elapsedMs)
                 tryApplyHit(enemyIndex,
                             zone.position,
                             zone.sourceId,
+                            zone.ownerPlayerId,
                             zone.tickIntervalMs,
                             zone.damage,
                             zone.damageVariance,
@@ -2201,7 +2275,7 @@ void SurvivorController::collectPickups(qreal deltaSec)
         tryOpenQueuedChest();
 }
 
-void SurvivorController::defeatEnemy(int index)
+void SurvivorController::defeatEnemy(int index, int ownerPlayerId)
 {
     if (index < 0 || index >= m_matchState.enemies.size())
         return;
@@ -2240,6 +2314,8 @@ void SurvivorController::defeatEnemy(int index)
             existing.position = (existing.position + pickup.position) * 0.5f;
             m_matchState.enemies.removeAt(index);
             ++m_matchState.killCount;
+            if (PlayerState *owner = playerStateById(ownerPlayerId))
+                ++owner->killCount;
             return;
         }
     }
@@ -2247,6 +2323,8 @@ void SurvivorController::defeatEnemy(int index)
     m_matchState.pickups.append(pickup);
     m_matchState.enemies.removeAt(index);
     ++m_matchState.killCount;
+    if (PlayerState *owner = playerStateById(ownerPlayerId))
+        ++owner->killCount;
 }
 
 void SurvivorController::prepareLevelUpChoices(PlayerState &player)
@@ -2465,7 +2543,6 @@ bool SurvivorController::applyEvolution(PlayerState &player, const QString &weap
         player.garlicEvolved = true;
         player.garlicDamage = qMax(player.garlicDamage, 18);
         player.garlicCooldownBaseMs = qMin(player.garlicCooldownBaseMs, 680);
-        m_matchState.worldRuntime.garlicRadius = qMax<qreal>(m_matchState.worldRuntime.garlicRadius, 0.22f);
     } else if (weaponId == QStringLiteral("cross_weapon")) {
         player.crossEvolved = true;
         player.crossDamage = qMax(player.crossDamage, 42);
@@ -2662,8 +2739,6 @@ void SurvivorController::applyWeaponUpgradeLevel(PlayerState &player,
             player.garlicDamage += info.damage;
         if (info.cooldownMs > 0)
             player.garlicCooldownBaseMs = info.cooldownMs;
-        if (info.radius > 0.0f)
-            m_matchState.worldRuntime.garlicRadius = info.radius;
         break;
     case WeaponCross:
         player.crossLevel = newLevel;
@@ -2758,6 +2833,7 @@ void SurvivorController::refreshFrameCache()
 bool SurvivorController::tryApplyHit(int enemyIndex,
                                      const QVector2D &sourcePosition,
                                      int sourceId,
+                                     int ownerPlayerId,
                                      int hitIntervalMs,
                                      int baseDamage,
                                      qreal damageVariance,
@@ -2780,15 +2856,13 @@ bool SurvivorController::tryApplyHit(int enemyIndex,
     applyKnockbackToEnemy(enemy, sourcePosition, knockback);
     const int appliedDamage = rollDamage(baseDamage, damageVariance);
     const bool defeatedByThisHit = enemy.hp <= appliedDamage;
-    damageEnemy(enemyIndex, appliedDamage);
+    damageEnemy(enemyIndex, appliedDamage, ownerPlayerId);
 
-    if (defeatedByThisHit && sourceId >= 1000 && sourceId < 2000) {
-        if (PlayerState *owner = playerStateById(sourceId - 1000)) {
-            if (owner->garlicEvolved) {
-                const qreal restoreChance = qMin<qreal>(0.65, appliedDamage / 140.0);
-                if (QRandomGenerator::global()->generateDouble() < restoreChance)
-                    healPlayer(*owner, 1);
-            }
+    if (defeatedByThisHit) {
+        if (PlayerState *owner = playerStateById(ownerPlayerId); owner && owner->garlicEvolved) {
+            const qreal restoreChance = qMin<qreal>(0.65, appliedDamage / 140.0);
+            if (QRandomGenerator::global()->generateDouble() < restoreChance)
+                healPlayer(*owner, 1);
         }
     }
     return true;
@@ -2870,6 +2944,11 @@ qreal SurvivorController::currentDamageMultiplier(const PlayerState &player) con
 qreal SurvivorController::currentAreaMultiplier(const PlayerState &player) const
 {
     return LanBoard::Survivor::Runtime::currentAreaMultiplier(player);
+}
+
+qreal SurvivorController::playerAuraRadius(const PlayerState &player) const
+{
+    return garlicBaseRadius(player) * currentAreaMultiplier(player);
 }
 
 qreal SurvivorController::currentCooldownMultiplier(const PlayerState &player) const
@@ -3010,7 +3089,7 @@ int SurvivorController::healPlayer(PlayerState &player, int amount)
     return healed;
 }
 
-void SurvivorController::damageEnemy(int enemyIndex, int damage)
+void SurvivorController::damageEnemy(int enemyIndex, int damage, int ownerPlayerId)
 {
     if (enemyIndex < 0 || enemyIndex >= m_matchState.enemies.size())
         return;
@@ -3021,7 +3100,7 @@ void SurvivorController::damageEnemy(int enemyIndex, int damage)
     enemy.hitFlashMs = enemy.elite ? 120 : 90;
     addDamageNumber(enemy.position, appliedDamage, enemy.elite);
     if (enemy.hp <= 0)
-        defeatEnemy(enemyIndex);
+        defeatEnemy(enemyIndex, ownerPlayerId);
 }
 
 void SurvivorController::refreshUpgradeSummary()
@@ -3136,10 +3215,10 @@ void SurvivorController::processWaveEvents()
 
         switch (event.type) {
         case WaveEventBatSwarm:
-            spawnBatSwarm(event.count, event.primaryValue);
+            spawnBatSwarm(scaledEnemyCount(event.count, 0.70), event.primaryValue);
             break;
         case WaveEventFlowerWall:
-            spawnFlowerWall(event.count,
+            spawnFlowerWall(scaledEnemyCount(event.count, 0.60),
                             event.primaryValue,
                             event.secondaryValue,
                             event.tertiaryValue);
@@ -3199,12 +3278,12 @@ int SurvivorController::currentSpawnIntervalMs() const
 
 int SurvivorController::currentSpawnBurstCount() const
 {
-    return currentWaveTemplate().spawnBurst;
+    return scaledEnemyCount(currentWaveTemplate().spawnBurst, 0.85);
 }
 
 int SurvivorController::currentEnemyCap() const
 {
-    return currentWaveTemplate().enemyCap;
+    return scaledEnemyCount(currentWaveTemplate().enemyCap, 0.75);
 }
 
 int SurvivorController::currentEliteSpawnIntervalMs() const
@@ -3214,7 +3293,20 @@ int SurvivorController::currentEliteSpawnIntervalMs() const
 
 int SurvivorController::currentEliteSpawnBurstCount() const
 {
-    return currentWaveTemplate().eliteBurst;
+    return scaledEnemyCount(currentWaveTemplate().eliteBurst, 0.65);
+}
+
+int SurvivorController::scaledEnemyCount(int baseCount, qreal extraPerPlayer) const
+{
+    if (baseCount <= 0)
+        return 0;
+
+    const int playerCount = qMax(1, m_matchState.players.size());
+    if (playerCount <= 1)
+        return baseCount;
+
+    const qreal multiplier = 1.0 + extraPerPlayer * (playerCount - 1);
+    return qMax(baseCount, qRound(baseCount * multiplier));
 }
 
 int SurvivorController::currentWaveIndex() const
