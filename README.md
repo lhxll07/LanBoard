@@ -283,3 +283,4 @@ Get-Process appLanBoard -ErrorAction SilentlyContinue | Stop-Process -Force
 - [网络消息表](./docs/network-messages.md)
 - [网络重构工作报告（2026-07-05）](./docs/network-refactor-work-report-20260705.md)
 - [当前合并前工作计划（2026-07-07）](./docs/main-sync-workplan-20260707.md)
+- [最新 main 同步工作报告（2026-07-08）](./docs/main-sync-work-report-20260708.md)

@@ -12,12 +12,13 @@
 
 ## 当前主线
 
-截至 2026-07-07，当前需要审阅和执行的是：
+截至 2026-07-08，当前需要审阅的是：
+
+- [main-sync-work-report-20260708.md](./main-sync-work-report-20260708.md)
+
+该报告记录 `refactor/network-internals` 已再次同步最新 `origin/main` 后的冲突处理、补充修正和自动验证结果。上一轮合并前计划和验证记录为：
 
 - [main-sync-workplan-20260707.md](./main-sync-workplan-20260707.md)
-
-该计划用于处理 `refactor/network-internals` 与最新 `origin/main` 再次分叉后的合并前工作。对应验证记录为：
-
 - [main-sync-test-results-20260707.md](./main-sync-test-results-20260707.md)
 
 ## 阅读顺序
@@ -53,6 +54,10 @@
 8. [main-sync-test-results-20260707.md](./main-sync-test-results-20260707.md)
    - 2026-07-07 同步 `main` 后的验证记录。
    - 记录 ENet 主线整合、构建、局域网发现、控制层 E2E 和本地在线服务端 ENet E2E 结果。
+
+9. [main-sync-work-report-20260708.md](./main-sync-work-report-20260708.md)
+   - 2026-07-08 再次同步最新 `main` 后的工作报告。
+   - 记录吸收 Survivor 主线更新、处理 `NetworkManager` 冲突、修复连接中误判掉线和验证结果。
 
 ## 长期维护文档
 
