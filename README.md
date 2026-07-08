@@ -278,3 +278,4 @@ Get-Process appLanBoard -ErrorAction SilentlyContinue | Stop-Process -Force
 - [Qt安装流程.md](./Qt安装流程.md)
 - [Git协作流程.md](./Git协作流程.md)
 - [任务分工.md](./任务分工.md)
+- [ECS部署流程.md](./ECS部署流程.md)
