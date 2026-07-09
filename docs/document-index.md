@@ -12,14 +12,13 @@
 
 ## 当前主线
 
-截至 2026-07-08，当前需要审阅的是：
+截至 2026-07-09，当前需要审阅的是：
+
+- [main-sync-workplan-20260709.md](./main-sync-workplan-20260709.md)
+
+该计划记录 `refactor/network-internals` 再次落后最新 `origin/main` 后，本轮同步主线前应执行的保护、冲突处理、构建验证和审阅事项。上一轮同步后的工作报告为：
 
 - [main-sync-work-report-20260708.md](./main-sync-work-report-20260708.md)
-
-该报告记录 `refactor/network-internals` 已再次同步最新 `origin/main` 后的冲突处理、补充修正和自动验证结果。上一轮合并前计划和验证记录为：
-
-- [main-sync-workplan-20260707.md](./main-sync-workplan-20260707.md)
-- [main-sync-test-results-20260707.md](./main-sync-test-results-20260707.md)
 
 ## 阅读顺序
 
@@ -58,6 +57,10 @@
 9. [main-sync-work-report-20260708.md](./main-sync-work-report-20260708.md)
    - 2026-07-08 再次同步最新 `main` 后的工作报告。
    - 记录吸收 Survivor 主线更新、处理 `NetworkManager` 冲突、修复连接中误判掉线和验证结果。
+
+10. [main-sync-workplan-20260709.md](./main-sync-workplan-20260709.md)
+    - 2026-07-09 当前合并前计划。
+    - 记录当前分支相对 `origin/main` 再次落后的事实、预计冲突、未跟踪文件处理建议和同步验证步骤。
 
 ## 长期维护文档
 
