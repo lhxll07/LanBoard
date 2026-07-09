@@ -77,7 +77,9 @@
    - `src/network/NetworkManager`
    - `src/network/protocolids.h`
    - `src/network/enetutils.*`
-   - 同时承载：
+   - `src/network/roomdiscoveryservice.*`
+   - `src/network/networkaddressutils.*`
+   - 对外由 `NetworkManager` 提供统一入口，内部拆分为：
      - 局域网 UDP 广播发现
      - Host/Client 直连 ENet 会话
      - ECS 在线大厅 / 在线房间连接
@@ -132,14 +134,14 @@
 
 它输出的核心数据是 `RoomSnapshot`，页面和网络都围绕这个快照工作。
 
-### 3. NetworkManager 同时覆盖三种网络职责
+### 3. 网络层由 NetworkManager 统一对外，内部拆分职责
 
-`NetworkManager` 里实际上并行存在三条能力：
+`NetworkManager` 是 QML 和 `AppController` 使用的网络门面；具体实现按职责拆到几个模块：
 
-- `UDP Discovery`
-  - 周期性广播局域网查询
-  - Host 广播自己的房间公告
-  - 客户端维护 `discoveredRooms`
+- `RoomDiscoveryService`
+  - 负责局域网 UDP 查询、房间公告、发现列表、去重和过期清理
+  - Android 组播锁也集中在这里
+  - `NetworkManager` 只负责启动/停止发现，并把 `discoveredRooms` 暴露给 QML
 
 - `Host/Client ENet`
   - Host 模式下本机启动 `m_hostServer`
@@ -150,6 +152,11 @@
   - `requestOnlineRooms()` 通过 `m_lobbyHost + m_lobbyPeer` 拉房间列表
   - `createOnlineRoom()` / `joinOnlineRoom()` 通过 `m_clientHost + m_serverPeer` 进入 ECS 房间
   - Survivor 在在线模式下额外走二进制快照包
+
+- `NetworkAddressUtils / enetutils / protocolids`
+  - `NetworkAddressUtils` 负责本机和面向对端的 IPv4 选择
+  - `enetutils` 负责 ENet 初始化、地址解析、JSON 包和二进制包收发
+  - `protocolids.h` 集中维护主要 JSON 消息的 `type` 常量
 
 ### 4. ServerApp 是独立服务端入口
 
@@ -272,7 +279,7 @@ LanBoard/
 │   ├── app/               AppController，总调度
 │   ├── common/            公共类型、房间快照、控制器基类
 │   ├── lobby/             RoomManager 与房间规则
-│   ├── network/           ENet、UDP 发现、在线大厅、地址选择与协议工具
+│   ├── network/           NetworkManager 门面、ENet、UDP 发现、地址选择与协议定义
 │   ├── game/              四个游戏控制器与 Survivor 子系统
 │   └── server/            独立服务端入口 ServerApp
 ├── design/                设计稿、架构图等静态资源
@@ -423,7 +430,7 @@ Get-Process appLanBoard -ErrorAction SilentlyContinue | Stop-Process -Force
 - 页面协调集中在 `src/app/appcontroller.cpp`
 - 房间逻辑集中在 `src/lobby/roommanager.*`
 - 网络门面集中在 `src/network/networkmanager.cpp`
-- ENet 工具、地址选择和局域网发现分别在 `src/network/enetutils.*`、`src/network/networkaddressutils.*`、`src/network/roomdiscoveryservice.*`
+- ENet 工具、协议 type、地址选择和局域网发现分别在 `src/network/enetutils.*`、`src/network/protocolids.h`、`src/network/networkaddressutils.*`、`src/network/roomdiscoveryservice.*`
 - 在线服务端逻辑集中在 `src/server/serverapp.cpp`
 - 当前最复杂页面是 `qml/pages/RoomPage.qml`
 - 当前实验性游戏逻辑主要集中在 `src/game/survivorcontroller.* / survivorsimulation.* / survivorruntime.*`

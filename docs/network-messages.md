@@ -5,10 +5,18 @@
 ## 分类说明
 
 - 局域网发现：UDP 广播或单播，用于发现同一局域网中的房间。
-- 局域网房间：客户端与主机之间的 TCP 消息。
-- 在线房间：客户端与专用服务器之间的 TCP 消息。
-- 游戏同步：具体游戏过程中的 TCP 消息。
-- 通用错误：任意 TCP 连接上的错误反馈。
+- 局域网房间：客户端与主机之间的 ENet JSON 消息。
+- 在线房间：客户端与专用服务器之间的 ENet JSON 消息。
+- 游戏同步：具体游戏过程中的 ENet JSON 消息或 Survivor 二进制包。
+- 通用错误：任意 ENet JSON 连接上的错误反馈。
+
+## 传输约定
+
+- `discover_room` 和 `room_announce` 由 `RoomDiscoveryService` 通过 UDP 发现端口发送。
+- 表中带 `type` 字段的业务消息走 ENet channel 0，使用可靠 JSON 包。
+- `NetworkManager` 是 QML 和 `AppController` 使用的网络门面；ENet JSON 编解码由 `enetutils.*` 承担，主要消息 type 常量由 `protocolids.h` 维护。
+- `Survivor` 实时战斗额外使用 ENet 二进制包：输入和快照走独立 channel，HUD/升级/宝箱交互使用可靠包。
+- `LineJsonProtocol` 是早期逐行 JSON 工具，文件仍保留在仓库中，但当前 ENet 主链路不通过它发送或解析业务消息。
 
 ## 消息总览
 
@@ -73,11 +81,11 @@
 | `roomUid` | string | 建议 | 房间唯一标识 |
 | `hostName` | string | 是 | 房主昵称或房间名 |
 | `hostIp` | string | 是 | 客户端可连接的主机 IPv4 |
-| `port` | number | 是 | TCP 房间端口 |
+| `port` | number | 是 | ENet 房间端口 |
 | `playerCount` | number | 是 | 当前房间人数 |
 | `roomCapacity` | number | 是 | 房间总容量 |
 | `maxPlayers` | number | 是 | 当前游戏实际参与人数 |
-| `gameId` | string | 是 | `gomoku`、`doudizhu` 或 `flightchess` |
+| `gameId` | string | 是 | `gomoku`、`doudizhu`、`flightchess` 或 `survivor` |
 | `gameName` | string | 是 | 展示用游戏名 |
 | `inGame` | boolean | 是 | 是否正在游戏中 |
 | `isFull` | boolean | 是 | 是否已满 |

@@ -183,10 +183,12 @@ cmake --build build\codex-branch-check
 
 当前网络层职责已经更清晰：
 
-- `NetworkManager`：TCP 连接、消息发送、消息分发、对上层暴露网络门面。
-- `LineJsonProtocol`：TCP 上的换行 JSON 帧处理。
+- `NetworkManager`：当时的房间连接、消息发送、消息分发、对上层暴露网络门面。
+- `LineJsonProtocol`：当时 TCP 上的换行 JSON 帧处理。
 - `NetworkAddressUtils`：本机地址选择。
 - `RoomDiscoveryService`：局域网 UDP 房间发现。
+
+后续状态说明（2026-07-09）：主线已经整合 ENet，当前房间、在线大厅和游戏同步主链路使用 ENet JSON 包；`NetworkManager` 仍是网络门面，`RoomDiscoveryService` 仍负责局域网 UDP 发现，`NetworkAddressUtils` 仍负责地址选择。`LineJsonProtocol` 文件保留在仓库中，但当前 ENet 主链路不再通过逐行 JSON 协议收发业务消息。
 
 保留的主要消息 type 包括：
 
