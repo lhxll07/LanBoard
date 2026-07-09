@@ -14,11 +14,11 @@
 
 截至 2026-07-09，当前需要审阅的是：
 
+- [main-sync-work-report-20260709.md](./main-sync-work-report-20260709.md)
+
+该报告记录 `refactor/network-internals` 已再次同步最新 `origin/main` 后的冲突处理、自动验证结果和剩余风险。本轮合并前计划为：
+
 - [main-sync-workplan-20260709.md](./main-sync-workplan-20260709.md)
-
-该计划记录 `refactor/network-internals` 再次落后最新 `origin/main` 后，本轮同步主线前应执行的保护、冲突处理、构建验证和审阅事项。上一轮同步后的工作报告为：
-
-- [main-sync-work-report-20260708.md](./main-sync-work-report-20260708.md)
 
 ## 阅读顺序
 
@@ -61,6 +61,10 @@
 10. [main-sync-workplan-20260709.md](./main-sync-workplan-20260709.md)
     - 2026-07-09 当前合并前计划。
     - 记录当前分支相对 `origin/main` 再次落后的事实、预计冲突、未跟踪文件处理建议和同步验证步骤。
+
+11. [main-sync-work-report-20260709.md](./main-sync-work-report-20260709.md)
+    - 2026-07-09 同步最新 `main` 后的工作报告。
+    - 记录处理 `README.md` 和 `AppController` 冲突、保留网络拆分与主线 Survivor 更新、构建和自动验证结果。
 
 ## 长期维护文档
 
