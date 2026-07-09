@@ -35,6 +35,7 @@ struct FastNetworkState {
 };
 
 struct HudNetworkState {
+    quint64 seq = 0;
     int interactionPlayerId = -1;
     QString chestTitle;
     QList<UpgradeChoice> levelUpChoices;

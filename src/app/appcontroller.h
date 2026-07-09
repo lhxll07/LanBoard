@@ -73,6 +73,7 @@ public:
                                       const QString &roomName = QString());
     Q_INVOKABLE void joinOnlineRoom(const QString &roomId);
     Q_INVOKABLE void openLobbyForGame(const QString &gameId);
+    Q_INVOKABLE void returnFromSurvivorGame();
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
     Q_INVOKABLE bool updateOnlineServerEndpoint(const QString &host, int port);
@@ -122,7 +123,6 @@ private:
     bool isCurrentGame(LanBoard::GameControllerKind kind) const;
     void navigateToCurrentGame();
     void configureRoomGame(const QString &gameId);
-    void normalizeRoomSeatsForCurrentGame();
     int roomCapacity() const;
 
     RoomManager *m_roomManager = nullptr;

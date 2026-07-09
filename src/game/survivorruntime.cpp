@@ -8,6 +8,23 @@
 
 namespace LanBoard::Survivor::Runtime {
 
+namespace {
+
+qreal garlicBaseRadius(const PlayerState &player)
+{
+    if (player.garlicLevel <= 0)
+        return 0.0;
+
+    const auto *table = weaponLevelTable(WeaponGarlic);
+    const int index = qBound(0, player.garlicLevel - 1, 7);
+    qreal radius = table[index].radius;
+    if (player.garlicEvolved)
+        radius = qMax<qreal>(radius, 0.22f);
+    return radius;
+}
+
+}
+
 void initializeSessionPlayers(MatchState &state,
                               const QVariantList &activePlayers,
                               int localPlayerId)
@@ -200,7 +217,9 @@ RenderSnapshot buildRenderSnapshot(const MatchState &state)
             player.alive,
             player.local,
             player.colorIndex,
-            player.garlicLevel > 0 ? state.worldRuntime.garlicRadius * currentAreaMultiplier(player) : 0.0,
+            player.level,
+            player.killCount,
+            garlicBaseRadius(player) * currentAreaMultiplier(player),
             player.garlicEvolved
         });
     }

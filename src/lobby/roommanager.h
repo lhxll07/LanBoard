@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QJsonObject>
 #include <QVariantList>
 #include <QVector>
 
@@ -20,14 +21,38 @@ class RoomManager : public QObject
     Q_PROPERTY(int activePlayerCount READ activePlayerCount NOTIFY playerListChanged)
 
 public:
+    enum class ActionError {
+        None,
+        PlayerNotFound,
+        PlayerAlreadyExists,
+        RoomFull,
+        InvalidPlayerId,
+        OnlyHostCanStart,
+        OnlyHostCanSwitchGame,
+        HostLockedActive,
+        ActiveSeatFull,
+        MissingPlayers,
+        PlayersNotReady,
+        GameInProgress
+    };
+
     explicit RoomManager(QObject *parent = nullptr);
 
     void addPlayer(const QString &name, bool host = false, bool ready = false,
                    int playerId = -1,
-                   const QString &seatType = QStringLiteral("active"));
+                   const QString &seatType = QStringLiteral("active"),
+                   int piece = 0);
+    void setSnapshot(const LanBoard::RoomSnapshot &snapshot);
+    void setRoomIdentity(const QString &roomId, const QString &roomName);
+    void setGameInProgress(bool inProgress);
+    ActionError tryAddRoomPlayer(const QString &name, bool host, int playerId);
+    ActionError tryChangeSeat(int playerId, const QString &seatType);
+    ActionError trySwitchGame(int playerId, const QString &gameId);
+    ActionError tryStartGame(int playerId);
     Q_INVOKABLE void addTestPlayer(const QString &name);
     void toggleReady();
     Q_INVOKABLE void startGame();
+    void concludeGame();
     void reset();
     void setGameId(const QString &gameId);
 
@@ -35,11 +60,15 @@ public:
     bool isHost() const;
     bool canStart() const;
     int localPlayerIndex() const;
+    QString roomId() const { return m_roomId; }
+    QString roomName() const { return m_roomName; }
     QString gameId() const { return m_gameId; }
     QString gameName() const;
+    bool gameInProgress() const { return m_gameInProgress; }
     int maxPlayers() const;
     int roomCapacity() const { return 8; }
     int activePlayerCount() const;
+    int allocatePlayerId() const;
     void setLocalPlayerId(int playerId);
     bool setPlayerReadyById(int playerId, bool ready);
     bool setPlayerSeatById(int playerId, const QString &seatType);
@@ -48,7 +77,12 @@ public:
     int firstGuestPlayerId() const;
     int activeGuestCount() const;
     bool isPlayerActive(int playerId) const;
+    bool isPlayerHost(int playerId) const;
+    int playerPiece(int playerId) const;
+    QString playerName(int playerId) const;
+    QJsonObject roomStateMessageForPlayer(int playerId, const QString &mode = QString()) const;
     LanBoard::RoomSnapshot snapshot() const;
+    QString actionErrorKey(ActionError error) const;
 
 signals:
     void playerListChanged();
@@ -59,10 +93,14 @@ signals:
 
 private:
     int indexOfPlayerId(int playerId) const;
+    void normalizeSeats(bool fillMissingActiveSeats = true);
     void emitStateChanged();
 
     QVector<LanBoard::RoomPlayerState> m_players;
     int m_localPlayerId = 0;
     int m_nextGeneratedPlayerId = 1000;
+    QString m_roomId;
+    QString m_roomName;
     QString m_gameId = QStringLiteral("gomoku");
+    bool m_gameInProgress = false;
 };

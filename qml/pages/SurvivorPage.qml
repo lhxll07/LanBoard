@@ -14,11 +14,23 @@ Page {
     property bool keyLeft: false
     property bool keyRight: false
     property bool compactLayout: width < 460
+    property bool exitConfirmVisible: false
+    property bool touchJoystickVisible: false
+    property bool touchTracking: false
+    property bool touchBackArmed: false
+    property real touchAnchorX: 0
+    property real touchAnchorY: 0
     property real arenaScale: Math.max(renderCanvas.width * (compactLayout ? 0.64 : 0.56), 220)
     property real hudHeight: compactLayout ? 82 : 78
     property real radarCardSize: compactLayout ? 76 : 82
+    readonly property bool mobilePerformanceMode: Qt.platform.os === "android"
     property var weaponModel: AppCtrl.survivorController.weaponSlots
     property var passiveModel: AppCtrl.survivorController.passiveSlots
+    readonly property bool touchInputBlocked: exitConfirmVisible
+        || AppCtrl.survivorController.levelUpPending
+        || AppCtrl.survivorController.chestPending
+        || AppCtrl.survivorController.waitingForOtherPlayer
+        || AppCtrl.survivorController.gameOver
 
     function updateMovement() {
         var dx = touchDx
@@ -32,7 +44,74 @@ Page {
         AppCtrl.survivorController.setMoveInput(dx, dy)
     }
 
+    function clampValue(value, minValue, maxValue) {
+        return Math.max(minValue, Math.min(maxValue, value))
+    }
+
+    function beginTouchJoystick(x, y) {
+        if (touchInputBlocked)
+            return
+
+        var radius = (compactLayout ? 88 : 96) / 2
+        touchTracking = true
+        touchBackArmed = x <= 22
+        touchJoystickVisible = true
+        touchAnchorX = clampValue(x, radius + 10, width - radius - 10)
+        touchAnchorY = clampValue(y, radius + 10, height - radius - 10)
+        touchDx = 0
+        touchDy = 0
+        updateMovement()
+    }
+
+    function updateTouchJoystick(x, y) {
+        if (!touchTracking)
+            return
+
+        var rawDx = x - touchAnchorX
+        var rawDy = y - touchAnchorY
+        if (touchBackArmed) {
+            if (rawDx > 70 && Math.abs(rawDy) < 48) {
+                endTouchJoystick()
+                leaveCurrentGame()
+                return
+            }
+
+            if (rawDx < -8 || Math.abs(rawDy) > 56)
+                touchBackArmed = false
+        }
+
+        var dx = rawDx / 30
+        var dy = rawDy / 30
+        var len = Math.sqrt(dx * dx + dy * dy)
+        if (len > 1) {
+            dx /= len
+            dy /= len
+        }
+
+        touchDx = dx
+        touchDy = dy
+        updateMovement()
+    }
+
+    function endTouchJoystick() {
+        touchTracking = false
+        touchBackArmed = false
+        touchJoystickVisible = false
+        touchDx = 0
+        touchDy = 0
+        updateMovement()
+    }
+
     function leaveCurrentGame() {
+        if (AppCtrl.survivorController.gameOver) {
+            AppCtrl.returnFromSurvivorGame()
+            return
+        }
+        exitConfirmVisible = true
+    }
+
+    function confirmLeaveCurrentGame() {
+        exitConfirmVisible = false
         AppCtrl.survivorController.stopRun()
         if (AppCtrl.networkManager.isHost || AppCtrl.networkManager.isConnected)
             AppCtrl.leaveRoom()
@@ -73,7 +152,11 @@ Page {
     Keys.onPressed: function(event) {
         if (event.isAutoRepeat)
             return
-        if (event.key === Qt.Key_W || event.key === Qt.Key_Up)
+        if (event.key === Qt.Key_Escape) {
+            root.leaveCurrentGame()
+            event.accepted = true
+            return
+        } else if (event.key === Qt.Key_W || event.key === Qt.Key_Up)
             keyUp = true
         else if (event.key === Qt.Key_S || event.key === Qt.Key_Down)
             keyDown = true
@@ -96,6 +179,10 @@ Page {
             keyRight = false
         updateMovement()
     }
+    onTouchInputBlockedChanged: {
+        if (touchInputBlocked)
+            endTouchJoystick()
+    }
 
     Item {
         anchors.fill: parent
@@ -108,9 +195,9 @@ Page {
             anchors.bottom: parent.bottom
             controller: AppCtrl.survivorController
             compactLayout: root.compactLayout
-            layer.enabled: true
-            layer.smooth: true
-            layer.samples: 8
+            layer.enabled: !root.mobilePerformanceMode
+            layer.smooth: !root.mobilePerformanceMode
+            layer.samples: root.mobilePerformanceMode ? 0 : 4
         }
 
         Item {
@@ -148,12 +235,11 @@ Page {
                         text: "-" + modelData.amount
                         color: Qt.rgba(10 / 255, 12 / 255, 11 / 255, parent.textAlpha * 0.78)
                         font.family: "STSong"
-                        font.pixelSize: modelData.elite ? 28 : 22
+                        font.pixelSize: modelData.elite ? 26 : 20
                         font.weight: Font.Black
                         x: 2
                         y: 2
-                        renderType: Text.QtRendering
-                        renderTypeQuality: Text.HighRenderTypeQuality
+                        renderType: Text.NativeRendering
                     }
 
                     Text {
@@ -164,10 +250,9 @@ Page {
                             ? Qt.rgba(255 / 255, 232 / 255, 154 / 255, parent.textAlpha)
                             : Qt.rgba(250 / 255, 214 / 255, 122 / 255, parent.textAlpha)
                         font.family: "STSong"
-                        font.pixelSize: modelData.elite ? 28 : 22
+                        font.pixelSize: modelData.elite ? 26 : 20
                         font.weight: Font.Black
-                        renderType: Text.QtRendering
-                        renderTypeQuality: Text.HighRenderTypeQuality
+                        renderType: Text.NativeRendering
                     }
                 }
             }
@@ -360,7 +445,7 @@ Page {
             anchors.top: parent.top
             anchors.topMargin: 44
             width: compactLayout ? 214 : 238
-            height: compactLayout ? 90 : 96
+            height: compactLayout ? 104 : 112
 
             Column {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -393,7 +478,8 @@ Page {
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: centerHudGroup.width
                     horizontalAlignment: Text.AlignHCenter
-                    text: "击杀 " + AppCtrl.survivorController.killCount
+                    text: "个人 " + AppCtrl.survivorController.localKillCount
+                        + " · 总击杀 " + AppCtrl.survivorController.killCount
                         + " · "
                         + (AppCtrl.survivorController.networkSession ? "online" : "local")
                     color: "#708278"
@@ -403,18 +489,26 @@ Page {
                     renderTypeQuality: Text.HighRenderTypeQuality
                 }
 
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: centerHudGroup.width
-                    horizontalAlignment: Text.AlignHCenter
-                    text: AppCtrl.survivorController.upgradeSummary
-                    color: "#AAB7B0"
-                    font.pixelSize: compactLayout ? 10 : 11
-                    wrapMode: Text.Wrap
-                    maximumLineCount: 2
-                    elide: Text.ElideRight
-                    renderType: Text.QtRendering
-                    renderTypeQuality: Text.HighRenderTypeQuality
+                Repeater {
+                    model: AppCtrl.survivorController.leaderboard
+
+                    Text {
+                        visible: index < 3
+                        height: visible ? implicitHeight : 0
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: centerHudGroup.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: (index + 1) + ". "
+                            + modelData.name
+                            + (modelData.local ? " · 你" : "")
+                            + " · Lv." + modelData.level
+                            + " · " + modelData.kills + "杀"
+                        color: modelData.local ? "#E5D0A3" : "#AAB7B0"
+                        font.pixelSize: compactLayout ? 10 : 11
+                        elide: Text.ElideRight
+                        renderType: Text.QtRendering
+                        renderTypeQuality: Text.HighRenderTypeQuality
+                    }
                 }
             }
         }
@@ -440,56 +534,44 @@ Page {
                 controller: AppCtrl.survivorController
                 radarMode: true
                 compactLayout: root.compactLayout
-                layer.enabled: true
-                layer.smooth: true
-                layer.samples: 8
+                layer.enabled: !root.mobilePerformanceMode
+                layer.smooth: !root.mobilePerformanceMode
+                layer.samples: root.mobilePerformanceMode ? 0 : 4
             }
         }
 
-        MouseArea {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: 18
+        MultiPointTouchArea {
+            anchors.fill: parent
+            enabled: !root.touchInputBlocked
+            mouseEnabled: false
             z: 20
 
-            property real pressX: 0
-            property real pressY: 0
-            property bool armed: false
+            touchPoints: [
+                TouchPoint { id: moveTouchPoint }
+            ]
 
-            onPressed: function(mouse) {
-                pressX = mouse.x
-                pressY = mouse.y
-                armed = true
+            onPressed: {
+                if (moveTouchPoint.pressed)
+                    root.beginTouchJoystick(moveTouchPoint.x, moveTouchPoint.y)
             }
 
-            onPositionChanged: function(mouse) {
-                if (!armed)
-                    return
-
-                const dx = mouse.x - pressX
-                const dy = mouse.y - pressY
-                if (dx > 70 && Math.abs(dy) < 48) {
-                    armed = false
-                    root.leaveCurrentGame()
-                } else if (dx < -8 || Math.abs(dy) > 56) {
-                    armed = false
-                }
+            onUpdated: {
+                if (moveTouchPoint.pressed)
+                    root.updateTouchJoystick(moveTouchPoint.x, moveTouchPoint.y)
             }
 
-            onReleased: armed = false
-            onCanceled: armed = false
+            onReleased: root.endTouchJoystick()
+            onCanceled: root.endTouchJoystick()
         }
 
         Rectangle {
             id: joystickBase
-            anchors.left: parent.left
-            anchors.bottom: parent.bottom
-            anchors.leftMargin: 20
-            anchors.bottomMargin: 22
+            x: root.touchAnchorX - width / 2
+            y: root.touchAnchorY - height / 2
             width: compactLayout ? 88 : 96
             height: width
             radius: width / 2
+            visible: root.touchJoystickVisible
             color: Qt.rgba(23 / 255, 37 / 255, 32 / 255, 0.90)
             border.width: 1.2
             border.color: Qt.rgba(225 / 255, 210 / 255, 161 / 255, 0.20)
@@ -528,33 +610,6 @@ Page {
                 }
                 border.width: 1
                 border.color: Qt.rgba(90 / 255, 66 / 255, 38 / 255, 0.36)
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                onPressed: updatePad(mouse.x, mouse.y)
-                onPositionChanged: updatePad(mouse.x, mouse.y)
-                onReleased: resetPad()
-                onCanceled: resetPad()
-
-                function updatePad(x, y) {
-                    var dx = (x - joystickBase.anchorX) / 30
-                    var dy = (y - joystickBase.anchorY) / 30
-                    var len = Math.sqrt(dx * dx + dy * dy)
-                    if (len > 1) {
-                        dx /= len
-                        dy /= len
-                    }
-                    root.touchDx = dx
-                    root.touchDy = dy
-                    root.updateMovement()
-                }
-
-                function resetPad() {
-                    root.touchDx = 0
-                    root.touchDy = 0
-                    root.updateMovement()
-                }
             }
         }
 
@@ -759,7 +814,7 @@ Page {
             visible: AppCtrl.survivorController.gameOver
             anchors.centerIn: parent
             width: Math.min(parent.width - 36, 300)
-            height: 164
+            height: 212
             radius: 24
             color: "#F2E8D8"
             border.width: 1
@@ -781,9 +836,18 @@ Page {
                 Text {
                     Layout.fillWidth: true
                     text: "生存 " + AppCtrl.survivorController.survivalTimeSec
-                        + " 秒 · 击杀 " + AppCtrl.survivorController.killCount
+                        + " 秒 · 个人 " + AppCtrl.survivorController.localKillCount
+                        + " · 总击杀 " + AppCtrl.survivorController.killCount
                     color: AppTheme.textSecondary
                     font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: AppCtrl.survivorController.statusText
+                    color: AppTheme.textSecondary
+                    font.pixelSize: 12
                     wrapMode: Text.WordWrap
                 }
 
@@ -792,7 +856,62 @@ Page {
                 ActionButton {
                     Layout.fillWidth: true
                     text: "返回房间页"
-                    onClicked: root.leaveCurrentGame()
+                    onClicked: AppCtrl.returnFromSurvivorGame()
+                }
+            }
+        }
+
+        Rectangle {
+            visible: root.exitConfirmVisible
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 44, 292)
+            height: 176
+            radius: 24
+            color: "#F2E8D8"
+            border.width: 1
+            border.color: "#D1C2AA"
+            z: 40
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 10
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "确认退出本局？"
+                    color: AppTheme.textPrimary
+                    font.pixelSize: 20
+                    font.weight: Font.DemiBold
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: AppCtrl.networkManager.isHost || AppCtrl.networkManager.isConnected
+                        ? "退出后会离开当前对局并返回联机房间。"
+                        : "退出后会结束当前对局并返回房间页。"
+                    color: AppTheme.textSecondary
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
+                Item { Layout.fillHeight: true }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    ActionButton {
+                        Layout.fillWidth: true
+                        text: "继续游戏"
+                        onClicked: root.exitConfirmVisible = false
+                    }
+
+                    ActionButton {
+                        Layout.fillWidth: true
+                        text: "确认退出"
+                        onClicked: root.confirmLeaveCurrentGame()
+                    }
                 }
             }
         }

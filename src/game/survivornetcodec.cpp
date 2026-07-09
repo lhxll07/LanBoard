@@ -10,7 +10,7 @@ namespace LanBoard::Survivor::NetCodec {
 namespace {
 
 constexpr quint32 PacketMagic = 0x5642534Cu;  // LSBV
-constexpr quint8 PacketVersion = 2;
+constexpr quint8 PacketVersion = 3;
 constexpr qreal PositionScale = 1024.0;
 constexpr qreal RadiusScale = 4096.0;
 constexpr qreal ScalarScale = 1000.0;
@@ -257,6 +257,8 @@ void writePlayerCore(PacketWriter &writer,
     writer.writeInt16(static_cast<qint16>(player.maxHp));
     writer.writeUInt8(player.alive ? 1 : 0);
     writer.writeUInt8(static_cast<quint8>(qBound(0, player.colorIndex, 255)));
+    writer.writeInt16(static_cast<qint16>(player.level));
+    writer.writeInt16(static_cast<qint16>(player.killCount));
     writer.writeUInt16(encodeRadius(renderPlayer.auraRadius));
     writer.writeBool(renderPlayer.auraEvolved);
 }
@@ -273,6 +275,7 @@ void writePlayerProgression(PacketWriter &writer, const PlayerState &player)
     writer.writeInt16(static_cast<qint16>(player.level));
     writer.writeInt32(player.exp);
     writer.writeInt32(player.expToNext);
+    writer.writeInt16(static_cast<qint16>(player.killCount));
     writer.writeInt16(static_cast<qint16>(player.attackDamage));
     writer.writeUInt8(static_cast<quint8>(player.bladeWeaponLevel));
     writer.writeUInt8(static_cast<quint8>(player.projectileCount));
@@ -331,6 +334,7 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
     qint16 soulEaterBonusDamage = 0;
     quint8 colorIndex = 0;
     qint16 level = 0;
+    qint16 killCount = 0;
     qint16 attackDamage = 0;
     qint16 orbitBladeDamage = 0;
     bool orbitBladeEvolved = false;
@@ -390,6 +394,7 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
         || !reader.readInt16(level)
         || !reader.readInt32(player.exp)
         || !reader.readInt32(player.expToNext)
+        || !reader.readInt16(killCount)
         || !reader.readInt16(attackDamage)
         || !reader.readUInt8(bladeWeaponLevel)
         || !reader.readUInt8(projectileCount)
@@ -448,6 +453,7 @@ bool readPlayerProgression(PacketReader &reader, PlayerState &player)
     player.alive = alive;
     player.colorIndex = colorIndex;
     player.level = level;
+    player.killCount = qMax(0, static_cast<int>(killCount));
     player.attackDamage = attackDamage;
     player.bladeWeaponLevel = bladeWeaponLevel;
     player.projectileCount = projectileCount;
@@ -740,6 +746,8 @@ bool decodeFastNetworkState(const QByteArray &payload,
         qint16 relY = 0;
         qint16 hp = 0;
         qint16 maxHp = 0;
+        qint16 level = 0;
+        qint16 killCount = 0;
         quint8 alive = 0;
         quint8 colorIndex = 0;
         quint16 auraRadius = 0;
@@ -750,6 +758,8 @@ bool decodeFastNetworkState(const QByteArray &payload,
             || !reader.readInt16(maxHp)
             || !reader.readUInt8(alive)
             || !reader.readUInt8(colorIndex)
+            || !reader.readInt16(level)
+            || !reader.readInt16(killCount)
             || !reader.readUInt16(auraRadius)
             || !reader.readBool(auraEvolved)) {
             return false;
@@ -760,6 +770,8 @@ bool decodeFastNetworkState(const QByteArray &payload,
         player.maxHp = maxHp;
         player.alive = alive != 0;
         player.colorIndex = colorIndex;
+        player.level = level;
+        player.killCount = qMax(0, static_cast<int>(killCount));
         player.local = player.playerId == localPlayerId;
         decoded.players.append(player);
         decoded.snapshot.players.append({
@@ -770,6 +782,8 @@ bool decodeFastNetworkState(const QByteArray &payload,
             player.alive,
             player.local,
             player.colorIndex,
+            player.level,
+            player.killCount,
             decodeRadius(auraRadius),
             auraEvolved
         });
@@ -910,6 +924,7 @@ QByteArray encodeHudNetworkState(const HudNetworkState &state)
 {
     PacketWriter writer;
     writeHeader(writer, PacketKind::HudState);
+    writer.writeUInt64(state.seq);
     writer.writeInt16(static_cast<qint16>(state.interactionPlayerId));
     writer.writeString(state.chestTitle);
     writer.writeUInt8(static_cast<quint8>(qMin(state.levelUpChoices.size(), 255)));
@@ -928,6 +943,9 @@ bool decodeHudNetworkState(const QByteArray &payload, HudNetworkState &decoded)
     decoded = {};
     PacketReader reader(payload.constData(), payload.size());
     if (!readHeader(reader, PacketKind::HudState))
+        return false;
+
+    if (!reader.readUInt64(decoded.seq))
         return false;
 
     qint16 interactionPlayerId = -1;

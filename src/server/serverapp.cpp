@@ -131,9 +131,11 @@ void ServerApp::handleDisconnect(ENetPeer *peer)
     const PlayerSession disconnectedSession = *session;
     const QString roomId = session->roomId;
     RoomState *room = roomForPlayer(session);
-    const QString playerName = session->name;
-    const bool wasHost = session->isHost;
-    const int disconnectedPiece = session->piece;
+    const QString playerName = room && room->roomManager
+        ? room->roomManager->playerName(session->playerId)
+        : QStringLiteral("player");
+    const bool wasHost = room && room->roomManager
+        && room->roomManager->isPlayerHost(session->playerId);
 
     if (wasHost && room) {
         QList<ENetPeer *> remainingPeers;
@@ -154,7 +156,8 @@ void ServerApp::handleDisconnect(ENetPeer *peer)
         }
 
         for (int i = 0; i < m_rooms.size(); ++i) {
-            if (m_rooms.at(i)->roomId == roomId) {
+            if (m_rooms.at(i)->roomManager
+                && m_rooms.at(i)->roomManager->roomId() == roomId) {
                 delete m_rooms.at(i);
                 m_rooms.removeAt(i);
                 break;
@@ -170,8 +173,8 @@ void ServerApp::handleDisconnect(ENetPeer *peer)
 
         room = roomById(roomId);
         if (room) {
-            handlePlayerDisconnectInRoom(room, disconnectedSession, disconnectedPiece);
-            normalizeSeats(room);
+            handlePlayerDisconnectInRoom(room, disconnectedSession);
+            room->roomManager->removePlayerById(disconnectedSession.playerId);
             broadcastRoomState(room);
             removeRoomIfEmpty(roomId);
         }
@@ -253,7 +256,7 @@ void ServerApp::handleJoin(ENetPeer *peer, const QString &name, const QString &g
     const QString normalized = LanBoard::normalizeGameId(gameId);
     RoomState *targetRoom = nullptr;
     for (RoomState *room : std::as_const(m_rooms)) {
-        if (room->gameId == normalized) {
+        if (room->roomManager && room->roomManager->gameId() == normalized) {
             targetRoom = room;
             break;
         }
@@ -264,7 +267,7 @@ void ServerApp::handleJoin(ENetPeer *peer, const QString &name, const QString &g
         return;
     }
 
-    handleJoinRoom(peer, name, targetRoom->roomId);
+    handleJoinRoom(peer, name, targetRoom->roomManager->roomId());
 }
 
 void ServerApp::handleListRooms(ENetPeer *peer)
@@ -288,22 +291,25 @@ void ServerApp::handleCreateRoom(ENetPeer *peer, const QString &name, const QStr
     }
 
     RoomState *room = new RoomState();
-    room->roomId = createRoomId();
-    room->gameId = LanBoard::normalizeGameId(gameId);
-    room->roomName = normalizedRoomName(roomName, normalizedName(name), room->gameId);
+    room->roomManager = std::make_unique<RoomManager>();
     room->gameController = std::make_unique<GameController>();
     room->douDiZhuController = std::make_unique<DouDiZhuController>();
     room->flightChessController = std::make_unique<FlightChessController>();
     room->survivorController = std::make_unique<SurvivorController>();
-    room->gameActive = false;
+    room->roomManager->setRoomIdentity(createRoomId(),
+                                       normalizedRoomName(roomName,
+                                                          normalizedName(name),
+                                                          LanBoard::normalizeGameId(gameId)));
+    room->roomManager->setGameId(gameId);
+    room->roomManager->setLocalPlayerId(0);
     connect(room->survivorController.get(), &SurvivorController::networkSyncRequested,
             this, [this, room](bool includeHudDetails) {
-        if (!room || !room->gameActive
-            || LanBoard::controllerKindForGame(room->gameId)
+        if (!room || !room->roomManager || !room->roomManager->gameInProgress()
+            || LanBoard::controllerKindForGame(room->roomManager->gameId())
                 != LanBoard::GameControllerKind::Survivor) {
             return;
         }
-        for (const PlayerSession *player : activePlayersInRoom(room->roomId)) {
+        for (const PlayerSession *player : activePlayersInRoom(room->roomManager->roomId())) {
             if (!player || !player->peer)
                 continue;
             sendRaw(player->peer,
@@ -320,7 +326,7 @@ void ServerApp::handleCreateRoom(ENetPeer *peer, const QString &name, const QStr
     });
     connect(room->survivorController.get(), &SurvivorController::gameOverChanged,
             this, [this, room]() {
-        if (!room || !room->gameActive || !room->survivorController
+        if (!room || !room->roomManager || !room->roomManager->gameInProgress() || !room->survivorController
             || !room->survivorController->isGameOver()) {
             return;
         }
@@ -330,12 +336,9 @@ void ServerApp::handleCreateRoom(ENetPeer *peer, const QString &name, const QStr
 
     PlayerSession session;
     session.playerId = 0;
-    session.piece = LanBoard::usesBoardPiecesForGame(room->gameId) ? 1 : 0;
-    session.name = normalizedName(name);
-    session.roomId = room->roomId;
-    session.isHost = true;
-    session.seatKind = LanBoard::SeatKind::Active;
+    session.roomId = room->roomManager->roomId();
     session.peer = peer;
+    room->roomManager->tryAddRoomPlayer(normalizedName(name), true, session.playerId);
     m_players.append(session);
     peer->data = reinterpret_cast<void *>(1);
 
@@ -359,36 +362,30 @@ void ServerApp::handleJoinRoom(ENetPeer *peer, const QString &name, const QStrin
         return;
     }
 
-    if (room->gameActive) {
+    if (room->roomManager->gameInProgress()) {
         sendError(peer, QStringLiteral("room_in_game"));
         return;
     }
 
-    const auto players = playersInRoom(room->roomId);
-    if (players.size() >= roomCapacity()) {
+    const int playerId = room->roomManager->allocatePlayerId();
+    if (playerId < 0) {
         sendError(peer, QStringLiteral("room_full"));
         return;
     }
 
     PlayerSession session;
-    session.playerId = nextPlayerIdForRoom(room->roomId, room->gameId);
-    if (session.playerId < 0) {
-        sendError(peer, QStringLiteral("room_full"));
+    session.playerId = playerId;
+    session.roomId = room->roomManager->roomId();
+    session.peer = peer;
+    const RoomManager::ActionError addError = room->roomManager->tryAddRoomPlayer(
+        normalizedName(name), false, session.playerId);
+    if (addError != RoomManager::ActionError::None) {
+        sendError(peer, room->roomManager->actionErrorKey(addError));
         return;
     }
-    session.piece = LanBoard::usesBoardPiecesForGame(room->gameId) ? 2 : 0;
-    session.name = normalizedName(name);
-    session.roomId = room->roomId;
-    session.isHost = false;
-    session.seatKind = activePlayersInRoom(room->roomId).size()
-            <= LanBoard::activeGuestLimitForGame(room->gameId)
-        ? LanBoard::SeatKind::Active
-        : LanBoard::SeatKind::Spectator;
-    session.peer = peer;
     m_players.append(session);
     peer->data = reinterpret_cast<void *>(1);
 
-    normalizeSeats(room);
     broadcastRoomState(room);
 }
 
@@ -399,14 +396,16 @@ void ServerApp::handleReady(ENetPeer *peer, bool ready)
     if (!resolveSessionRoom(peer, session, room))
         return;
 
-    if (!ensureActiveSeat(peer, session, "spectator_cannot_ready"))
+    if (!room->roomManager->isPlayerActive(session->playerId)) {
+        sendError(peer, QStringLiteral("spectator_cannot_ready"));
         return;
+    }
 
-    if (room->gameActive && isGameFinished(room))
+    if (room->roomManager->gameInProgress() && isGameFinished(room))
         resetFinishedRoom(room);
 
-    session->isReady = ready;
-    broadcastRoomState(room);
+    if (room->roomManager->setPlayerReadyById(session->playerId, ready))
+        broadcastRoomState(room);
 }
 
 void ServerApp::handleStartGame(ENetPeer *peer)
@@ -416,34 +415,21 @@ void ServerApp::handleStartGame(ENetPeer *peer)
     if (!resolveSessionRoom(peer, session, room))
         return;
 
-    if (!session->isHost) {
-        sendError(peer, QStringLiteral("only_player_one_can_start"));
+    const RoomManager::ActionError startError = room->roomManager->tryStartGame(session->playerId);
+    if (startError != RoomManager::ActionError::None) {
+        sendError(peer, room->roomManager->actionErrorKey(startError));
         return;
-    }
-
-    const auto players = activePlayersInRoom(room->roomId);
-    if (!LanBoard::hasEnoughActivePlayersToStart(room->gameId, players.size())) {
-        sendError(peer, LanBoard::missingPlayersErrorForGame(room->gameId));
-        return;
-    }
-
-    if (LanBoard::requiresReadyForStartForGame(room->gameId)) {
-        for (const PlayerSession *player : players) {
-            if (!player->isReady) {
-                sendError(peer, QStringLiteral("players_not_ready"));
-                return;
-            }
-        }
     }
 
     resetGame(room);
-    room->gameActive = true;
+    room->roomManager->setGameInProgress(true);
 
     QJsonObject msg;
     msg[QStringLiteral("type")] = LanBoard::Protocol::GameStart;
-    msg[QStringLiteral("gameId")] = room->gameId;
-    msg[QStringLiteral("firstPlayer")] = LanBoard::firstPlayerForGame(room->gameId);
-    broadcastJsonToRoom(room->roomId, msg);
+    msg[QStringLiteral("gameId")] = room->roomManager->gameId();
+    msg[QStringLiteral("firstPlayer")] = LanBoard::firstPlayerForGame(room->roomManager->gameId());
+    broadcastJsonToRoom(room->roomManager->roomId(), msg);
+    const auto players = activePlayersInRoom(room->roomManager->roomId());
     startRoomGame(room, players);
 }
 
@@ -454,32 +440,12 @@ void ServerApp::handleChangeSeat(ENetPeer *peer, const QString &seatType)
     if (!resolveSessionRoom(peer, session, room))
         return;
 
-    if (session->isHost) {
-        sendError(peer, QStringLiteral("host_locked_active"));
+    const RoomManager::ActionError seatError = room->roomManager->tryChangeSeat(session->playerId,
+                                                                                 seatType);
+    if (seatError != RoomManager::ActionError::None) {
+        sendError(peer, room->roomManager->actionErrorKey(seatError));
         return;
     }
-
-    if (room->gameActive) {
-        sendError(peer, QStringLiteral("game_in_progress"));
-        return;
-    }
-
-    const LanBoard::SeatKind normalizedSeatKind = LanBoard::normalizedSeatKind(seatType);
-    if (normalizedSeatKind == LanBoard::SeatKind::Active
-        && !LanBoard::isActiveSeat(session->seatKind)
-        && activePlayersInRoom(room->roomId).size() >= LanBoard::maxPlayersForGame(room->gameId)) {
-        sendError(peer, QStringLiteral("active_seat_full"));
-        return;
-    }
-
-    if (session->seatKind == normalizedSeatKind) {
-        broadcastRoomState(room);
-        return;
-    }
-
-    session->seatKind = normalizedSeatKind;
-    session->isReady = false;
-    normalizeSeats(room, false);
     broadcastRoomState(room);
 }
 
@@ -490,27 +456,13 @@ void ServerApp::handleSwitchRoomGame(ENetPeer *peer, const QString &gameId)
     if (!resolveSessionRoom(peer, session, room))
         return;
 
-    if (!session->isHost) {
-        sendError(peer, QStringLiteral("only_host_can_switch_game"));
+    const RoomManager::ActionError switchError = room->roomManager->trySwitchGame(session->playerId,
+                                                                                   gameId);
+    if (switchError != RoomManager::ActionError::None) {
+        sendError(peer, room->roomManager->actionErrorKey(switchError));
         return;
     }
-
-    if (room->gameActive) {
-        sendError(peer, QStringLiteral("game_in_progress"));
-        return;
-    }
-
-    const QString normalized = LanBoard::normalizeGameId(gameId);
-    if (room->gameId == normalized) {
-        broadcastRoomState(room);
-        return;
-    }
-
-    room->gameId = normalized;
-    room->gameActive = false;
     resetGame(room);
-    clearReadyStates(room);
-    normalizeSeats(room);
     broadcastRoomState(room);
 }
 
@@ -524,22 +476,23 @@ void ServerApp::handlePlacePiece(ENetPeer *peer, int row, int col)
         return;
     }
 
-    if (activePlayersInRoom(room->roomId).size() != 2) {
+    if (activePlayersInRoom(room->roomManager->roomId()).size() != 2) {
         sendError(peer, QStringLiteral("need_two_players"));
         return;
     }
 
-    if (!room->gameController->placePiece(row, col, session->piece)) {
+    const int piece = room->roomManager->playerPiece(session->playerId);
+    if (!room->gameController->placePiece(row, col, piece)) {
         sendError(peer, QStringLiteral("invalid_move"));
         return;
     }
 
     QJsonObject msg;
     msg[QStringLiteral("type")] = QStringLiteral("move");
-    msg[QStringLiteral("player")] = session->piece;
+    msg[QStringLiteral("player")] = piece;
     msg[QStringLiteral("row")] = row;
     msg[QStringLiteral("col")] = col;
-    broadcastJsonToRoom(room->roomId, msg);
+    broadcastJsonToRoom(room->roomManager->roomId(), msg);
 
     if (room->gameController->isGameOver())
         concludeRoomGame(room, room->gameController->winner());
@@ -555,7 +508,8 @@ void ServerApp::handleFlightRoll(ENetPeer *peer)
         return;
     }
 
-    if (room->flightChessController->currentPlayer() != session->piece
+    const int piece = room->roomManager->playerPiece(session->playerId);
+    if (room->flightChessController->currentPlayer() != piece
         || room->flightChessController->hasRolled()) {
         sendError(peer, QStringLiteral("invalid_move"));
         return;
@@ -569,9 +523,9 @@ void ServerApp::handleFlightRoll(ENetPeer *peer)
 
     QJsonObject msg;
     msg[QStringLiteral("type")] = QStringLiteral("flight_roll_result");
-    msg[QStringLiteral("player")] = session->piece;
+    msg[QStringLiteral("player")] = piece;
     msg[QStringLiteral("diceValue")] = diceValue;
-    broadcastJsonToRoom(room->roomId, msg);
+    broadcastJsonToRoom(room->roomManager->roomId(), msg);
 }
 
 void ServerApp::handleFlightMove(ENetPeer *peer, int planeIndex)
@@ -584,7 +538,8 @@ void ServerApp::handleFlightMove(ENetPeer *peer, int planeIndex)
         return;
     }
 
-    if (room->flightChessController->currentPlayer() != session->piece
+    const int piece = room->roomManager->playerPiece(session->playerId);
+    if (room->flightChessController->currentPlayer() != piece
         || !room->flightChessController->movePlane(planeIndex)) {
         sendError(peer, QStringLiteral("invalid_move"));
         return;
@@ -592,9 +547,9 @@ void ServerApp::handleFlightMove(ENetPeer *peer, int planeIndex)
 
     QJsonObject msg;
     msg[QStringLiteral("type")] = QStringLiteral("flight_move_result");
-    msg[QStringLiteral("player")] = session->piece;
+    msg[QStringLiteral("player")] = piece;
     msg[QStringLiteral("planeIndex")] = planeIndex;
-    broadcastJsonToRoom(room->roomId, msg);
+    broadcastJsonToRoom(room->roomManager->roomId(), msg);
 
     if (room->flightChessController->isGameOver())
         concludeRoomGame(room, room->flightChessController->winner());
@@ -607,7 +562,8 @@ void ServerApp::handleSurrender(ENetPeer *peer)
     if (!resolveSessionRoom(peer, session, room))
         return;
 
-    const LanBoard::GameControllerKind controllerKind = LanBoard::controllerKindForGame(room->gameId);
+    const LanBoard::GameControllerKind controllerKind = LanBoard::controllerKindForGame(
+        room->roomManager->gameId());
     if (controllerKind != LanBoard::GameControllerKind::Gomoku
         && controllerKind != LanBoard::GameControllerKind::FlightChess) {
         sendError(peer, QStringLiteral("wrong_game"));
@@ -617,11 +573,12 @@ void ServerApp::handleSurrender(ENetPeer *peer)
     if (!ensureActiveSeat(peer, session, "spectator_cannot_surrender"))
         return;
 
+    const int piece = room->roomManager->playerPiece(session->playerId);
     if (controllerKind == LanBoard::GameControllerKind::FlightChess) {
-        room->flightChessController->setGameOver(otherPiece(session->piece));
+        room->flightChessController->setGameOver(otherPiece(piece));
         concludeRoomGame(room, room->flightChessController->winner());
     } else {
-        if (!room->gameController->surrender(session->piece)) {
+        if (!room->gameController->surrender(piece)) {
             sendError(peer, QStringLiteral("invalid_surrender"));
             return;
         }
@@ -656,7 +613,8 @@ void ServerApp::handleSurvivorChooseLevelUp(ENetPeer *peer, const QString &upgra
         return;
     }
 
-    room->survivorController->chooseLevelUp(upgradeId);
+    if (!room->survivorController->chooseLevelUp(upgradeId))
+        room->survivorController->forceNetworkResync(true);
 }
 
 void ServerApp::handleSurvivorCloseChest(ENetPeer *peer)
@@ -671,7 +629,8 @@ void ServerApp::handleSurvivorCloseChest(ENetPeer *peer)
         return;
     }
 
-    room->survivorController->closeChestRewards();
+    if (!room->survivorController->closeChestRewards())
+        room->survivorController->forceNetworkResync(true);
 }
 
 void ServerApp::handleGameOver(ENetPeer *peer, int winner)
@@ -792,48 +751,24 @@ void ServerApp::broadcastRoomState(RoomState *room)
     if (!room)
         return;
 
-    const auto players = playersInRoom(room->roomId);
-    QJsonArray playerArray;
-    for (const PlayerSession *player : players) {
-        QJsonObject entry;
-        entry[QStringLiteral("playerId")] = player->playerId;
-        entry[QStringLiteral("name")] = player->name;
-        entry[QStringLiteral("isHost")] = player->isHost;
-        entry[QStringLiteral("isReady")] = player->isReady;
-        entry[QStringLiteral("seatType")] = LanBoard::seatTypeString(player->seatKind);
-        entry[QStringLiteral("piece")] = player->piece;
-        playerArray.append(entry);
-    }
-
-    for (const PlayerSession *player : players) {
+    for (const PlayerSession *player : playersInRoom(room->roomManager->roomId())) {
         if (!player->peer)
             continue;
-
-        QJsonObject msg;
-        msg[QStringLiteral("type")] = LanBoard::Protocol::RoomState;
-        msg[QStringLiteral("roomId")] = room->roomId;
-        msg[QStringLiteral("roomName")] = room->roomName;
-        msg[QStringLiteral("gameId")] = room->gameId;
-        msg[QStringLiteral("gameName")] = LanBoard::gameName(room->gameId);
-        msg[QStringLiteral("maxPlayers")] = LanBoard::maxPlayersForGame(room->gameId);
-        msg[QStringLiteral("roomCapacity")] = roomCapacity();
-        msg[QStringLiteral("players")] = playerArray;
-        msg[QStringLiteral("yourPlayerId")] = player->playerId;
-        msg[QStringLiteral("yourPiece")] = player->piece;
-        msg[QStringLiteral("mode")] = QStringLiteral("dedicated_server");
-        sendJson(player->peer, msg);
+        sendJson(player->peer,
+                 room->roomManager->roomStateMessageForPlayer(player->playerId,
+                                                              QStringLiteral("dedicated_server")));
     }
 }
 
 void ServerApp::broadcastDouDiZhuStates(RoomState *room)
 {
     if (!room
-        || LanBoard::controllerKindForGame(room->gameId)
+        || LanBoard::controllerKindForGame(room->roomManager->gameId())
             != LanBoard::GameControllerKind::DouDiZhu) {
         return;
     }
 
-    for (const PlayerSession *player : activePlayersInRoom(room->roomId)) {
+    for (const PlayerSession *player : activePlayersInRoom(room->roomManager->roomId())) {
         if (!player->peer)
             continue;
 
@@ -846,28 +781,19 @@ void ServerApp::broadcastDouDiZhuStates(RoomState *room)
         concludeRoomGame(room, room->douDiZhuController->winner());
 }
 
-void ServerApp::clearReadyStates(RoomState *room)
-{
-    if (!room)
-        return;
-
-    for (PlayerSession *player : playersInRoom(room->roomId))
-        player->isReady = false;
-}
-
 void ServerApp::startRoomGame(RoomState *room, const QList<PlayerSession *> &activePlayers)
 {
     if (!room)
         return;
 
-    switch (LanBoard::controllerKindForGame(room->gameId)) {
+    switch (LanBoard::controllerKindForGame(room->roomManager->gameId())) {
     case LanBoard::GameControllerKind::Survivor: {
         QVariantList survivorPlayers;
         survivorPlayers.reserve(activePlayers.size());
         for (const PlayerSession *player : activePlayers) {
             QVariantMap entry;
             entry[QStringLiteral("playerId")] = player->playerId;
-            entry[QStringLiteral("name")] = player->name;
+            entry[QStringLiteral("name")] = room->roomManager->playerName(player->playerId);
             survivorPlayers.append(entry);
         }
         const int anchorPlayerId = activePlayers.isEmpty() ? 0 : activePlayers.first()->playerId;
@@ -889,31 +815,31 @@ void ServerApp::startRoomGame(RoomState *room, const QList<PlayerSession *> &act
 }
 
 void ServerApp::handlePlayerDisconnectInRoom(RoomState *room,
-                                             const PlayerSession &session,
-                                             int disconnectedPiece)
+                                             const PlayerSession &session)
 {
     if (!room) {
         return;
     }
 
-    const bool activeSeat = LanBoard::isActiveSeat(session.seatKind);
-    switch (LanBoard::controllerKindForGame(room->gameId)) {
+    const bool activeSeat = room->roomManager->isPlayerActive(session.playerId);
+    const int disconnectedPiece = room->roomManager->playerPiece(session.playerId);
+    switch (LanBoard::controllerKindForGame(room->roomManager->gameId())) {
     case LanBoard::GameControllerKind::DouDiZhu:
         resetFinishedRoom(room);
         return;
     case LanBoard::GameControllerKind::Survivor:
-        if (room->gameActive && activeSeat)
+        if (room->roomManager->gameInProgress() && activeSeat)
             concludeRoomGame(room, 0, false);
         return;
     case LanBoard::GameControllerKind::FlightChess:
-        if (room->gameActive && activeSeat && disconnectedPiece != 0) {
+        if (room->roomManager->gameInProgress() && activeSeat && disconnectedPiece != 0) {
             room->flightChessController->setGameOver(otherPiece(disconnectedPiece));
             concludeRoomGame(room, room->flightChessController->winner(), false);
         }
         return;
     case LanBoard::GameControllerKind::Gomoku:
     default:
-        if (room->gameActive && activeSeat && disconnectedPiece != 0) {
+        if (room->roomManager->gameInProgress() && activeSeat && disconnectedPiece != 0) {
             room->gameController->setGameOver(otherPiece(disconnectedPiece));
             concludeRoomGame(room, room->gameController->winner(), false);
         }
@@ -926,22 +852,11 @@ void ServerApp::resetGame(RoomState *room)
     if (!room)
         return;
 
-    switch (LanBoard::controllerKindForGame(room->gameId)) {
-    case LanBoard::GameControllerKind::DouDiZhu:
-        room->douDiZhuController->startNetworkGame(0);
-        return;
-    case LanBoard::GameControllerKind::Survivor:
-        if (room->survivorController)
-            room->survivorController->stopRun();
-        return;
-    case LanBoard::GameControllerKind::FlightChess:
-        room->flightChessController->startNewGame();
-        return;
-    case LanBoard::GameControllerKind::Gomoku:
-    default:
-        room->gameController->reset();
-        return;
-    }
+    room->gameController->reset();
+    room->douDiZhuController->startNetworkGame(0);
+    room->flightChessController->reset();
+    if (room->survivorController)
+        room->survivorController->stopRun();
 }
 
 bool ServerApp::isGameFinished(const RoomState *room) const
@@ -949,7 +864,7 @@ bool ServerApp::isGameFinished(const RoomState *room) const
     if (!room)
         return false;
 
-    switch (LanBoard::controllerKindForGame(room->gameId)) {
+    switch (LanBoard::controllerKindForGame(room->roomManager->gameId())) {
     case LanBoard::GameControllerKind::DouDiZhu:
         return room->douDiZhuController->isGameOver();
     case LanBoard::GameControllerKind::Survivor:
@@ -967,17 +882,31 @@ void ServerApp::concludeRoomGame(RoomState *room, int winner, bool broadcastRoom
     if (!room)
         return;
 
+    if (LanBoard::controllerKindForGame(room->roomManager->gameId()) == LanBoard::GameControllerKind::Survivor
+        && room->survivorController) {
+        if (!room->survivorController->isGameOver())
+            room->survivorController->finalizeGameOver(winner);
+
+        for (const PlayerSession *player : activePlayersInRoom(room->roomManager->roomId())) {
+            if (!player || !player->peer)
+                continue;
+            sendRaw(player->peer,
+                    room->survivorController->buildFastNetworkPacket(player->playerId),
+                    kSurvivorFrameChannel,
+                    ENET_PACKET_FLAG_RELIABLE);
+            sendRaw(player->peer,
+                    room->survivorController->buildHudNetworkPacket(player->playerId),
+                    kSurvivorHudChannel,
+                    ENET_PACKET_FLAG_RELIABLE);
+        }
+    }
+
     QJsonObject msg;
     msg[QStringLiteral("type")] = LanBoard::Protocol::GameOver;
     msg[QStringLiteral("winner")] = winner;
-    broadcastJsonToRoom(room->roomId, msg);
+    broadcastJsonToRoom(room->roomManager->roomId(), msg);
 
-    room->gameActive = false;
-    if (LanBoard::controllerKindForGame(room->gameId) == LanBoard::GameControllerKind::Survivor
-        && room->survivorController) {
-        room->survivorController->stopRun();
-    }
-    clearReadyStates(room);
+    room->roomManager->concludeGame();
     if (broadcastRoomStateAfterward)
         broadcastRoomState(room);
 }
@@ -987,9 +916,8 @@ void ServerApp::resetFinishedRoom(RoomState *room)
     if (!room)
         return;
 
-    room->gameActive = false;
+    room->roomManager->concludeGame();
     resetGame(room);
-    clearReadyStates(room);
 }
 
 void ServerApp::removeRoomIfEmpty(const QString &roomId)
@@ -1000,7 +928,7 @@ void ServerApp::removeRoomIfEmpty(const QString &roomId)
     }
 
     for (int i = 0; i < m_rooms.size(); ++i) {
-        if (m_rooms.at(i)->roomId == roomId) {
+        if (m_rooms.at(i)->roomManager && m_rooms.at(i)->roomManager->roomId() == roomId) {
             delete m_rooms.at(i);
             m_rooms.removeAt(i);
             return;
@@ -1012,17 +940,18 @@ QJsonArray ServerApp::roomListPayload() const
 {
     QJsonArray rooms;
     for (const RoomState *room : std::as_const(m_rooms)) {
-        const int playerCount = playersInRoom(room->roomId).size();
+        const QString roomId = room->roomManager->roomId();
+        const int playerCount = playersInRoom(roomId).size();
         QJsonObject entry;
-        entry[QStringLiteral("roomId")] = room->roomId;
-        entry[QStringLiteral("roomName")] = room->roomName;
-        entry[QStringLiteral("hostName")] = hostNameForRoom(room->roomId);
-        entry[QStringLiteral("gameId")] = room->gameId;
-        entry[QStringLiteral("gameName")] = LanBoard::gameName(room->gameId);
+        entry[QStringLiteral("roomId")] = roomId;
+        entry[QStringLiteral("roomName")] = room->roomManager->roomName();
+        entry[QStringLiteral("hostName")] = hostNameForRoom(roomId);
+        entry[QStringLiteral("gameId")] = room->roomManager->gameId();
+        entry[QStringLiteral("gameName")] = room->roomManager->gameName();
         entry[QStringLiteral("playerCount")] = playerCount;
         entry[QStringLiteral("roomCapacity")] = roomCapacity();
-        entry[QStringLiteral("maxPlayers")] = LanBoard::maxPlayersForGame(room->gameId);
-        entry[QStringLiteral("inGame")] = room->gameActive;
+        entry[QStringLiteral("maxPlayers")] = room->roomManager->maxPlayers();
+        entry[QStringLiteral("inGame")] = room->roomManager->gameInProgress();
         entry[QStringLiteral("isFull")] = playerCount >= roomCapacity();
         rooms.append(entry);
     }
@@ -1050,8 +979,10 @@ bool ServerApp::ensureControllerKind(ENetPeer *peer,
                                      const RoomState *room,
                                      LanBoard::GameControllerKind expectedKind)
 {
-    if (room && LanBoard::controllerKindForGame(room->gameId) == expectedKind)
+    if (room && room->roomManager
+        && LanBoard::controllerKindForGame(room->roomManager->gameId()) == expectedKind) {
         return true;
+    }
 
     sendError(peer, QStringLiteral("wrong_game"));
     return false;
@@ -1061,8 +992,11 @@ bool ServerApp::ensureActiveSeat(ENetPeer *peer,
                                  const PlayerSession *session,
                                  const char *errorKey)
 {
-    if (session && LanBoard::isActiveSeat(session->seatKind))
-        return true;
+    if (session) {
+        const RoomState *room = roomById(session->roomId);
+        if (room && room->roomManager && room->roomManager->isPlayerActive(session->playerId))
+            return true;
+    }
 
     sendError(peer, QString::fromLatin1(errorKey));
     return false;
@@ -1070,7 +1004,7 @@ bool ServerApp::ensureActiveSeat(ENetPeer *peer,
 
 bool ServerApp::ensureGameStarted(ENetPeer *peer, const RoomState *room)
 {
-    if (room && room->gameActive)
+    if (room && room->roomManager && room->roomManager->gameInProgress())
         return true;
 
     sendError(peer, QStringLiteral("game_not_started"));
@@ -1125,7 +1059,7 @@ const ServerApp::RoomState *ServerApp::roomForPlayer(const PlayerSession *sessio
 ServerApp::RoomState *ServerApp::roomById(const QString &roomId)
 {
     for (RoomState *room : std::as_const(m_rooms)) {
-        if (room->roomId == roomId)
+        if (room->roomManager && room->roomManager->roomId() == roomId)
             return room;
     }
     return nullptr;
@@ -1134,7 +1068,7 @@ ServerApp::RoomState *ServerApp::roomById(const QString &roomId)
 const ServerApp::RoomState *ServerApp::roomById(const QString &roomId) const
 {
     for (const RoomState *room : std::as_const(m_rooms)) {
-        if (room->roomId == roomId)
+        if (room->roomManager && room->roomManager->roomId() == roomId)
             return room;
     }
     return nullptr;
@@ -1163,9 +1097,13 @@ QList<const ServerApp::PlayerSession *> ServerApp::playersInRoom(const QString &
 QList<ServerApp::PlayerSession *> ServerApp::activePlayersInRoom(const QString &roomId)
 {
     QList<PlayerSession *> roomPlayers;
+    RoomState *room = roomById(roomId);
     for (auto &player : m_players) {
-        if (player.roomId == roomId && LanBoard::isActiveSeat(player.seatKind))
+        if (player.roomId == roomId
+            && room && room->roomManager
+            && room->roomManager->isPlayerActive(player.playerId)) {
             roomPlayers.append(&player);
+        }
     }
     return roomPlayers;
 }
@@ -1173,37 +1111,29 @@ QList<ServerApp::PlayerSession *> ServerApp::activePlayersInRoom(const QString &
 QList<const ServerApp::PlayerSession *> ServerApp::activePlayersInRoom(const QString &roomId) const
 {
     QList<const PlayerSession *> roomPlayers;
+    const RoomState *room = roomById(roomId);
     for (const auto &player : m_players) {
-        if (player.roomId == roomId && LanBoard::isActiveSeat(player.seatKind))
+        if (player.roomId == roomId
+            && room && room->roomManager
+            && room->roomManager->isPlayerActive(player.playerId)) {
             roomPlayers.append(&player);
+        }
     }
     return roomPlayers;
 }
 
 QString ServerApp::hostNameForRoom(const QString &roomId) const
 {
-    for (const auto &player : m_players) {
-        if (player.roomId == roomId && player.isHost)
+    const RoomState *room = roomById(roomId);
+    if (!room || !room->roomManager)
+        return QStringLiteral("host");
+
+    const LanBoard::RoomSnapshot snapshot = room->roomManager->snapshot();
+    for (const auto &player : snapshot.players) {
+        if (player.isHost)
             return player.name;
     }
     return QStringLiteral("host");
-}
-
-int ServerApp::nextPlayerIdForRoom(const QString &roomId, const QString &gameId) const
-{
-    Q_UNUSED(gameId);
-    for (int candidate = 0; candidate < roomCapacity(); ++candidate) {
-        bool used = false;
-        for (const auto &player : m_players) {
-            if (player.roomId == roomId && player.playerId == candidate) {
-                used = true;
-                break;
-            }
-        }
-        if (!used)
-            return candidate;
-    }
-    return -1;
 }
 
 QString ServerApp::createRoomId() const
@@ -1223,61 +1153,4 @@ int ServerApp::otherPiece(int piece) const
 int ServerApp::roomCapacity() const
 {
     return 8;
-}
-
-void ServerApp::normalizeSeats(RoomState *room, bool fillMissingActiveSeats)
-{
-    if (!room)
-        return;
-
-    auto players = playersInRoom(room->roomId);
-    int activeGuests = 0;
-    for (PlayerSession *player : players) {
-        if (player->isHost) {
-            player->seatKind = LanBoard::SeatKind::Active;
-            player->piece = LanBoard::usesBoardPiecesForGame(room->gameId) ? 1 : 0;
-            continue;
-        }
-        if (LanBoard::isActiveSeat(player->seatKind))
-            ++activeGuests;
-    }
-
-    for (int i = players.size() - 1;
-         i >= 0 && activeGuests > LanBoard::activeGuestLimitForGame(room->gameId);
-         --i) {
-        PlayerSession *player = players.at(i);
-        if (player->isHost || !LanBoard::isActiveSeat(player->seatKind))
-            continue;
-        player->seatKind = LanBoard::SeatKind::Spectator;
-        player->isReady = false;
-        --activeGuests;
-    }
-
-    if (fillMissingActiveSeats) {
-        for (PlayerSession *player : players) {
-            if (activeGuests >= LanBoard::activeGuestLimitForGame(room->gameId))
-                break;
-            if (player->isHost || player->seatKind != LanBoard::SeatKind::Spectator)
-                continue;
-            player->seatKind = LanBoard::SeatKind::Active;
-            ++activeGuests;
-        }
-    }
-
-    bool whiteAssigned = false;
-    for (PlayerSession *player : players) {
-        if (player->isHost) {
-            player->piece = LanBoard::usesBoardPiecesForGame(room->gameId) ? 1 : 0;
-            continue;
-        }
-
-        if (!LanBoard::usesBoardPiecesForGame(room->gameId)) {
-            player->piece = 0;
-        } else if (LanBoard::isActiveSeat(player->seatKind) && !whiteAssigned) {
-            player->piece = 2;
-            whiteAssigned = true;
-        } else {
-            player->piece = 0;
-        }
-    }
 }

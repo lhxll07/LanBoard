@@ -77,6 +77,7 @@ struct Projectile {
     QVector2D velocity;
     qreal radius = 0.012f;
     int sourceId = 0;
+    int ownerPlayerId = -1;
     int damage = 1;
     int hitIntervalMs = 0;
     int remainingHits = 1;
@@ -92,6 +93,7 @@ struct Zone {
     QVector2D position;
     qreal radius = 0.08f;
     int sourceId = 0;
+    int ownerPlayerId = -1;
     int damage = 1;
     int lifeMs = 0;
     int totalLifeMs = 0;
@@ -121,6 +123,7 @@ struct PlayerState {
     int level = 1;
     int exp = 0;
     int expToNext = 5;
+    int killCount = 0;
     int pendingLevelUps = 0;
 
     int attackCooldownMs = 0;
@@ -247,6 +250,8 @@ struct RenderPlayer {
     bool alive = true;
     bool local = false;
     int colorIndex = 0;
+    int level = 1;
+    int killCount = 0;
     qreal auraRadius = 0.0;
     bool auraEvolved = false;
 };

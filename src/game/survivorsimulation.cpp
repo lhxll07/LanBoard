@@ -196,50 +196,44 @@ constexpr SpawnWeight kWave14Elites[] = {
 };
 
 const WaveTemplate kWaveTemplates[] = {
-    {"夜翼与尸行", 900, 1, 0, 0, 24, kWave0Spawns, static_cast<int>(std::size(kWave0Spawns)), nullptr, 0},
-    {"骨花前奏", 760, 1, 0, 0, 38, kWave2Spawns, static_cast<int>(std::size(kWave2Spawns)), nullptr, 0},
-    {"狼藤试探", 680, 2, 0, 0, 48, kWave4Spawns, static_cast<int>(std::size(kWave4Spawns)), nullptr, 0},
-    {"猎犬骸潮", 540, 2, 24000, 1, 72, kWave5Spawns, static_cast<int>(std::size(kWave5Spawns)), kWave5Elites, static_cast<int>(std::size(kWave5Elites))},
-    {"幽翼盘旋", 480, 3, 18000, 1, 92, kWave6Spawns, static_cast<int>(std::size(kWave6Spawns)), kWave6Elites, static_cast<int>(std::size(kWave6Elites))},
-    {"鬼花开场", 430, 3, 15000, 1, 116, kWave7Spawns, static_cast<int>(std::size(kWave7Spawns)), kWave7Elites, static_cast<int>(std::size(kWave7Elites))},
-    {"进化节点", 380, 4, 13000, 2, 138, kWave8Spawns, static_cast<int>(std::size(kWave8Spawns)), kWave8Elites, static_cast<int>(std::size(kWave8Elites))},
-    {"骨环收束", 340, 4, 11000, 2, 158, kWave9Spawns, static_cast<int>(std::size(kWave9Spawns)), kWave9Elites, static_cast<int>(std::size(kWave9Elites))},
-    {"狼鬼混编", 300, 4, 9800, 2, 184, kWave10Spawns, static_cast<int>(std::size(kWave10Spawns)), kWave10Elites, static_cast<int>(std::size(kWave10Elites))},
-    {"巨压过渡", 270, 5, 9000, 2, 208, kWave11Spawns, static_cast<int>(std::size(kWave11Spawns)), kWave11Elites, static_cast<int>(std::size(kWave11Elites))},
-    {"花墙与棺群", 230, 5, 7800, 3, 236, kWave12Spawns, static_cast<int>(std::size(kWave12Spawns)), kWave12Elites, static_cast<int>(std::size(kWave12Elites))},
-    {"墓潮回涌", 210, 6, 6800, 3, 268, kWave13Spawns, static_cast<int>(std::size(kWave13Spawns)), kWave13Elites, static_cast<int>(std::size(kWave13Elites))},
-    {"终盘抬升", 190, 6, 6000, 3, 300, kWave14Spawns, static_cast<int>(std::size(kWave14Spawns)), kWave14Elites, static_cast<int>(std::size(kWave14Elites))},
-    {"死线压城", 170, 7, 5400, 4, 342, kWave14Spawns, static_cast<int>(std::size(kWave14Spawns)), kWave14Elites, static_cast<int>(std::size(kWave14Elites))},
-    {"血月终曲", 150, 8, 4800, 4, 392, kWave14Spawns, static_cast<int>(std::size(kWave14Spawns)), kWave14Elites, static_cast<int>(std::size(kWave14Elites))}
+    {"夜翼与尸行", 980, 1, 0, 0, 24, kWave0Spawns, static_cast<int>(std::size(kWave0Spawns)), nullptr, 0},
+    {"尸群逼近", 860, 1, 0, 0, 34, kWave1Spawns, static_cast<int>(std::size(kWave1Spawns)), nullptr, 0},
+    {"骨潮试探", 760, 1, 0, 0, 44, kWave2Spawns, static_cast<int>(std::size(kWave2Spawns)), nullptr, 0},
+    {"骨花前奏", 680, 2, 0, 0, 56, kWave3Spawns, static_cast<int>(std::size(kWave3Spawns)), nullptr, 0},
+    {"狼藤试探", 600, 2, 0, 0, 68, kWave4Spawns, static_cast<int>(std::size(kWave4Spawns)), nullptr, 0},
+    {"猎犬骸潮", 520, 2, 26000, 1, 88, kWave5Spawns, static_cast<int>(std::size(kWave5Spawns)), kWave3Elites, static_cast<int>(std::size(kWave3Elites))},
+    {"幽翼盘旋", 470, 3, 20000, 1, 108, kWave6Spawns, static_cast<int>(std::size(kWave6Spawns)), kWave4Elites, static_cast<int>(std::size(kWave4Elites))},
+    {"鬼花开场", 420, 3, 16500, 1, 130, kWave7Spawns, static_cast<int>(std::size(kWave7Spawns)), kWave5Elites, static_cast<int>(std::size(kWave5Elites))},
+    {"进化节点", 370, 4, 14000, 2, 154, kWave8Spawns, static_cast<int>(std::size(kWave8Spawns)), kWave6Elites, static_cast<int>(std::size(kWave6Elites))},
+    {"骨环收束", 330, 4, 11800, 2, 180, kWave9Spawns, static_cast<int>(std::size(kWave9Spawns)), kWave7Elites, static_cast<int>(std::size(kWave7Elites))},
+    {"狼鬼混编", 300, 4, 10200, 2, 196, kWave10Spawns, static_cast<int>(std::size(kWave10Spawns)), kWave8Elites, static_cast<int>(std::size(kWave8Elites))},
+    {"巨压过渡", 272, 4, 9000, 2, 224, kWave11Spawns, static_cast<int>(std::size(kWave11Spawns)), kWave9Elites, static_cast<int>(std::size(kWave9Elites))},
+    {"花墙与棺群", 244, 5, 7900, 2, 252, kWave12Spawns, static_cast<int>(std::size(kWave12Spawns)), kWave12Elites, static_cast<int>(std::size(kWave12Elites))},
+    {"墓潮回涌", 214, 5, 6900, 3, 286, kWave13Spawns, static_cast<int>(std::size(kWave13Spawns)), kWave13Elites, static_cast<int>(std::size(kWave13Elites))},
+    {"血月终曲", 188, 6, 5900, 3, 324, kWave14Spawns, static_cast<int>(std::size(kWave14Spawns)), kWave14Elites, static_cast<int>(std::size(kWave14Elites))}
 };
 
 const BossSpawnTemplate kBossSpawnSchedule[] = {
-    {90, WerewolfEnemy},
-    {120, GiantBatEnemy},
-    {210, GiantBatEnemy},
-    {240, OgreEnemy},
-    {270, GiantBatEnemy},
-    {300, OgreEnemy},
-    {330, GiantBatEnemy},
-    {420, OgreEnemy},
-    {480, GiantBatEnemy},
-    {540, OgreEnemy},
+    {150, WerewolfEnemy},
+    {240, GiantBatEnemy},
+    {330, OgreEnemy},
+    {420, GiantBatEnemy},
+    {510, OgreEnemy},
     {600, FlowerEnemy},
-    {660, OgreEnemy},
-    {720, FlowerEnemy},
-    {810, OgreEnemy},
-    {870, GiantBatEnemy}
+    {690, OgreEnemy},
+    {780, GiantBatEnemy},
+    {840, FlowerEnemy},
+    {894, GiantBatEnemy}
 };
 
 const WaveEventTemplate kWaveEventSchedule[] = {
-    {210, WaveEventBatSwarm, 28, 1.14f, 0.0f, 0},
-    {270, WaveEventBatSwarm, 34, 1.20f, 0.0f, 0},
-    {390, WaveEventFlowerWall, 22, 1.02f, 0.060f, 96},
-    {480, WaveEventBatSwarm, 50, 1.28f, 0.0f, 0},
-    {600, WaveEventFlowerWall, 30, 1.10f, 0.072f, 132},
-    {690, WaveEventBatSwarm, 64, 1.34f, 0.0f, 0},
-    {780, WaveEventFlowerWall, 36, 1.18f, 0.082f, 176},
-    {840, WaveEventBatSwarm, 82, 1.42f, 0.0f, 0}
+    {300, WaveEventBatSwarm, 32, 1.16f, 0.0f, 0},
+    {420, WaveEventFlowerWall, 24, 1.04f, 0.062f, 108},
+    {540, WaveEventBatSwarm, 56, 1.30f, 0.0f, 0},
+    {660, WaveEventFlowerWall, 32, 1.12f, 0.074f, 148},
+    {780, WaveEventBatSwarm, 76, 1.40f, 0.0f, 0},
+    {840, WaveEventFlowerWall, 38, 1.20f, 0.086f, 196},
+    {885, WaveEventBatSwarm, 54, 1.48f, 0.0f, 0}
 };
 
 }  // namespace
@@ -256,14 +250,14 @@ using LanBoard::Survivor::WeaponCount;
 constexpr int kMaxWeaponLevel = 8;
 
 const WeaponLevelInfo kKnifeLevels[8] = {
-    {7, 1000, 1, 1, 0, 0.0f, 1.0f, 0.0f, "解锁飞刀，按移动朝向投掷 1 枚飞刀。"},
-    {0, 1000, 1, 0, 0, 0.0f, 0.0f, 0.0f, "飞刀数量 +1。"},
-    {5, 1000, 1, 0, 0, 0.0f, 0.0f, 0.0f, "飞刀伤害 +5，数量 +1。"},
-    {0, 940, 1, 0, 0, 0.0f, 0.0f, 0.0f, "飞刀数量 +1，投掷间隔更紧。"},
-    {0, 940, 0, 1, 0, 0.0f, 0.0f, 0.0f, "飞刀穿透 +1。"},
-    {0, 880, 1, 0, 0, 0.0f, 0.0f, 0.0f, "飞刀数量 +1，投掷间隔更紧。"},
-    {5, 880, 1, 0, 0, 0.0f, 0.0f, 0.0f, "飞刀伤害 +5，数量 +1。"},
-    {0, 820, 0, 1, 0, 0.0f, 0.0f, 0.0f, "飞刀穿透 +1，投掷间隔更紧。"},
+    {9, 960, 1, 1, 0, 0.0f, 1.0f, 0.0f, "解锁飞刀，按移动朝向投掷 1 枚飞刀。"},
+    {3, 900, 1, 0, 0, 0.0f, 0.0f, 0.0f, "飞刀伤害 +3，数量 +1，投掷间隔更紧。"},
+    {4, 860, 1, 0, 0, 0.0f, 0.0f, 0.0f, "飞刀伤害 +4，数量 +1。"},
+    {3, 820, 1, 0, 0, 0.0f, 0.0f, 0.0f, "飞刀伤害 +3，数量 +1，投掷间隔更紧。"},
+    {5, 820, 0, 1, 0, 0.0f, 0.0f, 0.0f, "飞刀伤害 +5，穿透 +1。"},
+    {4, 760, 1, 0, 0, 0.0f, 0.0f, 0.0f, "飞刀伤害 +4，数量 +1，投掷间隔更紧。"},
+    {6, 720, 1, 0, 0, 0.0f, 0.0f, 0.0f, "飞刀伤害 +6，数量 +1。"},
+    {6, 680, 0, 1, 0, 0.0f, 0.0f, 0.0f, "飞刀伤害 +6，穿透 +1，投掷间隔更紧。"},
 };
 
 const WeaponLevelInfo kOrbitLevels[8] = {
@@ -278,14 +272,14 @@ const WeaponLevelInfo kOrbitLevels[8] = {
 };
 
 const WeaponLevelInfo kFireWandLevels[8] = {
-    {20, 3000, 3, 0, 0, 0.0f, 0.75f, 0.0f, "解锁火焰魔杖，自动朝最近敌人发射 3 枚火弹。"},
-    {10, 3000, 0, 0, 0, 0.0f, 0.75f, 0.0f, "火焰魔杖伤害 +10。"},
-    {10, 3000, 0, 0, 0, 0.0f, 0.90f, 0.0f, "火焰魔杖伤害 +10，弹速提升。"},
-    {10, 3000, 0, 0, 0, 0.0f, 0.90f, 0.0f, "火焰魔杖伤害 +10。"},
-    {10, 3000, 0, 0, 0, 0.0f, 1.10f, 0.0f, "火焰魔杖伤害 +10，弹速提升。"},
-    {10, 3000, 0, 0, 0, 0.0f, 1.10f, 0.0f, "火焰魔杖伤害 +10。"},
-    {10, 3000, 0, 0, 0, 0.0f, 1.30f, 0.0f, "火焰魔杖伤害 +10，弹速提升。"},
-    {10, 3000, 0, 0, 0, 0.0f, 1.30f, 0.0f, "火焰魔杖伤害 +10。"},
+    {24, 2800, 3, 0, 0, 0.0f, 0.78f, 0.0f, "解锁火焰魔杖，自动朝最近敌人发射 3 枚火弹。"},
+    {8, 2550, 0, 0, 0, 0.0f, 0.82f, 0.0f, "火焰魔杖伤害 +8，冷却缩短。"},
+    {10, 2350, 1, 0, 0, 0.0f, 0.92f, 0.0f, "火焰魔杖伤害 +10，数量 +1。"},
+    {10, 2150, 0, 0, 0, 0.0f, 1.02f, 0.0f, "火焰魔杖伤害 +10，冷却缩短。"},
+    {12, 1950, 1, 0, 0, 0.0f, 1.12f, 0.0f, "火焰魔杖伤害 +12，数量 +1。"},
+    {12, 1800, 0, 0, 0, 0.0f, 1.18f, 0.0f, "火焰魔杖伤害 +12，冷却缩短。"},
+    {14, 1650, 1, 0, 0, 0.0f, 1.26f, 0.0f, "火焰魔杖伤害 +14，数量 +1。"},
+    {16, 1500, 0, 0, 0, 0.0f, 1.34f, 0.0f, "火焰魔杖伤害 +16，冷却进一步缩短。"},
 };
 
 const WeaponLevelInfo kMagicWandLevels[8] = {
@@ -311,25 +305,25 @@ const WeaponLevelInfo kGarlicLevels[8] = {
 };
 
 const WeaponLevelInfo kCrossLevels[8] = {
-    {5, 2000, 1, 0, 0, 0.018f, 0.82f, 0.0f, "解锁十字架，命中后回旋返程。"},
-    {10, 2000, 0, 0, 0, 0.018f, 0.82f, 0.0f, "十字架伤害提升。"},
-    {0, 2000, 0, 0, 0, 0.020f, 1.02f, 0.0f, "十字架体积扩大，飞行速度提升。"},
-    {0, 2000, 1, 0, 0, 0.020f, 1.02f, 0.0f, "十字架数量 +1。"},
-    {10, 2000, 0, 0, 0, 0.020f, 1.02f, 0.0f, "十字架伤害再次提升。"},
-    {0, 2000, 0, 0, 0, 0.022f, 1.28f, 0.0f, "十字架体积扩大，飞行速度提升。"},
-    {0, 2000, 1, 0, 0, 0.022f, 1.28f, 0.0f, "十字架数量 +1。"},
-    {10, 2000, 0, 0, 0, 0.022f, 1.28f, 0.0f, "十字架伤害再次提升。"},
+    {9, 1800, 1, 0, 0, 0.020f, 0.90f, 0.0f, "解锁十字架，命中后回旋返程。"},
+    {8, 1700, 0, 0, 0, 0.020f, 0.96f, 0.0f, "十字架伤害提升，冷却缩短。"},
+    {4, 1600, 0, 0, 0, 0.022f, 1.08f, 0.0f, "十字架伤害提升，体积扩大，飞行速度提升。"},
+    {6, 1500, 1, 0, 0, 0.022f, 1.12f, 0.0f, "十字架伤害提升，数量 +1。"},
+    {10, 1450, 0, 0, 0, 0.022f, 1.18f, 0.0f, "十字架伤害再次提升。"},
+    {6, 1350, 0, 0, 0, 0.024f, 1.30f, 0.0f, "十字架伤害提升，体积扩大，飞行速度提升。"},
+    {8, 1250, 1, 0, 0, 0.024f, 1.34f, 0.0f, "十字架伤害提升，数量 +1。"},
+    {12, 1150, 0, 0, 0, 0.024f, 1.40f, 0.0f, "十字架伤害大幅提升，冷却缩短。"},
 };
 
 const WeaponLevelInfo kSantaWaterLevels[8] = {
-    {10, 4500, 1, 0, 2000, 0.08f, 0.0f, 0.0f, "解锁圣水，在最近敌人周围投下持续伤害圣池。"},
-    {0, 4500, 1, 0, 0, 0.08f, 0.0f, 0.0f, "圣水数量 +1。"},
-    {10, 4500, 0, 0, 500, 0.08f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长。"},
-    {0, 4500, 1, 0, 0, 0.10f, 0.0f, 0.0f, "圣水数量 +1，半径扩大。"},
-    {10, 4500, 0, 0, 500, 0.10f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长。"},
-    {0, 4500, 1, 0, 0, 0.112f, 0.0f, 0.0f, "圣水数量 +1，半径扩大。"},
-    {10, 4500, 0, 0, 500, 0.112f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长。"},
-    {10, 4500, 0, 0, 0, 0.124f, 0.0f, 0.0f, "圣水伤害提升，半径扩大。"},
+    {8, 5200, 1, 0, 1500, 0.072f, 0.0f, 0.0f, "解锁圣水，在最近敌人周围投下持续伤害圣池。"},
+    {4, 5200, 0, 0, 300, 0.072f, 0.0f, 0.0f, "圣水伤害提升，持续时间略延长。"},
+    {0, 5000, 1, 0, 0, 0.082f, 0.0f, 0.0f, "圣水数量 +1，半径扩大。"},
+    {6, 5000, 0, 0, 400, 0.082f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长。"},
+    {0, 4800, 1, 0, 0, 0.092f, 0.0f, 0.0f, "圣水数量 +1，投放间隔略缩短。"},
+    {8, 4800, 0, 0, 500, 0.100f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长，半径扩大。"},
+    {0, 4600, 1, 0, 0, 0.108f, 0.0f, 0.0f, "圣水数量 +1，投放间隔继续缩短。"},
+    {10, 4500, 0, 0, 500, 0.116f, 0.0f, 0.0f, "圣水伤害提升，持续时间延长，半径扩大。"},
 };
 
 const WeaponLevelInfo *kWeaponTables[WeaponCount] = {
@@ -430,8 +424,8 @@ const WeaponHitProfile kAttackProfiles[LanBoard::Survivor::AttackProfileCount] =
     {0.014f, 1.0f, 0.020f, 0.08f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 2600, 0, 1},
     {0.016f, 1.22f, 0.024f, 0.06f, 1.0f, 1.20f, 1.0f, 1.0f, 0.0f, 3200, 0, 2},
     {0.018f, 1.0f, 0.060f, 0.12f, 1.0f, 1.0f, 1.0f, 1.05f, 0.0f, 1620, 0, 1000},
-    {0.0f, 1.0f, 0.018f, 0.10f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0, 500, 1},
-    {0.0f, 1.0f, 0.026f, 0.06f, 1.12f, 1.30f, 1.20f, 1.0f, 0.16f, 0, 360, 1},
+    {0.0f, 1.0f, 0.016f, 0.10f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0, 560, 1},
+    {0.0f, 1.0f, 0.020f, 0.06f, 1.05f, 1.18f, 1.10f, 1.0f, 0.11f, 0, 420, 1},
     {0.0f, 1.0f, 0.040f, 0.10f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0, 0, 1},
     {0.0f, 1.0f, 0.028f, 0.08f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0, 1700, 1}
 };

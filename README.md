@@ -1,78 +1,264 @@
 # LanBoard（桌域）
 
-一个基于 `Qt 6 + Qt Quick + QML + C++` 的联机桌游与轻量多人游戏项目，面向课程大作业、局域网演示和小规模在线联机演示。
+一个基于 `Qt 6 + Qt Quick + QML + C++` 的多游戏联机项目，目标不是只做几个单机页面，而是统一：
 
-当前主线已经完成一轮较大规模重构，核心方向包括：
+- 页面壳层与导航
+- 房间 / 座位 / 准备 / 开局规则
+- 局域网与 ECS 在线大厅
+- 多个游戏控制器的生命周期
+- `Survivor` 的本地与在线战斗链路
 
-- 统一 `游戏控制器 / 房间 / 网络 / 页面壳层` 的运行模型
-- 收拢首页、联机页、设置页与房间页的职责边界
-- 用更稳定的客户端 / 服务端链路承载局域网与在线大厅
-- 为后续继续推进 `Survivor` 联机同步预留统一基础设施
+当前主线已经具备课程大作业所需的完整度：可本地运行、可局域网演示、可连接 ECS 在线大厅、可构建桌面端与 Android APK，并附带部署文档和开发日志。
+
+## 游戏与模式
 
 当前仓库包含 4 个游戏入口：
 
-- `五子棋`：双人回合制对弈
+- `五子棋`：双人回合制棋盘对弈
 - `斗地主`：三人联机纸牌
 - `飞行棋`：双人回合制桌游
-- `Survivor MVP`：生存类原型，已打通本地试玩、房间入口和在线联机战斗，实时同步与整体体验仍在继续完善
+- `Survivor MVP`：自动攻击生存原型，已接入本地战斗、房间流转和在线联机战斗
 
-项目当前支持：
+当前支持的运行模式：
 
 - `本地模式`
 - `局域网联机`
 - `在线联机（ECS 房间大厅）`
-- `独立服务端房间大厅`
+- `独立服务端`
 
-## 当前状态
+说明：
+
+- 局域网发现使用 `UDP 广播`
+- 房间与实时消息使用 `ENet / UDP`
+- ECS 在线大厅与在线房间由 `lanboardServer` 提供
+
+## 当前完成度
 
 ### 已完成
 
 - 首页统一展示游戏入口与简介
-- 房间页统一承载加入房间、创建房间、局域网扫描、在线房间列表和房间状态
-- 房主可在房间内切换当前游戏
-- 房间支持最多 `8` 人，区分 `游戏位 / 旁观位`
-- 切换游戏时会按该游戏人数规则自动整理游戏位
-- 对局结束后自动返回房间，并清空准备状态
+- 房间页统一承载局域网扫描、手动加入、在线房间列表、创建房间与房间状态
 - 设置通过 `QSettings` 持久化保存
-- 设置页支持直接复制当前局域网地址
-- UI 壳层、底部导航、房间页结构与动画已统一整理
+- 房间支持最多 `8` 人，区分 `游戏位 / 旁观位`
+- 房主可在房间内切换当前游戏
+- 切换游戏时按目标游戏的人数规则自动整理座位
+- 对局结束后自动回房并清空准备状态
+- Android 与桌面端都可构建
+- ECS 独立服务端可单独部署并常驻运行
 
-### 联机覆盖范围
+### 联机覆盖
 
 - `五子棋`：本地、局域网、在线房间、大厅服务端
 - `斗地主`：本地、局域网、在线房间、大厅服务端
 - `飞行棋`：本地、局域网、在线房间、大厅服务端
-- `Survivor MVP`：本地原型已可玩，房间流转与在线联机战斗已接入，实时同步、稳定性与平衡仍在持续完善
+- `Survivor MVP`：本地可玩，在线联机战斗已打通，仍在持续调优同步、节奏与性能
 
-### 网络能力
+## 架构总览
 
-- 手动输入 `IP + 端口` 加入局域网房间
-- 通过 `UDP` 广播自动发现同一局域网中的房间
-- 连接 ECS 在线大厅并拉取多个在线房间
-- 创建在线房间、加入在线房间、同步房间状态
-- 独立服务端负责在线房间大厅与房间同步
-- 客户端与服务端底层网络已统一收敛到同一套运行时链路
+项目现在不是“页面各写一套逻辑”，而是围绕 5 层组织：
 
-## 设置持久化
+1. `QML Shell`
+   - `qml/Main.qml` 负责应用窗口、底部导航、页面切换和返回逻辑
+   - `qml/pages/*.qml` 负责具体页面和交互表现
+   - `SurvivorPage.qml` 使用 `SurvivorRenderItem` 做自定义战斗渲染
 
-通过 `QSettings` 保存以下配置：
+2. `App 协调层`
+   - `src/app/AppController`
+   - 统一持有 `RoomManager / NetworkManager / 各游戏控制器`
+   - 负责导航、设置持久化、房间流转、开局/结算和网络事件分发
 
-- `昵称`
-- `默认端口`
-- `最近一次加入房间的 IP`
-- `最近一次加入房间的端口`
-- `在线服务器 Host`
-- `在线服务器 Port`
+3. `房间与规则层`
+   - `src/lobby/RoomManager`
+   - `src/common/roomtypes.h`
+   - `src/common/types.h`
+   - 统一定义房间快照、玩家座位、准备状态、每个游戏的开局人数规则和页面路由
 
-## 页面说明
+4. `网络层`
+   - `src/network/NetworkManager`
+   - `src/network/protocolids.h`
+   - `src/network/enetutils.*`
+   - 同时承载：
+     - 局域网 UDP 广播发现
+     - Host/Client 直连 ENet 会话
+     - ECS 在线大厅 / 在线房间连接
+     - Survivor 二进制快照与输入包
 
-- `首页`：游戏入口与简介
-- `房间页`：局域网大厅、在线大厅、创建房间、加入房间、房间状态
-- `五子棋页`：棋盘、回合提示、认输、结算后返回房间
-- `斗地主页`：手牌、出牌/不出、回合状态、联网同步
-- `飞行棋页`：掷骰、移动、回合切换、联网同步
-- `SurvivorPage`：生存原型、HUD、升级选择、宝箱结算、在线联机战斗
-- `设置页`：昵称、默认端口、局域网地址复制、在线服务器地址等
+5. `游戏层`
+   - `src/common/GameControllerBase`
+   - `src/game/GameController`（五子棋）
+   - `src/game/DouDiZhuController`
+   - `src/game/FlightChessController`
+   - `src/game/SurvivorController`
+   - 其中 `Survivor` 还拆成：
+     - `survivorworld.h`：核心数据结构
+     - `survivorruntime.*`：通用运行时计算与渲染快照导出
+     - `survivorsimulation.*`：波次、升级表、命中参数、数值规则
+     - `survivornetcodec.*`：二进制网络编解码
+     - `survivorrenderitem.*`：QSG 渲染层
+
+## 核心对象关系
+
+### 1. AppController 是总调度器
+
+`AppController` 持有并协调：
+
+- `RoomManager`
+- `NetworkManager`
+- `GameController`
+- `DouDiZhuController`
+- `FlightChessController`
+- `SurvivorController`
+
+它负责做三类事情：
+
+- `页面导航`
+  - 例如从首页进入房间页、从房间页进入具体游戏页、结算后回房
+- `模式切换`
+  - 本地模式、局域网 Host、局域网 Client、ECS 在线房间
+- `事件桥接`
+  - 把 `NetworkManager` 收到的远端消息转发给对应控制器
+  - 把控制器产生的输入、结算、同步请求再发回网络层
+
+### 2. RoomManager 统一房间语义
+
+`RoomManager` 不直接管网络，也不直接管 QML 页面样式。它只负责：
+
+- 玩家列表
+- 房主 / 普通玩家
+- 游戏位 / 旁观位
+- 准备状态
+- 当前房间游戏
+- 是否允许开始
+
+它输出的核心数据是 `RoomSnapshot`，页面和网络都围绕这个快照工作。
+
+### 3. NetworkManager 同时覆盖三种网络职责
+
+`NetworkManager` 里实际上并行存在三条能力：
+
+- `UDP Discovery`
+  - 周期性广播局域网查询
+  - Host 广播自己的房间公告
+  - 客户端维护 `discoveredRooms`
+
+- `Host/Client ENet`
+  - Host 模式下本机启动 `m_hostServer`
+  - 客户端直连 Host 时使用 `m_clientHost + m_serverPeer`
+  - 这条链路主要用于局域网房间
+
+- `Online Lobby / Dedicated Server ENet`
+  - `requestOnlineRooms()` 通过 `m_lobbyHost + m_lobbyPeer` 拉房间列表
+  - `createOnlineRoom()` / `joinOnlineRoom()` 通过 `m_clientHost + m_serverPeer` 进入 ECS 房间
+  - Survivor 在在线模式下额外走二进制快照包
+
+### 4. ServerApp 是独立服务端入口
+
+`src/server/ServerApp` 不是简单消息转发器，而是在线大厅和在线房间的实际宿主：
+
+- 一个 `ServerApp`
+- 维护多个 `RoomState`
+- 每个 `RoomState` 内部各自持有：
+  - `RoomManager`
+  - `GameController`
+  - `DouDiZhuController`
+  - `FlightChessController`
+  - `SurvivorController`
+
+也就是说，在线模式下每个房间在服务端都有一套独立的房间状态与游戏控制器实例。
+
+### 5. Survivor 是项目里最完整的一套子系统
+
+`Survivor` 已经不只是一个普通 `QObject` 控制器，而是一个小型运行时：
+
+- `MatchState`
+  - 玩家、敌人、投射物、经验球、区域伤害、伤害数字
+- `SurvivorController`
+  - 驱动 tick、输入、升级、宝箱、联网同步、结算
+- `Survivor::Runtime`
+  - 负责派生属性、镜头锚点、渲染快照
+- `Survivor::Simulation`
+  - 负责升级表、武器参数、波次、Boss、事件、经验曲线
+- `Survivor::NetCodec`
+  - 区分 `FastState / HudState / Input / ChooseLevelUp / CloseChest`
+- `SurvivorRenderItem`
+  - 用 Scene Graph 渲染玩家、敌人、投射物、圣池、雷达等
+
+## 实体关系图
+
+导出版 SVG：
+
+- [design/lanboard-architecture-erd.svg](design/lanboard-architecture-erd.svg)
+
+README 内嵌版：
+
+![LanBoard Architecture ERD](design/lanboard-architecture-erd.svg)
+
+Mermaid 版本：
+
+```mermaid
+erDiagram
+    APP_CONTROLLER ||--|| ROOM_MANAGER : owns
+    APP_CONTROLLER ||--|| NETWORK_MANAGER : owns
+    APP_CONTROLLER ||--|| GAME_CONTROLLER : owns
+    APP_CONTROLLER ||--|| DOUDIZHU_CONTROLLER : owns
+    APP_CONTROLLER ||--|| FLIGHTCHESS_CONTROLLER : owns
+    APP_CONTROLLER ||--|| SURVIVOR_CONTROLLER : owns
+
+    ROOM_MANAGER ||--|| ROOM_SNAPSHOT : exports
+    ROOM_SNAPSHOT ||--o{ ROOM_PLAYER_STATE : contains
+
+    NETWORK_MANAGER ||--o{ DISCOVERED_ROOM : caches
+    NETWORK_MANAGER }o..o{ ROOM_MANAGER : syncs_room_state
+    NETWORK_MANAGER }o..o{ SURVIVOR_CONTROLLER : binary_packets
+
+    SERVER_APP ||--o{ PLAYER_SESSION : tracks
+    SERVER_APP ||--o{ ROOM_STATE : hosts
+    ROOM_STATE ||--|| ROOM_MANAGER : embeds
+    ROOM_STATE ||--|| GAME_CONTROLLER : embeds
+    ROOM_STATE ||--|| DOUDIZHU_CONTROLLER : embeds
+    ROOM_STATE ||--|| FLIGHTCHESS_CONTROLLER : embeds
+    ROOM_STATE ||--|| SURVIVOR_CONTROLLER : embeds
+
+    SURVIVOR_CONTROLLER ||--|| MATCH_STATE : mutates
+    MATCH_STATE ||--o{ PLAYER_STATE : contains
+    MATCH_STATE ||--o{ ENEMY : contains
+    MATCH_STATE ||--o{ PROJECTILE : contains
+    MATCH_STATE ||--o{ PICKUP : contains
+    MATCH_STATE ||--o{ ZONE : contains
+    MATCH_STATE ||--o{ DAMAGE_NUMBER : contains
+
+    SURVIVOR_CONTROLLER }o..|| SURVIVOR_RUNTIME : uses
+    SURVIVOR_CONTROLLER }o..|| SURVIVOR_SIMULATION : uses
+    SURVIVOR_CONTROLLER }o..|| SURVIVOR_NET_CODEC : uses
+    SURVIVOR_RENDER_ITEM }o--|| SURVIVOR_CONTROLLER : reads_snapshot
+```
+
+## 运行链路
+
+### 本地模式
+
+`QML 页面 -> AppController -> RoomManager / 对应 GameController`
+
+不经过网络层。
+
+### 局域网 Host/Client
+
+- Host：
+  - `AppController` 启动 `NetworkManager::startServer()`
+  - `RoomManager` 维护本机房间
+  - Host 广播局域网房间公告
+
+- Client：
+  - 通过广播发现房间，或手动输入 `IP + 端口`
+  - 加入后接收 `room_state`
+  - 对局消息回传给 Host，由 Host 统一广播
+
+### ECS 在线模式
+
+- 客户端先向 ECS 拉取房间列表
+- 创建或加入房间后，由 `ServerApp` 在服务端为该房间维护状态
+- 房间状态和普通游戏消息走 JSON
+- `Survivor` 的实时战斗状态走二进制包
 
 ## 项目结构
 
@@ -80,144 +266,120 @@
 LanBoard/
 ├── qml/
 │   ├── Main.qml
-│   ├── components/
-│   │   ├── ActionButton.qml
-│   │   ├── AppTheme.qml
-│   │   ├── BottomTextNav.qml
-│   │   ├── GameCard.qml
-│   │   ├── PageHeader.qml
-│   │   ├── PlayerAvatar.qml
-│   │   ├── PlayerCard.qml
-│   │   └── SettingCard.qml
-│   └── pages/
-│       ├── HomePage.qml
-│       ├── RoomPage.qml
-│       ├── GamePage.qml
-│       ├── DouDiZhuPage.qml
-│       ├── FlightChessPage.qml
-│       ├── SurvivorPage.qml
-│       └── SettingsPage.qml
+│   ├── components/        通用视觉组件
+│   └── pages/             首页 / 房间 / 设置 / 各游戏页面
 ├── src/
-│   ├── app/       AppController，负责流程调度、设置持久化、导航
-│   ├── common/    共享类型、房间快照、控制器基类
-│   ├── game/      五子棋 / 斗地主 / 飞行棋 / Survivor 控制器、运行时与渲染层
-│   ├── lobby/     房间、玩家、准备状态、座位状态
-│   ├── network/   ENet 连接、消息分发、在线大厅、局域网发现和地址选择
-│   └── server/    独立在线服务端
+│   ├── app/               AppController，总调度
+│   ├── common/            公共类型、房间快照、控制器基类
+│   ├── lobby/             RoomManager 与房间规则
+│   ├── network/           ENet、UDP 发现、在线大厅、地址选择与协议工具
+│   ├── game/              四个游戏控制器与 Survivor 子系统
+│   └── server/            独立服务端入口 ServerApp
+├── design/                设计稿、架构图等静态资源
+├── docs/                  阶段计划、测试记录、网络消息表和工作报告
+├── ECS部署流程.md
+├── 技术开发日志.md
 ├── CMakeLists.txt
-├── CMakePresets.json
-├── build-qt6103/
-└── build-android/
+└── CMakePresets.json
 ```
-
-## 关键行为
-
-### 局域网联机
-
-- 开房后可被同一局域网中的设备发现
-- 房间列表显示房主、游戏类型、人数、状态
-- 支持手动刷新扫描结果
-- 多网卡场景下对重复房间做去重
-
-### 在线联机
-
-- App 可连接 ECS 在线大厅
-- 在线大厅展示多个房间，而不是单一全局房间
-- 房主可创建指定游戏类型的在线房间
-- 玩家加入后统一由房主控制当前房间游戏类型
-- 当前在线服务端主要负责大厅、房间流转与房间状态同步
-
-### 房间状态
-
-- 房主固定为 `游戏位`
-- 普通玩家可在 `游戏位 / 旁观位` 间切换
-- 切换游戏时会自动整理房间座位
-- 只有满足当前游戏人数要求且已准备完成时才允许开局
-
-### Survivor MVP
-
-- 主页和房间页已接入 Survivor 入口
-- 当前已经支持本地体验和在线联机战斗
-- HUD、小地图、升级面板、宝箱面板已接入
-- 联机房间流转与实时战斗链路已接入，但同步细节、稳定性与数值体验仍处于持续打磨阶段
-
-## 架构说明
-
-- `AppController` 负责导航、设置持久化、房间流转和控制器协调
-- `GameControllerBase` 抽象了不同游戏控制器的公共能力，减少了房间页与网络层的分支逻辑
-- `RoomManager + RoomSnapshot` 统一描述房间状态、座位、准备状态和游戏人数规则
-- `NetworkManager` 统一承载局域网发现、房间连接、在线大厅连接和实时/半实时消息收发
-- `ServerApp` 独立负责 ECS 在线大厅与在线房间服务，不影响局域网 Host/Client 直连模式
 
 ## 构建
 
 ### 桌面端
 
+当前主线只保留一个桌面构建目录：`build-qt-ascii`
+
 首次配置：
 
 ```powershell
-cmake -S . -B build-qt6103 -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64"
+cmake -S . -B build-qt-ascii -G Ninja `
+  -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64" `
+  -DQt6_DIR="C:\Qt\6.10.3\mingw_64\lib\cmake\Qt6" `
+  -DCMAKE_CXX_COMPILER="C:\Users\Lhx\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin\g++.exe" `
+  -DCMAKE_MAKE_PROGRAM="C:\Users\Lhx\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin\ninja.exe"
 ```
 
 编译：
 
 ```powershell
-cmake --build build-qt6103 --parallel 8
+cmake --build build-qt-ascii -j 8
+```
+
+补齐桌面运行时：
+
+```powershell
+C:\Qt\6.10.3\mingw_64\bin\windeployqt.exe --release --qmldir qml build-qt-ascii\appLanBoard.exe
 ```
 
 产物：
 
 ```text
-build-qt6103/appLanBoard.exe
-build-qt6103/lanboardServer.exe
+build-qt-ascii/appLanBoard.exe
+build-qt-ascii/lanboardServer.exe
 ```
 
 ### Android
 
-如果本地已经配置好 Qt Android Kit：
-
-```powershell
-cmake --build build-android --parallel 8
-```
-
-当前仓库环境下常用产物位置：
+当前常用构建目录：
 
 ```text
-build-android/android-build/build/outputs/apk/release/android-build-release-unsigned.apk
-build-android/LanBoard-android-arm64-release-signed.apk
+build-android-clean/
 ```
 
-说明：
+构建 APK：
 
-- `unsigned.apk` 是 Android 构建产物
-- `signed.apk` 是额外签名后的可安装包
+```powershell
+cmake --build build-android-clean --target apk --parallel 8
+```
+
+产物：
+
+```text
+build-android-clean/android-build/build/outputs/apk/release/android-build-release-unsigned.apk
+build-android-clean/LanBoard-android-arm64-release-signed.apk
+```
 
 ### 独立服务端
 
 如需只构建服务端：
 
 ```powershell
-cmake -S . -B build-server -G "MinGW Makefiles" -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64" -DLANBOARD_BUILD_APP=OFF -DLANBOARD_BUILD_SERVER=ON
+cmake -S . -B build-server -G Ninja `
+  -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64" `
+  -DLANBOARD_BUILD_APP=OFF `
+  -DLANBOARD_BUILD_SERVER=ON
 cmake --build build-server --parallel 8
 ```
 
 说明：
 
 - `appLanBoard` 是桌面 / Android 客户端
-- `lanboardServer` 是 ECS 上运行的在线大厅与房间服务端
-- 当前服务端主要负责大厅与房间服务，不承担完整的 Survivor 权威战斗模拟
+- `lanboardServer` 是 ECS 上的在线大厅与在线房间服务端
+- 在线模式下，`ServerApp` 会为每个房间持有自己的 `RoomManager + 游戏控制器`
+- `Survivor` 在线战斗已接入服务端控制器与二进制快照同步
+
+## 相关文档
+
+- [ECS部署流程.md](ECS部署流程.md)
+- [技术开发日志.md](技术开发日志.md)
+- [Qt安装流程.md](Qt安装流程.md)
+- [Git协作流程.md](Git协作流程.md)
+- [任务分工.md](任务分工.md)
+- [项目文档索引](docs/document-index.md)
+- [网络消息表](docs/network-messages.md)
+- [网络重构工作报告（2026-07-05）](docs/network-refactor-work-report-20260705.md)
+- [当前合并前工作计划（2026-07-09）](docs/main-sync-workplan-20260709.md)
+- [最新 main 同步工作报告（2026-07-08）](docs/main-sync-work-report-20260708.md)
 
 ## 常见问题
 
 ### 1. `cannot open output file appLanBoard.exe: Permission denied`
 
-说明桌面程序还在运行，占用了输出文件：
+桌面程序还在运行，占用了输出文件：
 
 ```powershell
 Get-Process appLanBoard -ErrorAction SilentlyContinue | Stop-Process -Force
 ```
-
-然后重新构建。
 
 ### 2. 局域网发现不到房间
 
@@ -228,37 +390,29 @@ Get-Process appLanBoard -ErrorAction SilentlyContinue | Stop-Process -Force
 - 路由器或系统防火墙是否拦截 UDP 广播
 - Android 端是否使用支持局域网广播的 Wi-Fi 网络
 
-### 3. 无法加入房间
+### 3. 在线房间连不上
 
 优先检查：
 
-- 主机 IP 是否正确
-- 端口是否一致
-- 房间是否已满
-- 房主当前游戏类型与人数要求是否匹配
+- 设置页中的 `在线服务器 Host / Port` 是否正确
+- ECS 的 `44567/udp` 是否放行
+- `lanboard.service` 是否正常运行
 
-### 4. 在线房间连接失败
+### 4. Survivor 当前是什么状态
 
-优先检查：
+它已经不再是“纯本地 Demo”，而是：
 
-- `设置页` 中在线服务器 Host / Port 是否正确
-- ECS 端口是否已放行
-- 服务器进程是否已启动
+- 可本地试玩
+- 可进入房间
+- 可在线联机战斗
+- 已接入升级、宝箱、HUD、雷达、结算与实时同步
 
-### 5. Survivor 当前是什么状态？
+当前仍在继续打磨：
 
-当前 `Survivor` 还处于 MVP 阶段，已经接入：
-
-- 首页入口
-- 房间入口
-- 本地战斗原型
-- 在线联机战斗
-
-目前的问题不再是“不能在线联机”，而是这套联机战斗仍在继续完善，包括：
-
-- 实时同步细节
+- 多人同步细节
 - 稳定性与流畅度
-- 数值和平衡
+- 高密度场景性能
+- 数值节奏与特效表现
 - 更完整的权威化方案
 
 因此 README 中将其标注为 `MVP / 原型`，但它已经具备可用的在线联机战斗能力。
@@ -273,14 +427,3 @@ Get-Process appLanBoard -ErrorAction SilentlyContinue | Stop-Process -Force
 - 在线服务端逻辑集中在 `src/server/serverapp.cpp`
 - 当前最复杂页面是 `qml/pages/RoomPage.qml`
 - 当前实验性游戏逻辑主要集中在 `src/game/survivorcontroller.* / survivorsimulation.* / survivorruntime.*`
-
-## 相关文档
-
-- [Qt安装流程.md](./Qt安装流程.md)
-- [Git协作流程.md](./Git协作流程.md)
-- [任务分工.md](./任务分工.md)
-- [项目文档索引](./docs/document-index.md)
-- [网络消息表](./docs/network-messages.md)
-- [网络重构工作报告（2026-07-05）](./docs/network-refactor-work-report-20260705.md)
-- [当前合并前工作计划（2026-07-09）](./docs/main-sync-workplan-20260709.md)
-- [最新 main 同步工作报告（2026-07-08）](./docs/main-sync-work-report-20260708.md)
