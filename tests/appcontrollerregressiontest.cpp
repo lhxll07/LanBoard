@@ -7,6 +7,7 @@
 #include <QUdpSocket>
 
 #include "src/app/appcontroller.h"
+#include "src/network/roomdiscoveryservice.h"
 
 namespace {
 
@@ -39,6 +40,7 @@ private slots:
     void pendingConnectionIsNotHandledAsDisconnect();
     void intentionalTransitionDoesNotNavigateThroughRoom();
     void hostedGameStartsLocally();
+    void discoversHostedRoomAndExchangesMessage();
     void surrenderIsNotLimitedToCurrentTurn();
     void remoteGuestCanSurrenderOnHostTurn();
     void finalGomokuMoveArrivesBeforeGameOver();
@@ -169,6 +171,60 @@ void AppControllerRegressionTest::hostedGameStartsLocally()
     QVERIFY(room->gameInProgress());
 
     controller.networkManager()->disconnectAll();
+}
+
+void AppControllerRegressionTest::discoversHostedRoomAndExchangesMessage()
+{
+    AppController host;
+    const quint16 port = availableUdpPort();
+    QVERIFY(port != 0);
+    QVERIFY(host.updateDefaultPort(port));
+    QVERIFY(host.updateNickname(QStringLiteral("Discovery Host")));
+    host.startRoomAsHost(QStringLiteral("gomoku"));
+    QVERIFY(host.networkManager()->isHost());
+
+    RoomDiscoveryService discovery;
+    discovery.start();
+
+    QVariantMap discoveredRoom;
+    auto findHostedRoom = [&]() {
+        for (const QVariant &value : discovery.discoveredRooms()) {
+            const QVariantMap room = value.toMap();
+            if (room.value(QStringLiteral("port")).toUInt()
+                != host.networkManager()->serverPort()) {
+                continue;
+            }
+            if (room.value(QStringLiteral("hostName")).toString()
+                != QStringLiteral("Discovery Host")) {
+                continue;
+            }
+            discoveredRoom = room;
+            return true;
+        }
+        return false;
+    };
+    QTRY_VERIFY_WITH_TIMEOUT(findHostedRoom(), 7000);
+    QVERIFY(!discoveredRoom.value(QStringLiteral("roomUid")).toString().isEmpty());
+    QVERIFY(discoveredRoom.value(QStringLiteral("endpointCount")).toInt() >= 1);
+
+    NetworkManager client;
+    client.connectToServer(discoveredRoom.value(QStringLiteral("hostIp")).toString(),
+                           static_cast<quint16>(discoveredRoom.value(QStringLiteral("port")).toUInt()),
+                           QStringLiteral("Discovery Guest"),
+                           QStringLiteral("gomoku"));
+    QTRY_VERIFY_WITH_TIMEOUT(client.isConnected(), 5000);
+    QTRY_COMPARE_WITH_TIMEOUT(host.roomManager()->activePlayerCount(), 2, 5000);
+
+    client.sendReady(true);
+    QTRY_VERIFY_WITH_TIMEOUT([&]() {
+        const LanBoard::RoomSnapshot snapshot = host.roomManager()->snapshot();
+        const LanBoard::RoomPlayerState *guest = playerById(snapshot, 1);
+        return guest && guest->isReady;
+    }(), 5000);
+
+    client.disconnectAll();
+    discovery.stop();
+    host.networkManager()->disconnectAll();
 }
 
 void AppControllerRegressionTest::surrenderIsNotLimitedToCurrentTurn()
