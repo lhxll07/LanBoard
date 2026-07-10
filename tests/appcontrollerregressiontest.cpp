@@ -38,6 +38,9 @@ private slots:
     void requestedSeatChangeKeepsRequestedPlayerActive();
     void pendingConnectionIsNotHandledAsDisconnect();
     void intentionalTransitionDoesNotNavigateThroughRoom();
+    void hostedGameStartsLocally();
+    void surrenderIsNotLimitedToCurrentTurn();
+    void remoteGuestCanSurrenderOnHostTurn();
     void finalGomokuMoveArrivesBeforeGameOver();
     void flightChessFinishIsDeferred();
 
@@ -138,6 +141,74 @@ void AppControllerRegressionTest::intentionalTransitionDoesNotNavigateThroughRoo
     QCOMPARE(navigationSpy.count(), 1);
     QCOMPARE(navigationSpy.constFirst().at(0).toInt(),
              static_cast<int>(LanBoard::NavigationPage::Gomoku));
+}
+
+void AppControllerRegressionTest::hostedGameStartsLocally()
+{
+    AppController controller;
+    const quint16 port = availableUdpPort();
+    QVERIFY(port != 0);
+    QVERIFY(controller.updateDefaultPort(port));
+    controller.startRoomAsHost(QStringLiteral("gomoku"));
+    QVERIFY(controller.networkManager()->isHost());
+    QVERIFY(controller.networkManager()->isConnected());
+
+    RoomManager *room = controller.roomManager();
+    QCOMPARE(room->tryAddRoomPlayer(QStringLiteral("Guest"), false, 1),
+             RoomManager::ActionError::None);
+    QVERIFY(room->setPlayerReadyById(0, true));
+    QVERIFY(room->setPlayerReadyById(1, true));
+    QVERIFY(room->canStart());
+
+    QSignalSpy navigationSpy(&controller, &AppController::navigationRequested);
+    room->startGame();
+
+    QCOMPARE(navigationSpy.count(), 1);
+    QCOMPARE(navigationSpy.constFirst().at(0).toInt(),
+             static_cast<int>(LanBoard::NavigationPage::Gomoku));
+    QVERIFY(room->gameInProgress());
+
+    controller.networkManager()->disconnectAll();
+}
+
+void AppControllerRegressionTest::surrenderIsNotLimitedToCurrentTurn()
+{
+    GameController game;
+    QVERIFY(game.placePiece(0, 0, 1));
+    QCOMPARE(game.currentPlayer(), 2);
+    QVERIFY(game.surrender(1));
+    QVERIFY(game.isGameOver());
+    QCOMPARE(game.winner(), 2);
+
+    game.reset();
+    QCOMPARE(game.currentPlayer(), 1);
+    QVERIFY(game.surrender(2));
+    QVERIFY(game.isGameOver());
+    QCOMPARE(game.winner(), 1);
+}
+
+void AppControllerRegressionTest::remoteGuestCanSurrenderOnHostTurn()
+{
+    AppController controller;
+    const quint16 port = availableUdpPort();
+    QVERIFY(port != 0);
+    QVERIFY(controller.updateDefaultPort(port));
+    controller.startRoomAsHost(QStringLiteral("gomoku"));
+    QVERIFY(QMetaObject::invokeMethod(&controller,
+                                      "onJoinRequested",
+                                      Qt::DirectConnection,
+                                      Q_ARG(QString, QStringLiteral("Guest")),
+                                      Q_ARG(int, 1)));
+    QCOMPARE(controller.gameController()->currentPlayer(), 1);
+
+    QVERIFY(QMetaObject::invokeMethod(&controller,
+                                      "onRemoteSurrender",
+                                      Qt::DirectConnection,
+                                      Q_ARG(int, 1)));
+    QVERIFY(controller.gameController()->isGameOver());
+    QCOMPARE(controller.gameController()->winner(), 1);
+
+    controller.networkManager()->disconnectAll();
 }
 
 void AppControllerRegressionTest::finalGomokuMoveArrivesBeforeGameOver()
