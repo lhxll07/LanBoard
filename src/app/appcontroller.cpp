@@ -794,7 +794,7 @@ void AppController::resetRoomSession(const QString &gameId, int localPlayerId)
 
 void AppController::startCurrentGameSession()
 {
-    if (m_networkManager->isConnected()) {
+    if (!m_networkManager->isHost() && m_networkManager->isConnected()) {
         m_networkManager->sendStartGame();
         return;
     }
