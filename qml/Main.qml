@@ -19,7 +19,8 @@ ApplicationWindow {
         && (stackView.currentItem.objectName === "gamePage"
             || stackView.currentItem.objectName === "doudizhuPage"
             || stackView.currentItem.objectName === "flightChessPage"
-            || stackView.currentItem.objectName === "survivorPage"))
+            || stackView.currentItem.objectName === "survivorPage"
+            || stackView.currentItem.objectName === "work3Page"))
 
     // 页面路由表
     readonly property var pageRoutes: [
@@ -29,7 +30,8 @@ ApplicationWindow {
         { name: "onlinePage",    url: "pages/RoomPage.qml" },
         { name: "doudizhuPage",  url: "pages/DouDiZhuPage.qml" },
         { name: "flightChessPage", url: "pages/FlightChessPage.qml" },
-        { name: "survivorPage",  url: "pages/SurvivorPage.qml" }
+        { name: "survivorPage",  url: "pages/SurvivorPage.qml" },
+        { name: "work3Page",     url: "pages/Work3Page.qml" }
     ]
 
     function handleBackNavigation() {
@@ -53,6 +55,10 @@ ApplicationWindow {
                 stackView.currentItem.leaveCurrentGame()
             } else if (stackView.currentItem
                     && stackView.currentItem.objectName === "survivorPage"
+                    && stackView.currentItem.leaveCurrentGame) {
+                stackView.currentItem.leaveCurrentGame()
+            } else if (stackView.currentItem
+                    && stackView.currentItem.objectName === "work3Page"
                     && stackView.currentItem.leaveCurrentGame) {
                 stackView.currentItem.leaveCurrentGame()
             } else {
@@ -79,14 +85,30 @@ ApplicationWindow {
     }
 
     function returnToShell() {
-        while (stackView.depth > 1)
-            stackView.pop()
+        if (stackView.depth <= 1)
+            return
+
+        var shellItem = stackView.get(0)
+        if (shellItem)
+            stackView.pop(shellItem, StackView.Immediate)
+        else
+            stackView.pop(null, StackView.Immediate)
+    }
+
+    function goHome() {
+        currentTab = 0
+        returnToShell()
     }
 
     Connections {
         target: AppCtrl
         function onNavigationRequested(page) {
-            if (page <= 0 || page >= window.pageRoutes.length)
+            if (page === 0) {
+                window.goHome()
+                return
+            }
+
+            if (page < 0 || page >= window.pageRoutes.length)
                 return
 
             var route = window.pageRoutes[page]
@@ -97,7 +119,8 @@ ApplicationWindow {
                     && (window.stackView.currentItem.objectName === "gamePage"
                         || window.stackView.currentItem.objectName === "flightChessPage"
                         || window.stackView.currentItem.objectName === "doudizhuPage"
-                        || window.stackView.currentItem.objectName === "survivorPage")) {
+                        || window.stackView.currentItem.objectName === "survivorPage"
+                        || window.stackView.currentItem.objectName === "work3Page")) {
                     window.stackView.pop()
                 } else if (window.stackView.depth === 1) {
                     window.currentTab = 1

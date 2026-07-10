@@ -5,6 +5,10 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 
+#if defined(Q_OS_ANDROID)
+#include <QtCore/qcoreapplication_platform.h>
+#endif
+
 #include "src/common/roomtypes.h"
 #include <QSettings>
 #include "src/network/protocolids.h"
@@ -14,6 +18,32 @@
 #include "src/game/survivorcontroller.h"
 #include "src/lobby/roommanager.h"
 #include "src/network/networkmanager.h"
+
+namespace {
+
+#if defined(Q_OS_ANDROID)
+constexpr int AndroidScreenOrientationSensorLandscape = 6;
+constexpr int AndroidScreenOrientationPortrait = 1;
+
+void setAndroidRequestedOrientation(int orientation)
+{
+    const auto requestOrientation = [orientation]() {
+        auto activity = QNativeInterface::QAndroidApplication::context();
+        if (!activity.isValid())
+            return;
+
+        activity.callMethod<void>("setRequestedOrientation", jint(orientation));
+    };
+
+#if QT_CONFIG(future)
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread(requestOrientation);
+#else
+    requestOrientation();
+#endif
+}
+#endif
+
+}
 
 AppController::AppController(QObject *parent)
     : QObject(parent)
@@ -246,6 +276,34 @@ void AppController::startLocalGame(const QString &gameId)
     resetRoomSession(gameId);
     startCurrentGameRuntime();
     navigateToCurrentGame();
+}
+
+void AppController::openHomePage()
+{
+    emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Home));
+}
+
+void AppController::openWork3Game()
+{
+    m_networkManager->disconnectAll();
+    m_isDedicatedServerRoom = false;
+    setModeState(false, false, 0);
+    m_activeGuestPlayerId = -1;
+    emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Work3));
+}
+
+void AppController::lockLandscapeOrientation()
+{
+#if defined(Q_OS_ANDROID)
+    setAndroidRequestedOrientation(AndroidScreenOrientationSensorLandscape);
+#endif
+}
+
+void AppController::lockPortraitOrientation()
+{
+#if defined(Q_OS_ANDROID)
+    setAndroidRequestedOrientation(AndroidScreenOrientationPortrait);
+#endif
 }
 
 void AppController::startSoloSurvivorSession()

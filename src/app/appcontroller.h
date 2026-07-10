@@ -57,6 +57,10 @@ public:
     QString lobbyGameId() const { return m_lobbyGameId; }
 
     Q_INVOKABLE void startLocalGame(const QString &gameId);
+    Q_INVOKABLE void openHomePage();
+    Q_INVOKABLE void openWork3Game();
+    Q_INVOKABLE void lockLandscapeOrientation();
+    Q_INVOKABLE void lockPortraitOrientation();
     Q_INVOKABLE void startSoloSurvivorSession();
     Q_INVOKABLE void startRoomAsHost(const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE void joinRoom(const QString &ip, int port, const QString &playerName,

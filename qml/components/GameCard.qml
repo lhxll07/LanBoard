@@ -29,6 +29,11 @@ Rectangle {
             textColor: "#F6F3EC", mutedColor: "#B0C4D4",
             tagBg: "#324754", tagText: "#D0E0EC"
         };
+        if (gameType === "work3") return {
+            gradientTop: "#18151D", gradientBot: "#35233E",
+            textColor: "#F8F4FF", mutedColor: "#CBB6D8",
+            tagBg: "#4B3157", tagText: "#F0D9FF"
+        };
         // survivor
         return {
             gradientTop: "#1C2A24", gradientBot: "#2E443A",
@@ -223,6 +228,42 @@ Rectangle {
                 ctx.fillStyle = "#E86A54";
                 ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill();
             }
+        }
+    }
+
+    // ---- Work3 icon ----
+    Item {
+        anchors.right: parent.right; anchors.top: parent.top
+        anchors.rightMargin: 20; anchors.topMargin: 16
+        width: 96; height: 92
+        visible: root.gameType === "work3"
+
+        Rectangle {
+            x: 12
+            y: 18
+            width: 72
+            height: 58
+            radius: 18
+            color: "#231428"
+            border.color: "#8C5CAB"
+            border.width: 2
+        }
+
+        Image {
+            anchors.centerIn: parent
+            width: 70
+            height: 70
+            source: "../assets/work3/myabi.png"
+            fillMode: Image.PreserveAspectFit
+        }
+
+        Rectangle {
+            x: 68
+            y: 12
+            width: 14
+            height: 14
+            radius: 7
+            color: "#F5D241"
         }
     }
 

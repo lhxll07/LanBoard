@@ -14,7 +14,8 @@ enum class NavigationPage {
     Online = 3,
     DouDiZhu = 4,
     FlightChess = 5,
-    Survivor = 6
+    Survivor = 6,
+    Work3 = 7
 };
 
 enum class GameControllerKind {

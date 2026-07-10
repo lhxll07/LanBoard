@@ -14,6 +14,8 @@ Page {
         flightChessCardOffset.y = 20
         survivorCard.opacity = 0
         survivorCardOffset.y = 20
+        work3Card.opacity = 0
+        work3CardOffset.y = 20
         entryAnim.stop()
         entryAnim.idx = 0
         entryAnim.start()
@@ -105,6 +107,18 @@ Page {
                 transform: Translate { id: survivorCardOffset; y: 20 }
                 onClicked: AppCtrl.openLobbyForGame("survivor")
             }
+
+            GameCard {
+                id: work3Card
+                width: parent.width; height: 168
+                gameType: "work3"
+                titleText: "弹幕试炼"
+                subtitleText: "小方块移动与自动射击升级原型。"
+                tagText: "本地单机"
+                opacity: 0
+                transform: Translate { id: work3CardOffset; y: 20 }
+                onClicked: AppCtrl.openWork3Game()
+            }
         }
     }
 
@@ -114,7 +128,8 @@ Page {
             { item: gameCard, offset: gameCardOffset },
             { item: douDiZhuCard, offset: douDiZhuCardOffset },
             { item: flightChessCard, offset: flightChessCardOffset },
-            { item: survivorCard, offset: survivorCardOffset }
+            { item: survivorCard, offset: survivorCardOffset },
+            { item: work3Card, offset: work3CardOffset }
         ]
         property int idx: 0
         running: false
@@ -126,9 +141,10 @@ Page {
         PauseAnimation { duration: 80 }
         ScriptAction {
             script: {
-                entryAnim.idx++
-                if (entryAnim.idx < entryAnim.entries.length)
+                if (entryAnim.idx + 1 < entryAnim.entries.length) {
+                    entryAnim.idx++
                     entryAnim.restart()
+                }
             }
         }
     }

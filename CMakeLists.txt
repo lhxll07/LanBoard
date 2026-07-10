@@ -79,6 +79,13 @@ if (LANBOARD_BUILD_APP)
             qml/pages/DouDiZhuPage.qml
             qml/pages/FlightChessPage.qml
             qml/pages/SurvivorPage.qml
+            qml/pages/Work3Page.qml
+            qml/pages/Work3Game.qml
+        RESOURCES
+            qml/assets/work3/b1.png
+            qml/assets/work3/b2.png
+            qml/assets/work3/myabi.png
+            qml/assets/work3/myabi-hd.png
         SOURCES
             src/app/appcontroller.h
             src/common/types.h
@@ -113,8 +120,8 @@ if (LANBOARD_BUILD_APP)
             android.permission.CHANGE_WIFI_STATE
             android.permission.CHANGE_WIFI_MULTICAST_STATE
         )
-            set_property(TARGET appLanBoard APPEND PROPERTY QT_ANDROID_PERMISSIONS
-                "${permission_name}"
+            qt_add_android_permission(appLanBoard
+                NAME ${permission_name}
             )
         endforeach()
     endif()

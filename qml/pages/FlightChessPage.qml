@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 import LanBoard
 
 Page {
@@ -54,6 +55,55 @@ Page {
         return localFlightRole() === AppCtrl.flightChessController.currentPlayer
     }
 
+    function stopTransientActivity() {
+        root.pendingMoveStart = null
+        root.moveAnimating = false
+        root.diceRolling = false
+        moveStepTimer.stop()
+        diceRollTimer.stop()
+    }
+
+    function popGamePage() {
+        if (StackView.view && StackView.view.depth > 1) {
+            StackView.view.pop()
+            return true
+        }
+
+        var appWindow = Window.window
+        if (appWindow && appWindow.returnToShell) {
+            appWindow.returnToShell()
+            return true
+        }
+        return false
+    }
+
+    function returnToHomePage() {
+        stopTransientActivity()
+        var appWindow = Window.window
+        if (appWindow)
+            appWindow.currentTab = 0
+
+        if (StackView.view && StackView.view.depth > 1) {
+            var shellItem = StackView.view.get(0)
+            if (shellItem)
+                StackView.view.pop(shellItem, StackView.Immediate)
+            else
+                StackView.view.pop(null, StackView.Immediate)
+            return
+        }
+
+        if (appWindow && appWindow.goHome) {
+            appWindow.goHome()
+            return
+        }
+        AppCtrl.openHomePage()
+    }
+
+    function returnToRoomPage() {
+        stopTransientActivity()
+        popGamePage()
+    }
+
     function triggerRoll() {
         root.diceRolling = true
         root.rollingDiceValue = 1 + Math.floor(Math.random() * 6)
@@ -64,23 +114,21 @@ Page {
     function leaveCurrentGame() {
         if (!networkRoom) {
             AppCtrl.flightChessController.reset()
-            if (root.StackView.view)
-                root.StackView.view.pop()
+            returnToHomePage()
             return
         }
 
         if (localIsSpectator()) {
-            if (root.StackView.view)
-                root.StackView.view.pop()
+            returnToRoomPage()
             return
         }
 
         if (AppCtrl.flightChessController.gameOver) {
-            if (root.StackView.view)
-                root.StackView.view.pop()
+            returnToRoomPage()
             return
         }
 
+        stopTransientActivity()
         if (AppCtrl.networkManager.isHost) {
             AppCtrl.flightChessController.setGameOver(2)
         } else {
