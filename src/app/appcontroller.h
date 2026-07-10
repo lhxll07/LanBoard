@@ -111,6 +111,7 @@ private:
     GameControllerBase *activeController() const;
     void setLobbyGameId(const QString &gameId);
     void setModeState(bool hostMode, bool clientMode, int playerId);
+    void disconnectNetworkForTransition();
     void syncActiveGuestPlayerId();
     void applyReceivedGameOver(int winner);
     void handleActiveGuestDisconnectInCurrentGame();
@@ -135,6 +136,7 @@ private:
     bool m_isHostMode = false;
     bool m_isClientMode = false;
     bool m_isDedicatedServerRoom = false;
+    bool m_suppressDisconnectNavigation = false;
     int m_networkPlayerId = 0;
     int m_activeGuestPlayerId = -1;
     QString m_nickname;
