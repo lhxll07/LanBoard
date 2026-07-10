@@ -75,10 +75,13 @@
 
 4. `网络层`
    - `src/network/NetworkManager`
+   - `src/network/RoomDiscoveryService`
+   - `src/network/networkaddressutils.*`
    - `src/network/protocolids.h`
    - `src/network/enetutils.*`
    - 同时承载：
-     - 局域网 UDP 广播发现
+     - `RoomDiscoveryService` 负责局域网 UDP 广播发现和同房间多端点聚合
+     - `networkaddressutils` 负责网卡地址筛选与端点优先级判断
      - Host/Client 直连 ENet 会话
      - ECS 在线大厅 / 在线房间连接
      - Survivor 二进制快照与输入包
@@ -272,11 +275,12 @@ LanBoard/
 │   ├── app/               AppController，总调度
 │   ├── common/            公共类型、房间快照、控制器基类
 │   ├── lobby/             RoomManager 与房间规则
-│   ├── network/           UDP 发现、ENet、协议与在线大厅
+│   ├── network/           UDP 发现、地址选择、ENet、协议与在线大厅
 │   ├── game/              四个游戏控制器与 Survivor 子系统
 │   └── server/            独立服务端入口 ServerApp
 ├── tests/                 可由 CTest 重复运行的回归测试
 ├── design/                设计稿、架构图等静态资源
+├── NETWORK_DISCOVERY.md   局域网发现机制与过渡兼容说明
 ├── ECS部署流程.md
 ├── 技术开发日志.md
 └── CMakeLists.txt
@@ -325,7 +329,9 @@ build-qt-ascii/lanboardServer.exe
 ctest --test-dir build-qt-ascii --output-on-failure
 ```
 
-当前 `app-controller-regressions` 覆盖：
+当前注册两套回归测试。
+
+`app-controller-regressions` 覆盖：
 
 - 座位切换作用于实际请求者。
 - 连接进行中不会被误判为断开。
@@ -335,6 +341,13 @@ ctest --test-dir build-qt-ascii --output-on-failure
 - 客户端断开后清理斗地主和房间状态。
 - 五子棋最后一步先于 `game_over` 到达对端。
 - 飞行棋结算在当前移动处理完成后执行。
+
+`network-discovery-regressions` 覆盖：
+
+- RFC1918、loopback、link-local、multicast 和保留 IPv4 地址判断。
+- 同子网物理网卡优先于 VPN 端点。
+- 同一 `roomUid` 的多端点聚合、自发现过滤与端点过期。
+- 缺少 `roomUid` 的公告拒绝以及真实 UDP 数据报解析。
 
 ### Android
 
