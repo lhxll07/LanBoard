@@ -35,10 +35,11 @@ bool GameController::surrender(int player)
 {
     if (m_gameOver)
         return false;
-    if (player != 0 && player != m_currentPlayer)
+    const int surrenderingPlayer = player == 0 ? m_currentPlayer : player;
+    if (surrenderingPlayer != 1 && surrenderingPlayer != 2)
         return false;
 
-    m_winner = (m_currentPlayer == 1) ? 2 : 1;
+    m_winner = surrenderingPlayer == 1 ? 2 : 1;
     m_gameOver = true;
     emit boardChanged();
     emit gameOverChanged();
