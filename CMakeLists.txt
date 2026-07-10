@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
+include(CTest)
 
 option(LANBOARD_BUILD_APP "Build the QML client application." ON)
 option(LANBOARD_BUILD_SERVER "Build the dedicated server." ON)
@@ -21,6 +22,9 @@ endif()
 set(LANBOARD_QT_COMPONENTS Core Network Gui)
 if (LANBOARD_BUILD_APP)
     list(APPEND LANBOARD_QT_COMPONENTS Quick QuickControls2)
+endif()
+if (BUILD_TESTING AND NOT ANDROID)
+    list(APPEND LANBOARD_QT_COMPONENTS Test)
 endif()
 
 find_package(Qt6 REQUIRED COMPONENTS ${LANBOARD_QT_COMPONENTS})
@@ -158,6 +162,41 @@ if (LANBOARD_BUILD_SERVER)
     )
     target_include_directories(lanboardServer PRIVATE ${enet_SOURCE_DIR}/include)
     target_include_directories(lanboardServer PRIVATE ${CMAKE_SOURCE_DIR})
+endif()
+
+if (BUILD_TESTING AND NOT ANDROID)
+    qt_add_executable(appControllerRegressionTests
+        tests/appcontrollerregressiontest.cpp
+        src/common/gamecontrollerbase.cpp
+        src/app/appcontroller.cpp
+        src/lobby/roommanager.cpp
+        src/network/networkmanager.cpp
+        src/network/enetutils.cpp
+        src/game/gamecontroller.cpp
+        src/game/doudizhucontroller.cpp
+        src/game/flightchesscontroller.cpp
+        src/game/survivornetcodec.cpp
+        src/game/survivorruntime.cpp
+        src/game/survivorsimulation.cpp
+        src/game/survivorcontroller.cpp
+    )
+
+    target_link_libraries(appControllerRegressionTests
+        PRIVATE Qt6::Core
+                Qt6::Gui
+                Qt6::Network
+                Qt6::Test
+                enet
+    )
+    target_include_directories(appControllerRegressionTests PRIVATE ${enet_SOURCE_DIR}/include)
+    target_include_directories(appControllerRegressionTests PRIVATE ${CMAKE_SOURCE_DIR})
+
+    get_filename_component(LANBOARD_COMPILER_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    add_test(NAME app-controller-regressions
+        COMMAND ${CMAKE_COMMAND} -E env
+            "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${LANBOARD_COMPILER_BIN_DIR};$ENV{PATH}"
+            $<TARGET_FILE:appControllerRegressionTests>
+    )
 endif()
 
 include(GNUInstallDirs)

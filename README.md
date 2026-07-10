@@ -275,6 +275,7 @@ LanBoard/
 │   ├── network/           UDP 发现、ENet、协议与在线大厅
 │   ├── game/              四个游戏控制器与 Survivor 子系统
 │   └── server/            独立服务端入口 ServerApp
+├── tests/                 可由 CTest 重复运行的回归测试
 ├── design/                设计稿、架构图等静态资源
 ├── ECS部署流程.md
 ├── 技术开发日志.md
@@ -315,6 +316,25 @@ C:\Qt\6.10.3\mingw_64\bin\windeployqt.exe --release --qmldir qml build-qt-ascii\
 build-qt-ascii/appLanBoard.exe
 build-qt-ascii/lanboardServer.exe
 ```
+
+### 自动化测试
+
+桌面配置默认启用 CTest。构建完成后运行：
+
+```powershell
+ctest --test-dir build-qt-ascii --output-on-failure
+```
+
+当前 `app-controller-regressions` 覆盖：
+
+- 座位切换作用于实际请求者。
+- 连接进行中不会被误判为断开。
+- 主动切换游戏或网络模式时不会产生中间房间导航。
+- 房主点击开始后会在本机启动游戏并进入对应页面。
+- 五子棋双方都可以在任意回合认输并正确结算胜者。
+- 客户端断开后清理斗地主和房间状态。
+- 五子棋最后一步先于 `game_over` 到达对端。
+- 飞行棋结算在当前移动处理完成后执行。
 
 ### Android
 

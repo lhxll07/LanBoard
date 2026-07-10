@@ -7,6 +7,7 @@
 
 #include "src/common/roomtypes.h"
 #include <QSettings>
+#include <QTimer>
 #include "src/network/protocolids.h"
 #include "src/game/doudizhucontroller.h"
 #include "src/game/flightchesscontroller.h"
@@ -38,14 +39,26 @@ AppController::AppController(QObject *parent)
         if (!m_gameController->isGameOver())
             return;
 
-        finishCurrentGameSession(m_gameController->winner(), true);
+        const int winner = m_gameController->winner();
+        QTimer::singleShot(0, this, [this, winner]() {
+            if (!m_gameController->isGameOver() || m_gameController->winner() != winner)
+                return;
+            finishCurrentGameSession(winner, true);
+        });
     });
 
     connect(m_flightChessController, &FlightChessController::gameOverChanged, this, [this]() {
         if (!m_flightChessController->isGameOver())
             return;
 
-        finishCurrentGameSession(m_flightChessController->winner(), false);
+        const int winner = m_flightChessController->winner();
+        QTimer::singleShot(0, this, [this, winner]() {
+            if (!m_flightChessController->isGameOver()
+                || m_flightChessController->winner() != winner) {
+                return;
+            }
+            finishCurrentGameSession(winner, false);
+        });
     });
 
     connect(m_survivorController, &SurvivorController::gameOverChanged, this, [this]() {
@@ -169,15 +182,19 @@ AppController::AppController(QObject *parent)
     });
     connect(m_networkManager, &NetworkManager::connectionChanged,
             this, [this]() {
-        if (!m_isClientMode || m_networkManager->isConnected())
+        if (!m_isClientMode
+            || m_networkManager->isConnected()
+            || m_networkManager->connectionPending()) {
             return;
+        }
 
         m_isDedicatedServerRoom = false;
-        m_roomManager->reset();
-        m_roomManager->setLocalPlayerId(-1);
+        resetRoomSession(QStringLiteral("gomoku"));
         setModeState(false, false, 0);
         m_activeGuestPlayerId = -1;
         m_networkManager->setDiscoveryGameInProgress(false);
+        if (!m_suppressDisconnectNavigation)
+            emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Room));
     });
     connect(m_networkManager, &NetworkManager::gameOverReceived,
             this, [this](int winner) {
@@ -238,7 +255,7 @@ void AppController::startLocalGame(const QString &gameId)
         return;
     }
 
-    m_networkManager->disconnectAll();
+    disconnectNetworkForTransition();
     m_isDedicatedServerRoom = false;
     setModeState(false, false, 0);
     m_activeGuestPlayerId = -1;
@@ -250,7 +267,7 @@ void AppController::startLocalGame(const QString &gameId)
 
 void AppController::startSoloSurvivorSession()
 {
-    m_networkManager->disconnectAll();
+    disconnectNetworkForTransition();
     m_isDedicatedServerRoom = false;
     setModeState(false, false, 0);
     m_activeGuestPlayerId = -1;
@@ -264,7 +281,7 @@ void AppController::startSoloSurvivorSession()
 
 void AppController::startRoomAsHost(const QString &gameId)
 {
-    m_networkManager->disconnectAll();
+    disconnectNetworkForTransition();
     m_isDedicatedServerRoom = false;
     resetGameControllers();
     setLobbyGameId(gameId);
@@ -297,7 +314,7 @@ void AppController::joinRoom(const QString &ip, int port, const QString &playerN
 
     const QString normalizedGameId = LanBoard::normalizeGameId(gameId);
     setLobbyGameId(normalizedGameId);
-    m_networkManager->disconnectAll();
+    disconnectNetworkForTransition();
     m_isDedicatedServerRoom = false;
     resetRoomSession(normalizedGameId);
     setModeState(false, true, -1);
@@ -314,7 +331,7 @@ void AppController::joinRoom(const QString &ip, int port, const QString &playerN
 
 void AppController::leaveRoom()
 {
-    m_networkManager->disconnectAll();
+    disconnectNetworkForTransition();
     m_isDedicatedServerRoom = false;
     resetRoomSession(QStringLiteral("gomoku"));
     setModeState(false, false, 0);
@@ -382,7 +399,7 @@ void AppController::createOnlineRoom(const QString &gameId, const QString &roomN
     const QString normalizedGameId = LanBoard::normalizeGameId(gameId);
     setLobbyGameId(normalizedGameId);
 
-    m_networkManager->disconnectAll();
+    disconnectNetworkForTransition();
     m_isDedicatedServerRoom = false;
     resetRoomSession(normalizedGameId);
     setModeState(false, true, -1);
@@ -399,7 +416,7 @@ void AppController::joinOnlineRoom(const QString &roomId)
     if (roomId.trimmed().isEmpty())
         return;
 
-    m_networkManager->disconnectAll();
+    disconnectNetworkForTransition();
     m_isDedicatedServerRoom = false;
     resetRoomSession(currentGameId());
     setModeState(false, true, -1);
@@ -707,6 +724,13 @@ void AppController::setModeState(bool hostMode, bool clientMode, int playerId)
     emit modeChanged();
 }
 
+void AppController::disconnectNetworkForTransition()
+{
+    m_suppressDisconnectNavigation = true;
+    m_networkManager->disconnectAll();
+    m_suppressDisconnectNavigation = false;
+}
+
 void AppController::syncActiveGuestPlayerId()
 {
     m_activeGuestPlayerId = m_roomManager->firstGuestPlayerId();
@@ -753,8 +777,7 @@ void AppController::resetGameControllers()
 {
     m_networkManager->setDiscoveryGameInProgress(false);
     m_gameController->reset();
-    m_douDiZhuController->startNewGame();
-    m_douDiZhuController->setLocalPlayer(0);
+    m_douDiZhuController->reset();
     m_flightChessController->reset();
     m_survivorController->configureNetworkSession({}, 0, false, true);
     m_survivorController->stopRun();
@@ -771,7 +794,7 @@ void AppController::resetRoomSession(const QString &gameId, int localPlayerId)
 
 void AppController::startCurrentGameSession()
 {
-    if (m_networkManager->isConnected()) {
+    if (!m_networkManager->isHost() && m_networkManager->isConnected()) {
         m_networkManager->sendStartGame();
         return;
     }
