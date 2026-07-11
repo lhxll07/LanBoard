@@ -398,6 +398,7 @@ cmake --build build-server --parallel 8
 
 - [ECS部署流程.md](ECS部署流程.md)
 - [技术开发日志.md](技术开发日志.md)
+- [测试验证报告.md](测试验证报告.md)
 - [Qt安装流程.md](Qt安装流程.md)
 - [Git协作流程.md](Git协作流程.md)
 
