@@ -52,6 +52,8 @@ if (LANBOARD_BUILD_APP)
         src/app/appcontroller.cpp
         src/lobby/roommanager.cpp
         src/network/networkmanager.cpp
+        src/network/networkaddressutils.cpp
+        src/network/roomdiscoveryservice.cpp
         src/game/gamecontroller.cpp
         src/game/doudizhucontroller.cpp
         src/game/flightchesscontroller.cpp
@@ -89,6 +91,8 @@ if (LANBOARD_BUILD_APP)
             src/common/gamecontrollerbase.h
             src/common/roomtypes.h
             src/network/enetutils.h
+            src/network/networkaddressutils.h
+            src/network/roomdiscoveryservice.h
             src/game/survivornetcodec.h
             src/game/survivorruntime.h
             src/game/survivorworld.h
@@ -171,6 +175,8 @@ if (BUILD_TESTING AND NOT ANDROID)
         src/app/appcontroller.cpp
         src/lobby/roommanager.cpp
         src/network/networkmanager.cpp
+        src/network/networkaddressutils.cpp
+        src/network/roomdiscoveryservice.cpp
         src/network/enetutils.cpp
         src/game/gamecontroller.cpp
         src/game/doudizhucontroller.cpp
@@ -196,6 +202,26 @@ if (BUILD_TESTING AND NOT ANDROID)
         COMMAND ${CMAKE_COMMAND} -E env
             "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${LANBOARD_COMPILER_BIN_DIR};$ENV{PATH}"
             $<TARGET_FILE:appControllerRegressionTests>
+    )
+
+    qt_add_executable(networkDiscoveryTests
+        tests/networkdiscoverytest.cpp
+        src/network/networkaddressutils.cpp
+        src/network/roomdiscoveryservice.cpp
+    )
+
+    target_link_libraries(networkDiscoveryTests
+        PRIVATE Qt6::Core
+                Qt6::Network
+                Qt6::Test
+    )
+    target_include_directories(networkDiscoveryTests PRIVATE ${CMAKE_SOURCE_DIR})
+
+    get_filename_component(LANBOARD_COMPILER_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    add_test(NAME network-discovery-regressions
+        COMMAND ${CMAKE_COMMAND} -E env
+            "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${LANBOARD_COMPILER_BIN_DIR};$ENV{PATH}"
+            $<TARGET_FILE:networkDiscoveryTests>
     )
 endif()
 
