@@ -326,7 +326,15 @@ build-qt-ascii/lanboardServer.exe
 ctest --preset qt-mingw-desktop
 ```
 
-当前注册两套回归测试。
+当前注册三套回归测试。
+
+`room-manager-regressions` 覆盖：
+
+- 玩家 ID、房间容量和重复加入校验。
+- 四种游戏的开局人数、准备状态与房主权限。
+- 游戏位、旁观位、棋子编号和座位容量规则。
+- 切换游戏、玩家离开、对局结束后的状态整理。
+- 房间快照和服务端房间消息字段一致性。
 
 `app-controller-regressions` 覆盖：
 

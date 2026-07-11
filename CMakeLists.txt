@@ -169,6 +169,24 @@ if (LANBOARD_BUILD_SERVER)
 endif()
 
 if (BUILD_TESTING AND NOT ANDROID)
+    qt_add_executable(roomManagerTests
+        tests/roommanagertest.cpp
+        src/lobby/roommanager.cpp
+    )
+
+    target_link_libraries(roomManagerTests
+        PRIVATE Qt6::Core
+                Qt6::Test
+    )
+    target_include_directories(roomManagerTests PRIVATE ${CMAKE_SOURCE_DIR})
+
+    get_filename_component(LANBOARD_COMPILER_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    add_test(NAME room-manager-regressions
+        COMMAND ${CMAKE_COMMAND} -E env
+            "PATH=$<TARGET_FILE_DIR:Qt6::Core>;${LANBOARD_COMPILER_BIN_DIR};$ENV{PATH}"
+            $<TARGET_FILE:roomManagerTests>
+    )
+
     qt_add_executable(appControllerRegressionTests
         tests/appcontrollerregressiontest.cpp
         src/common/gamecontrollerbase.cpp
