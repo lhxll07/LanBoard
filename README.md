@@ -290,22 +290,19 @@ LanBoard/
 
 ### 桌面端
 
-当前主线只保留一个桌面构建目录：`build-qt-ascii`
+桌面构建统一使用 `qt-mingw-desktop` 预设，输出目录为 `build-qt-ascii`。
+该预设使用 Qt `6.10.3`、MinGW `13.1.0`、Ninja，并显式启用 CTest。
 
-首次配置：
+配置：
 
 ```powershell
-cmake -S . -B build-qt-ascii -G Ninja `
-  -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64" `
-  -DQt6_DIR="C:\Qt\6.10.3\mingw_64\lib\cmake\Qt6" `
-  -DCMAKE_CXX_COMPILER="C:\Users\Lhx\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin\g++.exe" `
-  -DCMAKE_MAKE_PROGRAM="C:\Users\Lhx\AppData\Local\Microsoft\WinGet\Packages\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\mingw64\bin\ninja.exe"
+cmake --preset qt-mingw-desktop
 ```
 
 编译：
 
 ```powershell
-cmake --build build-qt-ascii -j 8
+cmake --build --preset qt-mingw-desktop
 ```
 
 补齐桌面运行时：
@@ -326,7 +323,7 @@ build-qt-ascii/lanboardServer.exe
 桌面配置默认启用 CTest。构建完成后运行：
 
 ```powershell
-ctest --test-dir build-qt-ascii --output-on-failure
+ctest --preset qt-mingw-desktop
 ```
 
 当前注册两套回归测试。

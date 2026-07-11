@@ -39,7 +39,9 @@
 桌面构建后运行：
 
 ```powershell
-ctest --test-dir build-network-clean --output-on-failure
+cmake --preset qt-mingw-desktop
+cmake --build --preset qt-mingw-desktop
+ctest --preset qt-mingw-desktop
 ```
 
 手动测试至少包含：双实例发现与连接、同一 Wi-Fi 两台设备互联，以及启用 VPN 或多网卡时同一房间只显示一次。
