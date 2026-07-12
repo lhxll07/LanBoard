@@ -20,7 +20,8 @@ void RoomManager::addPlayer(const QString &name, bool host, bool ready, int play
         host,
         ready,
         LanBoard::normalizedSeatKind(seatType),
-        piece
+        piece,
+        QStringLiteral("defender")
     };
     if (existingIndex >= 0)
         m_players[existingIndex] = player;
@@ -87,7 +88,8 @@ RoomManager::ActionError RoomManager::tryAddRoomPlayer(const QString &name, bool
         host,
         false,
         LanBoard::normalizedSeatKind(seatType),
-        0
+        0,
+        QStringLiteral("defender")
     });
     normalizeSeats();
     emitStateChanged();
@@ -118,6 +120,44 @@ RoomManager::ActionError RoomManager::tryChangeSeat(int playerId, const QString 
     if (!m_players[index].isActive())
         m_players[index].isReady = false;
     normalizeSeats(false);
+    emitStateChanged();
+    return ActionError::None;
+}
+
+RoomManager::ActionError RoomManager::tryChangeDormDefenseRole(int playerId, const QString &role)
+{
+    if (!LanBoard::isDormDefenseGame(m_gameId))
+        return ActionError::InvalidDormDefenseRole;
+
+    const int index = indexOfPlayerId(playerId);
+    if (index < 0)
+        return ActionError::PlayerNotFound;
+    if (m_gameInProgress)
+        return ActionError::GameInProgress;
+
+    const QString trimmedRole = role.trimmed().toLower();
+    if (trimmedRole != QStringLiteral("defender") && trimmedRole != QStringLiteral("ghost"))
+        return ActionError::InvalidDormDefenseRole;
+    if (trimmedRole == QStringLiteral("ghost") && !m_players[index].isActive())
+        return ActionError::DormDefenseGhostRequiresActiveSeat;
+
+    if (trimmedRole == QStringLiteral("ghost")) {
+        for (int i = 0; i < m_players.size(); ++i) {
+            if (i == index || !m_players[i].isActive())
+                continue;
+            if (LanBoard::normalizedDormDefenseRole(m_players[i].dormDefenseRole)
+                == QStringLiteral("ghost")) {
+                return ActionError::DormDefenseGhostAlreadyTaken;
+            }
+        }
+    }
+
+    const QString normalizedRole = LanBoard::normalizedDormDefenseRole(trimmedRole);
+    if (m_players[index].dormDefenseRole == normalizedRole)
+        return ActionError::None;
+
+    m_players[index].dormDefenseRole = normalizedRole;
+    normalizeDormDefenseRoles();
     emitStateChanged();
     return ActionError::None;
 }
@@ -194,9 +234,16 @@ void RoomManager::concludeGame()
     m_gameInProgress = false;
     for (auto &player : m_players) {
         if (!player.isActive() || !player.isReady)
-            continue;
-        player.isReady = false;
-        changed = true;
+            ;
+        else {
+            player.isReady = false;
+            changed = true;
+        }
+
+        if (player.dormDefenseRole != QStringLiteral("defender")) {
+            player.dormDefenseRole = QStringLiteral("defender");
+            changed = true;
+        }
     }
 
     if (changed)
@@ -219,6 +266,7 @@ void RoomManager::setGameId(const QString &gameId)
         return;
 
     m_gameId = normalized;
+    normalizeSeats();
     emit gameChanged();
     emitStateChanged();
 }
@@ -252,6 +300,11 @@ QString RoomManager::gameName() const
 int RoomManager::maxPlayers() const
 {
     return LanBoard::maxPlayersForGame(m_gameId);
+}
+
+int RoomManager::roomCapacity() const
+{
+    return LanBoard::roomCapacityForGame(m_gameId);
 }
 
 int RoomManager::activePlayerCount() const
@@ -305,6 +358,7 @@ bool RoomManager::setPlayerSeatById(int playerId, const QString &seatType)
     m_players[index].seatKind = normalizedSeatKind;
     if (!m_players[index].isActive())
         m_players[index].isReady = false;
+    normalizeSeats(false);
     emitStateChanged();
     return true;
 }
@@ -432,6 +486,14 @@ QString RoomManager::actionErrorKey(ActionError error) const
         return QStringLiteral("players_not_ready");
     case ActionError::GameInProgress:
         return QStringLiteral("game_in_progress");
+    case ActionError::InvalidDormDefenseRole:
+        return QStringLiteral("dormdefense_invalid_role");
+    case ActionError::DormDefenseGhostRequiresActiveSeat:
+        return QStringLiteral("dormdefense_ghost_requires_active_seat");
+    case ActionError::DormDefenseGhostAlreadyTaken:
+        return QStringLiteral("dormdefense_ghost_taken");
+    case ActionError::DormDefenseGhostRequired:
+        return QStringLiteral("dormdefense_need_exactly_one_ghost");
     }
 
     return QStringLiteral("unknown_room_error");
@@ -494,6 +556,27 @@ void RoomManager::normalizeSeats(bool fillMissingActiveSeats)
             whiteAssigned = true;
         } else {
             player.piece = 0;
+        }
+    }
+
+    normalizeDormDefenseRoles();
+}
+
+void RoomManager::normalizeDormDefenseRoles()
+{
+    bool ghostAssigned = false;
+    for (auto &player : m_players) {
+        if (!LanBoard::isDormDefenseGame(m_gameId) || !player.isActive()) {
+            player.dormDefenseRole = QStringLiteral("defender");
+            continue;
+        }
+
+        const QString role = LanBoard::normalizedDormDefenseRole(player.dormDefenseRole);
+        if (role == QStringLiteral("ghost") && !ghostAssigned) {
+            player.dormDefenseRole = QStringLiteral("ghost");
+            ghostAssigned = true;
+        } else {
+            player.dormDefenseRole = QStringLiteral("defender");
         }
     }
 }

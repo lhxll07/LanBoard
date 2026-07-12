@@ -2,6 +2,7 @@
 
 #include <QHostAddress>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QRandomGenerator>
 
 #include "../game/survivornetcodec.h"
@@ -14,6 +15,7 @@ constexpr quint16 kDefaultPort = 44567;
 constexpr int kServiceIntervalMs = 4;
 constexpr enet_uint8 kSurvivorFrameChannel = 2;
 constexpr enet_uint8 kSurvivorHudChannel = 3;
+constexpr enet_uint8 kDormDefensePositionChannel = 1;
 
 QString normalizedName(const QString &name)
 {
@@ -228,6 +230,8 @@ void ServerApp::processMessage(ENetPeer *peer, const QJsonObject &msg)
         handleStartGame(peer);
     } else if (type == LanBoard::Protocol::ChangeSeat) {
         handleChangeSeat(peer, msg.value(QStringLiteral("seatType")).toString());
+    } else if (type == LanBoard::Protocol::DormDefenseRole) {
+        handleDormDefenseRole(peer, msg.value(QStringLiteral("role")).toString());
     } else if (type == LanBoard::Protocol::SwitchRoomGame) {
         handleSwitchRoomGame(peer, msg.value(QStringLiteral("gameId")).toString());
     } else if (type == LanBoard::Protocol::PlacePiece) {
@@ -246,6 +250,8 @@ void ServerApp::processMessage(ENetPeer *peer, const QJsonObject &msg)
         handleDouDiZhuPlay(peer, msg.value(QStringLiteral("cards")).toArray());
     } else if (type == LanBoard::Protocol::DouDiZhuPass) {
         handleDouDiZhuPass(peer);
+    } else if (type == LanBoard::Protocol::DormDefenseAction) {
+        handleDormDefenseAction(peer, msg);
     } else {
         sendError(peer, QStringLiteral("unsupported_message_type"));
     }
@@ -294,6 +300,7 @@ void ServerApp::handleCreateRoom(ENetPeer *peer, const QString &name, const QStr
     room->roomManager = std::make_unique<RoomManager>();
     room->gameController = std::make_unique<GameController>();
     room->douDiZhuController = std::make_unique<DouDiZhuController>();
+    room->dormDefenseController = std::make_unique<DormDefenseController>();
     room->flightChessController = std::make_unique<FlightChessController>();
     room->survivorController = std::make_unique<SurvivorController>();
     room->roomManager->setRoomIdentity(createRoomId(),
@@ -331,6 +338,36 @@ void ServerApp::handleCreateRoom(ENetPeer *peer, const QString &name, const QStr
             return;
         }
         concludeRoomGame(room, 0);
+    });
+    auto syncDormDefenseState = [this, room]() {
+        if (!room || !room->roomManager || !room->dormDefenseController
+            || !room->roomManager->gameInProgress()
+            || LanBoard::controllerKindForGame(room->roomManager->gameId())
+                != LanBoard::GameControllerKind::DormDefense) {
+            return;
+        }
+        broadcastDormDefenseStates(room);
+    };
+    connect(room->dormDefenseController.get(), &DormDefenseController::boardChanged,
+            this, syncDormDefenseState);
+    connect(room->dormDefenseController.get(), &DormDefenseController::resourcesChanged,
+            this, syncDormDefenseState);
+    connect(room->dormDefenseController.get(), &DormDefenseController::statusChanged,
+            this, syncDormDefenseState);
+    connect(room->dormDefenseController.get(), &DormDefenseController::ghostStateChanged,
+            this, [this, room]() { broadcastDormDefenseGhostPosition(room); });
+    connect(room->dormDefenseController.get(), &DormDefenseController::turretVolleyChanged,
+            this, syncDormDefenseState);
+    connect(room->dormDefenseController.get(), &DormDefenseController::roleChanged,
+            this, syncDormDefenseState);
+    connect(room->dormDefenseController.get(), &DormDefenseController::gameOverChanged,
+            this, [this, room]() {
+        if (!room || !room->roomManager || !room->dormDefenseController
+            || !room->roomManager->gameInProgress()
+            || !room->dormDefenseController->isGameOver()) {
+            return;
+        }
+        concludeRoomGame(room, room->dormDefenseController->winner());
     });
     m_rooms.append(room);
 
@@ -446,6 +483,25 @@ void ServerApp::handleChangeSeat(ENetPeer *peer, const QString &seatType)
         sendError(peer, room->roomManager->actionErrorKey(seatError));
         return;
     }
+    broadcastRoomState(room);
+}
+
+void ServerApp::handleDormDefenseRole(ENetPeer *peer, const QString &role)
+{
+    PlayerSession *session = nullptr;
+    RoomState *room = nullptr;
+    if (!resolveSessionRoom(peer, session, room)
+        || !ensureControllerKind(peer, room, LanBoard::GameControllerKind::DormDefense)) {
+        return;
+    }
+
+    const RoomManager::ActionError roleError = room->roomManager->tryChangeDormDefenseRole(
+        session->playerId, role);
+    if (roleError != RoomManager::ActionError::None) {
+        sendError(peer, room->roomManager->actionErrorKey(roleError));
+        return;
+    }
+
     broadcastRoomState(room);
 }
 
@@ -635,7 +691,34 @@ void ServerApp::handleSurvivorCloseChest(ENetPeer *peer)
 
 void ServerApp::handleGameOver(ENetPeer *peer, int winner)
 {
-    Q_UNUSED(winner);
+    PlayerSession *session = nullptr;
+    RoomState *room = nullptr;
+    if (!resolveSessionRoom(peer, session, room))
+        return;
+
+    if (!room || !room->roomManager || !room->roomManager->isPlayerHost(session->playerId)) {
+        sendError(peer, QStringLiteral("only_host_can_end_game"));
+        return;
+    }
+
+    if (!room->roomManager->gameInProgress()) {
+        broadcastRoomState(room);
+        return;
+    }
+
+    if (winner == 0) {
+        room->roomManager->concludeGame();
+        resetGame(room);
+        broadcastRoomState(room);
+        return;
+    }
+
+    if (LanBoard::controllerKindForGame(room->roomManager->gameId())
+        == LanBoard::GameControllerKind::DormDefense) {
+        concludeRoomGame(room, winner);
+        return;
+    }
+
     sendError(peer, QStringLiteral("survivor_server_authoritative"));
 }
 
@@ -679,6 +762,20 @@ void ServerApp::handleDouDiZhuPass(ENetPeer *peer)
     }
 
     broadcastDouDiZhuStates(room);
+}
+
+void ServerApp::handleDormDefenseAction(ENetPeer *peer, const QJsonObject &action)
+{
+    PlayerSession *session = nullptr;
+    RoomState *room = nullptr;
+    if (!resolveSessionRoom(peer, session, room)
+        || !ensureControllerKind(peer, room, LanBoard::GameControllerKind::DormDefense)
+        || !ensureGameStarted(peer, room)
+        || !ensureActiveSeat(peer, session)) {
+        return;
+    }
+
+    room->dormDefenseController->applyNetworkAction(session->playerId, action);
 }
 
 void ServerApp::sendJson(ENetPeer *peer, const QJsonObject &obj)
@@ -781,6 +878,38 @@ void ServerApp::broadcastDouDiZhuStates(RoomState *room)
         concludeRoomGame(room, room->douDiZhuController->winner());
 }
 
+void ServerApp::broadcastDormDefenseStates(RoomState *room)
+{
+    if (!room
+        || LanBoard::controllerKindForGame(room->roomManager->gameId())
+            != LanBoard::GameControllerKind::DormDefense
+        || !room->dormDefenseController) {
+        return;
+    }
+
+    for (const PlayerSession *player : playersInRoom(room->roomManager->roomId())) {
+        if (!player || !player->peer)
+            continue;
+        sendJson(player->peer, dormDefenseStateForPlayer(room, player->playerId));
+    }
+}
+
+void ServerApp::broadcastDormDefenseGhostPosition(RoomState *room)
+{
+    if (!room || !room->roomManager || !room->dormDefenseController)
+        return;
+
+    QJsonObject msg;
+    msg[QStringLiteral("type")] = LanBoard::Protocol::DormDefenseGhostPosition;
+    msg[QStringLiteral("row")] = room->dormDefenseController->ghostCenterRow();
+    msg[QStringLiteral("column")] = room->dormDefenseController->ghostCenterColumn();
+    const QByteArray payload = QJsonDocument(msg).toJson(QJsonDocument::Compact);
+    for (const PlayerSession *player : playersInRoom(room->roomManager->roomId())) {
+        if (player && player->peer)
+            sendRaw(player->peer, payload, kDormDefensePositionChannel, 0);
+    }
+}
+
 void ServerApp::startRoomGame(RoomState *room, const QList<PlayerSession *> &activePlayers)
 {
     if (!room)
@@ -802,6 +931,16 @@ void ServerApp::startRoomGame(RoomState *room, const QList<PlayerSession *> &act
                                                           true,
                                                           true);
         room->survivorController->startRun(true);
+        return;
+    }
+    case LanBoard::GameControllerKind::DormDefense: {
+        room->dormDefenseController->configureNetworkSession(
+            room->roomManager->snapshot().activePlayerVariantList(),
+            -1,
+            true,
+            true);
+        room->dormDefenseController->startNewGame();
+        broadcastDormDefenseStates(room);
         return;
     }
     case LanBoard::GameControllerKind::DouDiZhu:
@@ -826,6 +965,16 @@ void ServerApp::handlePlayerDisconnectInRoom(RoomState *room,
     switch (LanBoard::controllerKindForGame(room->roomManager->gameId())) {
     case LanBoard::GameControllerKind::DouDiZhu:
         resetFinishedRoom(room);
+        return;
+    case LanBoard::GameControllerKind::DormDefense:
+        if (room->roomManager->gameInProgress() && room->dormDefenseController) {
+            room->dormDefenseController->configureNetworkSession(
+                room->roomManager->snapshot().activePlayerVariantList(),
+                -1,
+                true,
+                true);
+            broadcastDormDefenseStates(room);
+        }
         return;
     case LanBoard::GameControllerKind::Survivor:
         if (room->roomManager->gameInProgress() && activeSeat)
@@ -854,6 +1003,7 @@ void ServerApp::resetGame(RoomState *room)
 
     room->gameController->reset();
     room->douDiZhuController->startNetworkGame(0);
+    room->dormDefenseController->reset();
     room->flightChessController->reset();
     if (room->survivorController)
         room->survivorController->stopRun();
@@ -867,6 +1017,8 @@ bool ServerApp::isGameFinished(const RoomState *room) const
     switch (LanBoard::controllerKindForGame(room->roomManager->gameId())) {
     case LanBoard::GameControllerKind::DouDiZhu:
         return room->douDiZhuController->isGameOver();
+    case LanBoard::GameControllerKind::DormDefense:
+        return room->dormDefenseController && room->dormDefenseController->isGameOver();
     case LanBoard::GameControllerKind::Survivor:
         return room->survivorController && room->survivorController->isGameOver();
     case LanBoard::GameControllerKind::FlightChess:
@@ -899,6 +1051,11 @@ void ServerApp::concludeRoomGame(RoomState *room, int winner, bool broadcastRoom
                     kSurvivorHudChannel,
                     ENET_PACKET_FLAG_RELIABLE);
         }
+    }
+    if (LanBoard::controllerKindForGame(room->roomManager->gameId())
+            == LanBoard::GameControllerKind::DormDefense
+        && room->dormDefenseController) {
+        broadcastDormDefenseStates(room);
     }
 
     QJsonObject msg;
@@ -949,13 +1106,27 @@ QJsonArray ServerApp::roomListPayload() const
         entry[QStringLiteral("gameId")] = room->roomManager->gameId();
         entry[QStringLiteral("gameName")] = room->roomManager->gameName();
         entry[QStringLiteral("playerCount")] = playerCount;
-        entry[QStringLiteral("roomCapacity")] = roomCapacity();
+        entry[QStringLiteral("roomCapacity")] = room->roomManager->roomCapacity();
         entry[QStringLiteral("maxPlayers")] = room->roomManager->maxPlayers();
         entry[QStringLiteral("inGame")] = room->roomManager->gameInProgress();
-        entry[QStringLiteral("isFull")] = playerCount >= roomCapacity();
+        entry[QStringLiteral("isFull")] = playerCount >= room->roomManager->roomCapacity();
         rooms.append(entry);
     }
     return rooms;
+}
+
+QString ServerApp::dormDefenseRoleForPlayer(const RoomState *room, int playerId) const
+{
+    if (!room || !room->roomManager)
+        return QStringLiteral("spectator");
+    return room->roomManager->snapshot().dormDefenseRoleForPlayer(playerId);
+}
+
+QJsonObject ServerApp::dormDefenseStateForPlayer(const RoomState *room, int playerId) const
+{
+    QJsonObject state = room->dormDefenseController->buildNetworkStateForPlayer(playerId);
+    state[QStringLiteral("type")] = LanBoard::Protocol::DormDefenseState;
+    return state;
 }
 
 bool ServerApp::resolveSessionRoom(ENetPeer *peer, PlayerSession *&session, RoomState *&room)

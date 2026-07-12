@@ -19,7 +19,8 @@ ApplicationWindow {
         && (stackView.currentItem.objectName === "gamePage"
             || stackView.currentItem.objectName === "doudizhuPage"
             || stackView.currentItem.objectName === "flightChessPage"
-            || stackView.currentItem.objectName === "survivorPage"))
+            || stackView.currentItem.objectName === "survivorPage"
+            || stackView.currentItem.objectName === "dormDefensePage"))
 
     // 页面路由表
     readonly property var pageRoutes: [
@@ -29,7 +30,8 @@ ApplicationWindow {
         { name: "onlinePage",    url: "pages/RoomPage.qml" },
         { name: "doudizhuPage",  url: "pages/DouDiZhuPage.qml" },
         { name: "flightChessPage", url: "pages/FlightChessPage.qml" },
-        { name: "survivorPage",  url: "pages/SurvivorPage.qml" }
+        { name: "survivorPage",  url: "pages/SurvivorPage.qml" },
+        { name: "dormDefensePage", url: "pages/DormDefensePage.qml" }
     ]
 
     function handleBackNavigation() {
@@ -53,6 +55,10 @@ ApplicationWindow {
                 stackView.currentItem.leaveCurrentGame()
             } else if (stackView.currentItem
                     && stackView.currentItem.objectName === "survivorPage"
+                    && stackView.currentItem.leaveCurrentGame) {
+                stackView.currentItem.leaveCurrentGame()
+            } else if (stackView.currentItem
+                    && stackView.currentItem.objectName === "dormDefensePage"
                     && stackView.currentItem.leaveCurrentGame) {
                 stackView.currentItem.leaveCurrentGame()
             } else {
@@ -86,7 +92,14 @@ ApplicationWindow {
     Connections {
         target: AppCtrl
         function onNavigationRequested(page) {
-            if (page <= 0 || page >= window.pageRoutes.length)
+            if (page === 0) {
+                window.returnToShell()
+                window.currentTab = 0
+                window.pendingTab = -1
+                return
+            }
+
+            if (page < 0 || page >= window.pageRoutes.length)
                 return
 
             var route = window.pageRoutes[page]
@@ -97,7 +110,8 @@ ApplicationWindow {
                     && (window.stackView.currentItem.objectName === "gamePage"
                         || window.stackView.currentItem.objectName === "flightChessPage"
                         || window.stackView.currentItem.objectName === "doudizhuPage"
-                        || window.stackView.currentItem.objectName === "survivorPage")) {
+                        || window.stackView.currentItem.objectName === "survivorPage"
+                        || window.stackView.currentItem.objectName === "dormDefensePage")) {
                     window.stackView.pop()
                 } else if (window.stackView.depth === 1) {
                     window.currentTab = 1

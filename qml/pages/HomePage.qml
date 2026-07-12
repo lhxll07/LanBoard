@@ -14,6 +14,8 @@ Page {
         flightChessCardOffset.y = 20
         survivorCard.opacity = 0
         survivorCardOffset.y = 20
+        dormDefenseCard.opacity = 0
+        dormDefenseCardOffset.y = 20
         entryAnim.stop()
         entryAnim.idx = 0
         entryAnim.start()
@@ -46,13 +48,13 @@ Page {
 
             PageHeader {
                 eyebrowText: "本地入口"
-                titleText: "桌域"
+                titleText: "桌游大厅"
                 subtitleText: "先在本机快速开始，联机开房、加入房间和在线大厅统一放在联机页。"
             }
 
             Text {
                 width: parent.width
-                text: "本地桌游"
+                text: "本地游戏"
                 color: AppTheme.textMuted
                 font.pixelSize: AppTheme.fontSizeCaption
                 font.weight: Font.Medium
@@ -105,6 +107,18 @@ Page {
                 transform: Translate { id: survivorCardOffset; y: 20 }
                 onClicked: AppCtrl.openLobbyForGame("survivor")
             }
+
+            GameCard {
+                id: dormDefenseCard
+                width: parent.width; height: 168
+                gameType: "dormdefense"
+                titleText: "猛鬼宿舍原型"
+                subtitleText: "先做一版本地单机，包含金币、电力、房门、床铺、发电机和炮塔循环。"
+                tagText: "本地原型"
+                opacity: 0
+                transform: Translate { id: dormDefenseCardOffset; y: 20 }
+                onClicked: AppCtrl.openLobbyForGame("dormdefense")
+            }
         }
     }
 
@@ -114,7 +128,8 @@ Page {
             { item: gameCard, offset: gameCardOffset },
             { item: douDiZhuCard, offset: douDiZhuCardOffset },
             { item: flightChessCard, offset: flightChessCardOffset },
-            { item: survivorCard, offset: survivorCardOffset }
+            { item: survivorCard, offset: survivorCardOffset },
+            { item: dormDefenseCard, offset: dormDefenseCardOffset }
         ]
         property int idx: 0
         running: false

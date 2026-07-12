@@ -42,6 +42,7 @@ struct RoomPlayerState {
     bool isReady = false;
     SeatKind seatKind = SeatKind::Active;
     int piece = 0;
+    QString dormDefenseRole = QStringLiteral("defender");
 
     QString seatType() const
     {
@@ -62,6 +63,7 @@ struct RoomPlayerState {
         map[QStringLiteral("isReady")] = isReady;
         map[QStringLiteral("seatType")] = seatType();
         map[QStringLiteral("piece")] = piece;
+        map[QStringLiteral("dormDefenseRole")] = LanBoard::normalizedDormDefenseRole(dormDefenseRole);
         return map;
     }
 
@@ -74,6 +76,7 @@ struct RoomPlayerState {
         obj[QStringLiteral("isReady")] = isReady;
         obj[QStringLiteral("seatType")] = seatType();
         obj[QStringLiteral("piece")] = piece;
+        obj[QStringLiteral("dormDefenseRole")] = LanBoard::normalizedDormDefenseRole(dormDefenseRole);
         return obj;
     }
 
@@ -87,6 +90,8 @@ struct RoomPlayerState {
         player.seatKind = normalizedSeatKind(
             obj.value(QStringLiteral("seatType")).toString(QStringLiteral("active")));
         player.piece = obj.value(QStringLiteral("piece")).toInt();
+        player.dormDefenseRole = LanBoard::normalizedDormDefenseRole(
+            obj.value(QStringLiteral("dormDefenseRole")).toString(QStringLiteral("defender")));
         return player;
     }
 };
@@ -159,6 +164,44 @@ struct RoomSnapshot {
             if (!player.isReady)
                 return false;
         }
+        return true;
+    }
+
+    int dormDefenseGhostCount() const
+    {
+        int count = 0;
+        for (const RoomPlayerState &player : players) {
+            if (player.isActive()
+                && LanBoard::normalizedDormDefenseRole(player.dormDefenseRole)
+                    == QStringLiteral("ghost")) {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    QString dormDefenseRoleForPlayer(int playerId) const
+    {
+        for (const RoomPlayerState &player : players) {
+            if (player.playerId != playerId)
+                continue;
+            if (!player.isActive())
+                return QStringLiteral("spectator");
+            return LanBoard::normalizedDormDefenseRole(player.dormDefenseRole);
+        }
+        return QStringLiteral("spectator");
+    }
+
+    bool dormDefenseStartRequirementMet() const
+    {
+        if (!LanBoard::isDormDefenseGame(gameId))
+            return true;
+
+        const int ghostCount = dormDefenseGhostCount();
+        if (ghostCount > 1)
+            return false;
+        if (activePlayerCount() >= LanBoard::maxPlayersForGame(gameId))
+            return ghostCount == 1;
         return true;
     }
 

@@ -10,6 +10,7 @@
 #include <QTimer>
 #include "src/network/protocolids.h"
 #include "src/game/doudizhucontroller.h"
+#include "src/game/dormdefensecontroller.h"
 #include "src/game/flightchesscontroller.h"
 #include "src/game/gamecontroller.h"
 #include "src/game/survivorcontroller.h"
@@ -21,6 +22,7 @@ AppController::AppController(QObject *parent)
     , m_roomManager(new RoomManager(this))
     , m_gameController(new GameController(this))
     , m_douDiZhuController(new DouDiZhuController(this))
+    , m_dormDefenseController(new DormDefenseController(this))
     , m_flightChessController(new FlightChessController(this))
     , m_survivorController(new SurvivorController(this))
     , m_networkManager(new NetworkManager(this))
@@ -59,6 +61,20 @@ AppController::AppController(QObject *parent)
             }
             finishCurrentGameSession(winner, false);
         });
+    });
+
+    connect(m_dormDefenseController, &DormDefenseController::gameOverChanged, this, [this]() {
+        if (!m_dormDefenseController->isGameOver()
+            || !isCurrentGame(LanBoard::GameControllerKind::DormDefense)) {
+            return;
+        }
+
+        if (m_networkManager->isHost()) {
+            m_networkManager->setDiscoveryGameInProgress(false);
+            m_roomManager->concludeGame();
+            broadcastDormDefenseStates();
+            broadcastCurrentRoomState();
+        }
     });
 
     connect(m_survivorController, &SurvivorController::gameOverChanged, this, [this]() {
@@ -116,15 +132,30 @@ AppController::AppController(QObject *parent)
     });
     connect(m_networkManager, &NetworkManager::remoteSeatChanged,
             this, &AppController::onRemoteSeatChanged);
+    connect(m_networkManager, &NetworkManager::remoteDormDefenseRoleChanged,
+            this, &AppController::onRemoteDormDefenseRoleChanged);
     connect(m_networkManager, &NetworkManager::remoteStartGame,
             this, &AppController::onRemoteStartGame);
     connect(m_networkManager, &NetworkManager::remoteDouDiZhuPlay,
             this, &AppController::onRemoteDouDiZhuPlay);
     connect(m_networkManager, &NetworkManager::remoteDouDiZhuPass,
             this, &AppController::onRemoteDouDiZhuPass);
+    connect(m_networkManager, &NetworkManager::remoteDormDefenseAction,
+            this, &AppController::onRemoteDormDefenseAction);
     connect(m_networkManager, &NetworkManager::douDiZhuStateReceived,
             this, [this](const QJsonObject &state) {
         m_douDiZhuController->applyNetworkState(state);
+    });
+    connect(m_networkManager, &NetworkManager::dormDefenseStateReceived,
+            this, [this](const QJsonObject &state) {
+        if (!isCurrentGame(LanBoard::GameControllerKind::DormDefense))
+            return;
+        m_dormDefenseController->applyNetworkState(state);
+    });
+    connect(m_networkManager, &NetworkManager::dormDefenseGhostPositionReceived,
+            this, [this](qreal row, qreal column) {
+        if (isCurrentGame(LanBoard::GameControllerKind::DormDefense))
+            m_dormDefenseController->applyNetworkGhostPosition(row, column);
     });
     connect(m_networkManager, &NetworkManager::survivorFastPacketReceived,
             this, [this](const QByteArray &payload) {
@@ -179,6 +210,15 @@ AppController::AppController(QObject *parent)
                     m_survivorController->buildHudNetworkPacket(player.playerId));
             }
         }
+    });
+    connect(m_dormDefenseController, &DormDefenseController::networkActionRequested,
+            this, [this](const QJsonObject &action) {
+        if (!isCurrentGame(LanBoard::GameControllerKind::DormDefense)
+            || !m_networkManager->isConnected()
+            || m_networkManager->isHost()) {
+            return;
+        }
+        m_networkManager->sendDormDefenseAction(action);
     });
     connect(m_networkManager, &NetworkManager::connectionChanged,
             this, [this]() {
@@ -246,10 +286,36 @@ AppController::AppController(QObject *parent)
         syncActiveGuestPlayerId();
         emit roomReady();
     });
+
+    auto syncDormDefenseState = [this]() {
+        if (!isCurrentGame(LanBoard::GameControllerKind::DormDefense)
+            || !m_networkManager->isHost()
+            || m_isDedicatedServerRoom) {
+            return;
+        }
+        broadcastDormDefenseStates();
+    };
+    connect(m_dormDefenseController, &DormDefenseController::boardChanged,
+            this, syncDormDefenseState);
+    connect(m_dormDefenseController, &DormDefenseController::resourcesChanged,
+            this, syncDormDefenseState);
+    connect(m_dormDefenseController, &DormDefenseController::statusChanged,
+            this, syncDormDefenseState);
+    connect(m_dormDefenseController, &DormDefenseController::ghostStateChanged,
+            this, [this]() { broadcastDormDefenseGhostPosition(); });
+    connect(m_dormDefenseController, &DormDefenseController::turretVolleyChanged,
+            this, syncDormDefenseState);
+    connect(m_dormDefenseController, &DormDefenseController::roleChanged,
+            this, syncDormDefenseState);
 }
 
 void AppController::startLocalGame(const QString &gameId)
 {
+    if (LanBoard::normalizeGameId(gameId) == QStringLiteral("dormdefense")) {
+        startDormDefenseLocalGame();
+        return;
+    }
+
     if (LanBoard::normalizeGameId(gameId) == QStringLiteral("survivor")) {
         startSoloSurvivorSession();
         return;
@@ -263,6 +329,19 @@ void AppController::startLocalGame(const QString &gameId)
     resetRoomSession(gameId);
     startCurrentGameRuntime();
     navigateToCurrentGame();
+}
+
+void AppController::startDormDefenseLocalGame()
+{
+    m_networkManager->disconnectAll();
+    m_isDedicatedServerRoom = false;
+    setModeState(false, false, 0);
+    m_activeGuestPlayerId = -1;
+    setLobbyGameId(QStringLiteral("dormdefense"));
+    resetRoomSession(QStringLiteral("dormdefense"), -1);
+    m_networkManager->setDiscoveryGameInProgress(false);
+    m_dormDefenseController->prepareForRoleSelection();
+    emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::DormDefense));
 }
 
 void AppController::startSoloSurvivorSession()
@@ -429,8 +508,49 @@ void AppController::joinOnlineRoom(const QString &roomId)
 
 void AppController::openLobbyForGame(const QString &gameId)
 {
-    setLobbyGameId(gameId);
+    const QString normalizedGameId = LanBoard::normalizeGameId(gameId);
+    m_networkManager->disconnectAll();
+    m_isDedicatedServerRoom = false;
+    setModeState(false, false, 0);
+    m_activeGuestPlayerId = -1;
+    setLobbyGameId(normalizedGameId);
+    resetRoomSession(normalizedGameId, -1);
     emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Room));
+}
+
+void AppController::restartDormDefenseGame()
+{
+    returnFromDormDefenseGame();
+}
+
+void AppController::returnFromDormDefenseGame()
+{
+    const bool networkRoom = m_networkManager->isHost() || m_networkManager->isConnected();
+    const bool standaloneLocal = !networkRoom && currentRoomSnapshot().localPlayerId < 0;
+
+    m_networkManager->setDiscoveryGameInProgress(false);
+    m_dormDefenseController->reset();
+
+    if (m_networkManager->isHost()) {
+        m_roomManager->concludeGame();
+        broadcastCurrentRoomState();
+        emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Room));
+        return;
+    }
+
+    if (m_networkManager->isConnected()) {
+        if (m_roomManager->isHost()) {
+            m_roomManager->concludeGame();
+            m_networkManager->sendGameOverResult(0);
+        }
+        emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Room));
+        return;
+    }
+
+    if (!standaloneLocal)
+        m_roomManager->concludeGame();
+
+    emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Home));
 }
 
 void AppController::returnFromSurvivorGame()
@@ -497,6 +617,29 @@ void AppController::requestSeatChange(const QString &seatType)
         return;
 
     onRemoteSeatChanged(m_networkPlayerId, normalizedSeatType);
+}
+
+void AppController::requestDormDefenseRole(const QString &role)
+{
+    if (!LanBoard::isDormDefenseGame(m_roomManager->gameId()))
+        return;
+
+    if (m_networkManager->isConnected() && !m_networkManager->isHost()) {
+        m_networkManager->sendDormDefenseRole(role);
+        return;
+    }
+
+    const int playerId = m_roomManager->snapshot().localPlayerId;
+    if (playerId < 0)
+        return;
+
+    if (m_roomManager->tryChangeDormDefenseRole(playerId, role)
+        != RoomManager::ActionError::None) {
+        return;
+    }
+
+    if (m_networkManager->isHost())
+        broadcastCurrentRoomState();
 }
 
 bool AppController::updateNickname(const QString &nickname)
@@ -656,6 +799,17 @@ void AppController::onRemoteSeatChanged(int playerId, const QString &seatType)
     broadcastCurrentRoomState();
 }
 
+void AppController::onRemoteDormDefenseRoleChanged(int playerId, const QString &role)
+{
+    if (!m_networkManager->isHost())
+        return;
+    if (m_roomManager->tryChangeDormDefenseRole(playerId, role)
+        != RoomManager::ActionError::None) {
+        return;
+    }
+    broadcastCurrentRoomState();
+}
+
 void AppController::onRemoteStartGame(const QString &gameId)
 {
     if (m_networkManager->isHost())
@@ -694,6 +848,16 @@ void AppController::onRemoteDouDiZhuPass(int playerId)
     broadcastDouDiZhuStates();
 }
 
+void AppController::onRemoteDormDefenseAction(int playerId, const QJsonObject &action)
+{
+    if (!m_networkManager->isHost()
+        || !isCurrentGame(LanBoard::GameControllerKind::DormDefense)) {
+        return;
+    }
+
+    m_dormDefenseController->applyNetworkAction(playerId, action);
+}
+
 void AppController::onClientDisconnected(int playerId)
 {
     if (!m_networkManager->isHost())
@@ -704,8 +868,13 @@ void AppController::onClientDisconnected(int playerId)
         return;
 
     syncActiveGuestPlayerId();
-    if (wasActiveGuest)
+    if (isCurrentGame(LanBoard::GameControllerKind::DormDefense)
+        && m_roomManager->gameInProgress()) {
+        configureDormDefenseNetworkSession();
+        broadcastDormDefenseStates();
+    } else if (wasActiveGuest) {
         handleActiveGuestDisconnectInCurrentGame();
+    }
 
     broadcastCurrentRoomState();
 }
@@ -749,6 +918,10 @@ void AppController::applyReceivedGameOver(int winner)
     case LanBoard::GameControllerKind::Gomoku:
         m_gameController->setGameOver(winner);
         return;
+    case LanBoard::GameControllerKind::DormDefense:
+        m_networkManager->setDiscoveryGameInProgress(false);
+        m_dormDefenseController->finalizeGameOver(winner);
+        return;
     case LanBoard::GameControllerKind::DouDiZhu:
     default:
         return;
@@ -766,6 +939,7 @@ void AppController::handleActiveGuestDisconnectInCurrentGame()
         if (!m_gameController->isGameOver())
             m_gameController->setGameOver(1);
         return;
+    case LanBoard::GameControllerKind::DormDefense:
     case LanBoard::GameControllerKind::DouDiZhu:
     case LanBoard::GameControllerKind::Survivor:
     default:
@@ -778,6 +952,7 @@ void AppController::resetGameControllers()
     m_networkManager->setDiscoveryGameInProgress(false);
     m_gameController->reset();
     m_douDiZhuController->reset();
+    m_dormDefenseController->reset();
     m_flightChessController->reset();
     m_survivorController->configureNetworkSession({}, 0, false, true);
     m_survivorController->stopRun();
@@ -794,6 +969,9 @@ void AppController::resetRoomSession(const QString &gameId, int localPlayerId)
 
 void AppController::startCurrentGameSession()
 {
+    if (isCurrentGame(LanBoard::GameControllerKind::DormDefense))
+        m_dormDefenseController->reset();
+
     if (!m_networkManager->isHost() && m_networkManager->isConnected()) {
         m_networkManager->sendStartGame();
         return;
@@ -810,6 +988,8 @@ void AppController::startCurrentGameSession()
         m_networkManager->broadcastGameStarted(currentGameId());
         if (isCurrentGame(LanBoard::GameControllerKind::DouDiZhu))
             broadcastDouDiZhuStates();
+        else if (isCurrentGame(LanBoard::GameControllerKind::DormDefense))
+            broadcastDormDefenseStates();
     }
 
     navigateToCurrentGame();
@@ -839,6 +1019,19 @@ void AppController::finishCurrentGameSession(int winner, bool resetOfflineRoom)
 void AppController::startCurrentGameRuntime(bool waitForRemoteState)
 {
     switch (currentControllerKind()) {
+    case LanBoard::GameControllerKind::DormDefense: {
+        const bool networked = m_networkManager->isConnected() || m_networkManager->isHost();
+        const bool authoritative = !networked
+            || (m_roomManager->isHost() && !m_isDedicatedServerRoom);
+        if (networked)
+            configureDormDefenseNetworkSession();
+        if (authoritative) {
+            m_dormDefenseController->startNewGame();
+        } else {
+            m_dormDefenseController->reset();
+        }
+        return;
+    }
     case LanBoard::GameControllerKind::Survivor: {
         const bool networked = m_networkManager->isConnected() || m_networkManager->isHost();
         const bool authoritative = !networked
@@ -875,6 +1068,33 @@ void AppController::startCurrentGameRuntime(bool waitForRemoteState)
     }
 }
 
+void AppController::configureDormDefenseNetworkSession()
+{
+    const LanBoard::RoomSnapshot room = currentRoomSnapshot();
+    const bool networked = m_networkManager->isConnected() || m_networkManager->isHost();
+    const bool authoritative = !networked
+        || (m_roomManager->isHost() && !m_isDedicatedServerRoom);
+    const int localPlayerId = networked
+        ? m_networkPlayerId
+        : room.localPlayerId;
+    m_dormDefenseController->configureNetworkSession(room.activePlayerVariantList(),
+                                                     localPlayerId,
+                                                     networked,
+                                                     authoritative);
+}
+
+QString AppController::dormDefenseRoleForPlayer(int playerId) const
+{
+    return currentRoomSnapshot().dormDefenseRoleForPlayer(playerId);
+}
+
+QJsonObject AppController::dormDefenseStateForPlayer(int playerId) const
+{
+    QJsonObject state = m_dormDefenseController->buildNetworkStateForPlayer(playerId);
+    state[QStringLiteral("type")] = LanBoard::Protocol::DormDefenseState;
+    return state;
+}
+
 GameControllerBase *AppController::activeController() const
 {
     switch (currentControllerKind()) {
@@ -882,6 +1102,7 @@ GameControllerBase *AppController::activeController() const
     case LanBoard::GameControllerKind::DouDiZhu:   return m_douDiZhuController;
     case LanBoard::GameControllerKind::FlightChess: return m_flightChessController;
     case LanBoard::GameControllerKind::Survivor:   return m_survivorController;
+    case LanBoard::GameControllerKind::DormDefense: return m_dormDefenseController;
     }
     return nullptr;
 }
@@ -911,6 +1132,36 @@ void AppController::broadcastDouDiZhuStates()
         m_networkManager->setDiscoveryGameInProgress(false);
         if (m_roomManager->clearReadyStates())
             broadcastCurrentRoomState();
+    }
+}
+
+void AppController::broadcastDormDefenseStates()
+{
+    if (!m_networkManager->isHost())
+        return;
+
+    const LanBoard::RoomSnapshot room = currentRoomSnapshot();
+    for (const LanBoard::RoomPlayerState &player : room.players) {
+        if (player.playerId <= 0)
+            continue;
+        m_networkManager->sendDormDefenseStateToPlayer(player.playerId,
+                                                       dormDefenseStateForPlayer(player.playerId));
+    }
+}
+
+void AppController::broadcastDormDefenseGhostPosition()
+{
+    if (!m_networkManager->isHost())
+        return;
+
+    const LanBoard::RoomSnapshot room = currentRoomSnapshot();
+    for (const LanBoard::RoomPlayerState &player : room.players) {
+        if (player.playerId <= 0)
+            continue;
+        m_networkManager->sendDormDefenseGhostPositionToPlayer(
+            player.playerId,
+            m_dormDefenseController->ghostCenterRow(),
+            m_dormDefenseController->ghostCenterColumn());
     }
 }
 

@@ -56,6 +56,7 @@ if (LANBOARD_BUILD_APP)
         src/network/roomdiscoveryservice.cpp
         src/game/gamecontroller.cpp
         src/game/doudizhucontroller.cpp
+        src/game/dormdefensecontroller.cpp
         src/game/flightchesscontroller.cpp
         src/network/enetutils.cpp
         src/game/survivornetcodec.cpp
@@ -85,6 +86,7 @@ if (LANBOARD_BUILD_APP)
             qml/pages/DouDiZhuPage.qml
             qml/pages/FlightChessPage.qml
             qml/pages/SurvivorPage.qml
+            qml/pages/DormDefensePage.qml
         SOURCES
             src/app/appcontroller.h
             src/common/types.h
@@ -102,6 +104,7 @@ if (LANBOARD_BUILD_APP)
             src/network/networkmanager.h
             src/game/gamecontroller.h
             src/game/doudizhucontroller.h
+            src/game/dormdefensecontroller.h
             src/game/flightchesscontroller.h
             src/game/survivorcontroller.h
             src/game/survivorrenderitem.h
@@ -152,6 +155,8 @@ if (LANBOARD_BUILD_SERVER)
         src/game/gamecontroller.h
         src/game/doudizhucontroller.cpp
         src/game/doudizhucontroller.h
+        src/game/dormdefensecontroller.cpp
+        src/game/dormdefensecontroller.h
         src/game/flightchesscontroller.cpp
         src/game/flightchesscontroller.h
         src/game/survivorcontroller.cpp
@@ -180,6 +185,7 @@ if (BUILD_TESTING AND NOT ANDROID)
         src/network/enetutils.cpp
         src/game/gamecontroller.cpp
         src/game/doudizhucontroller.cpp
+        src/game/dormdefensecontroller.cpp
         src/game/flightchesscontroller.cpp
         src/game/survivornetcodec.cpp
         src/game/survivorruntime.cpp

@@ -14,14 +14,16 @@ enum class NavigationPage {
     Online = 3,
     DouDiZhu = 4,
     FlightChess = 5,
-    Survivor = 6
+    Survivor = 6,
+    DormDefense = 7
 };
 
 enum class GameControllerKind {
     Gomoku = 0,
     DouDiZhu = 1,
     FlightChess = 2,
-    Survivor = 3
+    Survivor = 3,
+    DormDefense = 4
 };
 
 struct GameDefinition {
@@ -125,6 +127,27 @@ inline const GameDefinition &survivorDefinition()
     return definition;
 }
 
+inline const GameDefinition &dormDefenseDefinition()
+{
+    static const GameDefinition definition {
+        "dormdefense",
+        "\xe7\x8c\x9b\xe9\xac\xbc\xe5\xae\xbf\xe8\x88\x8d",
+        "\xe6\x94\xaf\xe6\x8c\x81\xe6\x9c\xac\xe5\x9c\xb0\xe3\x80\x81\xe5\xb1\x80\xe5\x9f\x9f\xe7\xbd\x91\xe5\x92\x8c\xe5\x9c\xa8\xe7\xba\xbf\xe6\x88\xbf\xe9\x97\xb4\xef\xbc\x8c\xe6\x88\xbf\xe9\x97\xb4\xe6\x9c\x80\xe5\xa4\x9a 7 \xe4\xba\xba\xef\xbc\x8c\xe9\xac\xbc\xe6\x9c\x80\xe5\xa4\x9a 1 \xe4\xb8\xaa\xe3\x80\x82",
+        7,
+        NavigationPage::DormDefense,
+        GameControllerKind::DormDefense,
+        1,
+        false,
+        true,
+        true,
+        true,
+        false,
+        0,
+        "need_active_players"
+    };
+    return definition;
+}
+
 inline const GameDefinition &definitionForGame(const QString &gameId)
 {
     if (gameId == QStringLiteral("doudizhu"))
@@ -133,12 +156,26 @@ inline const GameDefinition &definitionForGame(const QString &gameId)
         return flightChessDefinition();
     if (gameId == QStringLiteral("survivor"))
         return survivorDefinition();
+    if (gameId == QStringLiteral("dormdefense"))
+        return dormDefenseDefinition();
     return gomokuDefinition();
 }
 
 inline QString normalizeGameId(const QString &gameId)
 {
     return QString::fromLatin1(definitionForGame(gameId).id);
+}
+
+inline bool isDormDefenseGame(const QString &gameId)
+{
+    return normalizeGameId(gameId) == QStringLiteral("dormdefense");
+}
+
+inline QString normalizedDormDefenseRole(const QString &role)
+{
+    return role.trimmed().toLower() == QStringLiteral("ghost")
+        ? QStringLiteral("ghost")
+        : QStringLiteral("defender");
 }
 
 inline QString gameName(const QString &gameId)
@@ -149,6 +186,11 @@ inline QString gameName(const QString &gameId)
 inline int maxPlayersForGame(const QString &gameId)
 {
     return definitionForGame(gameId).maxPlayers;
+}
+
+inline int roomCapacityForGame(const QString &gameId)
+{
+    return isDormDefenseGame(gameId) ? 7 : 8;
 }
 
 inline int navigationPageForGame(const QString &gameId)
@@ -216,7 +258,8 @@ inline QVariantList availableGames()
         gameVariantMap(QStringLiteral("gomoku")),
         gameVariantMap(QStringLiteral("doudizhu")),
         gameVariantMap(QStringLiteral("flightchess")),
-        gameVariantMap(QStringLiteral("survivor"))
+        gameVariantMap(QStringLiteral("survivor")),
+        gameVariantMap(QStringLiteral("dormdefense"))
     };
 }
 
