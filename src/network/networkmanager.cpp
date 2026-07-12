@@ -17,6 +17,7 @@ constexpr enet_uint8 SurvivorInputChannel = 1;
 constexpr enet_uint8 SurvivorFrameChannel = 2;
 constexpr enet_uint8 SurvivorHudChannel = 3;
 constexpr enet_uint8 DormDefensePositionChannel = 1;
+constexpr int ConnectTimeoutMs = 8000;
 
 QJsonObject protocolMessage(QStringView type)
 {
