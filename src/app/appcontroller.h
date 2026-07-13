@@ -6,6 +6,7 @@
 
 #include "src/common/types.h"
 #include "src/game/doudizhucontroller.h"
+#include "src/game/dormdefensecontroller.h"
 #include "src/game/flightchesscontroller.h"
 #include "src/game/gamecontroller.h"
 #include "src/game/survivorcontroller.h"
@@ -18,6 +19,7 @@ class AppController : public QObject
     Q_PROPERTY(RoomManager *roomManager READ roomManager CONSTANT)
     Q_PROPERTY(GameController *gameController READ gameController CONSTANT)
     Q_PROPERTY(DouDiZhuController *douDiZhuController READ douDiZhuController CONSTANT)
+    Q_PROPERTY(DormDefenseController *dormDefenseController READ dormDefenseController CONSTANT)
     Q_PROPERTY(FlightChessController *flightChessController READ flightChessController CONSTANT)
     Q_PROPERTY(SurvivorController *survivorController READ survivorController CONSTANT)
     Q_PROPERTY(NetworkManager *networkManager READ networkManager CONSTANT)
@@ -40,6 +42,7 @@ public:
     RoomManager *roomManager() const { return m_roomManager; }
     GameController *gameController() const { return m_gameController; }
     DouDiZhuController *douDiZhuController() const { return m_douDiZhuController; }
+    DormDefenseController *dormDefenseController() const { return m_dormDefenseController; }
     FlightChessController *flightChessController() const { return m_flightChessController; }
     SurvivorController *survivorController() const { return m_survivorController; }
     NetworkManager *networkManager() const { return m_networkManager; }
@@ -57,6 +60,7 @@ public:
     QString lobbyGameId() const { return m_lobbyGameId; }
 
     Q_INVOKABLE void startLocalGame(const QString &gameId);
+    Q_INVOKABLE void startDormDefenseLocalGame();
     Q_INVOKABLE void startSoloSurvivorSession();
     Q_INVOKABLE void startRoomAsHost(const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE void joinRoom(const QString &ip, int port, const QString &playerName,
@@ -65,6 +69,7 @@ public:
     Q_INVOKABLE void toggleLocalReady();
     Q_INVOKABLE void switchRoomGame(const QString &gameId);
     Q_INVOKABLE void requestSeatChange(const QString &seatType);
+    Q_INVOKABLE void requestDormDefenseRole(const QString &role);
     Q_INVOKABLE bool playDouDiZhuCards(const QVariantList &cardIds);
     Q_INVOKABLE bool passDouDiZhuTurn();
     Q_INVOKABLE void restartDouDiZhuGame();
@@ -73,6 +78,8 @@ public:
                                       const QString &roomName = QString());
     Q_INVOKABLE void joinOnlineRoom(const QString &roomId);
     Q_INVOKABLE void openLobbyForGame(const QString &gameId);
+    Q_INVOKABLE void restartDormDefenseGame();
+    Q_INVOKABLE void returnFromDormDefenseGame();
     Q_INVOKABLE void returnFromSurvivorGame();
     Q_INVOKABLE bool updateNickname(const QString &nickname);
     Q_INVOKABLE bool updateDefaultPort(int port);
@@ -94,12 +101,15 @@ private slots:
     void onRemoteFlightMove(int playerId, int planeIndex);
     void onRemoteSurrender(int playerId);
     void onRemoteSeatChanged(int playerId, const QString &seatType);
+    void onRemoteDormDefenseRoleChanged(int playerId, const QString &role);
     void onRemoteStartGame(const QString &gameId);
     void onRemoteDouDiZhuPlay(int playerId, const QJsonArray &cardIds);
     void onRemoteDouDiZhuPass(int playerId);
+    void onRemoteDormDefenseAction(int playerId, const QJsonObject &action);
     void onClientDisconnected(int playerId);
     void broadcastCurrentRoomState();
     void broadcastDouDiZhuStates();
+    void broadcastDormDefenseStates();
 
 private:
     void loadSettings();
@@ -120,6 +130,10 @@ private:
     void startCurrentGameSession();
     void finishCurrentGameSession(int winner, bool resetOfflineRoom);
     void startCurrentGameRuntime(bool waitForRemoteState = false);
+    void configureDormDefenseNetworkSession();
+    QString dormDefenseRoleForPlayer(int playerId) const;
+    QJsonObject dormDefenseStateForPlayer(int playerId) const;
+    void broadcastDormDefenseGhostPosition();
     LanBoard::GameControllerKind currentControllerKind() const;
     bool isCurrentGame(LanBoard::GameControllerKind kind) const;
     void navigateToCurrentGame();
@@ -129,6 +143,7 @@ private:
     RoomManager *m_roomManager = nullptr;
     GameController *m_gameController = nullptr;
     DouDiZhuController *m_douDiZhuController = nullptr;
+    DormDefenseController *m_dormDefenseController = nullptr;
     FlightChessController *m_flightChessController = nullptr;
     SurvivorController *m_survivorController = nullptr;
     NetworkManager *m_networkManager = nullptr;

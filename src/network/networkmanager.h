@@ -46,11 +46,13 @@ public:
     Q_INVOKABLE void sendSurvivorInput(qreal horizontal, qreal vertical);
     Q_INVOKABLE void sendSurvivorChooseLevelUp(const QString &upgradeId);
     Q_INVOKABLE void sendSurvivorCloseChest();
+    Q_INVOKABLE void sendDormDefenseAction(const QJsonObject &action);
     void sendStartGame();
     void sendGameOverResult(int winner);
     void sendDouDiZhuPlay(const QVariantList &cardIds);
     void sendDouDiZhuPass();
     void sendChangeSeat(const QString &seatType);
+    void sendDormDefenseRole(const QString &role);
     Q_INVOKABLE void startRoomDiscovery();
     Q_INVOKABLE void stopRoomDiscovery();
     Q_INVOKABLE void refreshRoomDiscovery();
@@ -66,6 +68,8 @@ public:
     void sendRoomStateToPlayer(int playerId, const QJsonObject &state);
     void sendSurvivorFastPacketToPlayer(int playerId, const QByteArray &payload);
     void sendSurvivorHudPacketToPlayer(int playerId, const QByteArray &payload);
+    void sendDormDefenseStateToPlayer(int playerId, const QJsonObject &state);
+    void sendDormDefenseGhostPositionToPlayer(int playerId, qreal row, qreal column);
 
     bool isHost() const { return m_isHost; }
     bool isConnected() const;
@@ -100,13 +104,17 @@ signals:
     void flightMoveReceived(int player, int planeIndex);
     void remoteSurrender(int playerId);
     void remoteSeatChanged(int playerId, QString seatType);
+    void remoteDormDefenseRoleChanged(int playerId, QString role);
     void remoteSurvivorInput(int playerId, qreal horizontal, qreal vertical);
     void remoteSurvivorChooseLevelUp(int playerId, QString upgradeId);
     void remoteSurvivorCloseChest(int playerId);
+    void remoteDormDefenseAction(int playerId, QJsonObject action);
     void remoteStartGame(QString gameId);
     void remoteDouDiZhuPlay(int playerId, QJsonArray cardIds);
     void remoteDouDiZhuPass(int playerId);
     void douDiZhuStateReceived(QJsonObject state);
+    void dormDefenseStateReceived(QJsonObject state);
+    void dormDefenseGhostPositionReceived(qreal row, qreal column);
     void gameOverReceived(int winner);
     void roomStateReceived(QJsonObject state);
     void survivorFastPacketReceived(QByteArray payload);
@@ -176,6 +184,7 @@ private:
     QString m_discoveryHostName;
     QVariantList m_onlineRooms;
     QTimer m_enetServiceTimer;
+    QTimer m_connectTimeoutTimer;
     ENetHost *m_clientHost = nullptr;
     ENetPeer *m_serverPeer = nullptr;
     ENetHost *m_lobbyHost = nullptr;

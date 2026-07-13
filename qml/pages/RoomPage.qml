@@ -152,6 +152,14 @@ Page {
         return result
     }
 
+    function isDormDefenseRoom() {
+        return AppCtrl.roomManager.gameId === "dormdefense"
+    }
+
+    function dormDefenseRoleText(player) {
+        return player.isHost ? AppTheme.zhHost() : AppTheme.zhMember()
+    }
+
     function canToggleSeat(player) {
         var local = localPlayer()
         if (!player || !local || player.isHost || player.playerId !== local.playerId)
@@ -207,10 +215,14 @@ Page {
     }
 
     Component.onCompleted: {
+        if (!root.inRoom)
+            root.onlineGameId = AppCtrl.lobbyGameId
         syncDiscoveryState()
         replayJoinEntryAnim()
     }
     onVisibleChanged: {
+        if (visible && !root.inRoom)
+            root.onlineGameId = AppCtrl.lobbyGameId
         syncDiscoveryState()
         if (visible)
             replayJoinEntryAnim()
@@ -698,6 +710,13 @@ Page {
                                 text: "本地试玩 MVP"
                                 secondary: true
                                 onClicked: AppCtrl.startSoloSurvivorSession()
+                            }
+
+                            ActionButton {
+                                Layout.fillWidth: true
+                                text: "本地游戏"
+                                secondary: true
+                                onClicked: AppCtrl.startLocalGame(root.onlineGameId)
                             }
 
                             ActionButton {
@@ -1417,6 +1436,15 @@ Page {
                         font.weight: Font.DemiBold
                     }
 
+                    Text {
+                        width: parent.width
+                        visible: root.isDormDefenseRoom()
+                        text: "猛鬼宿舍会在开始游戏后进入 10 秒阵营选择。未选择的玩家会被随机分配，且全场只会有 1 个鬼。"
+                        color: AppTheme.textMuted
+                        font.pixelSize: AppTheme.fontSizeCaption
+                        wrapMode: Text.WordWrap
+                    }
+
                     Repeater {
                         model: root.activeRoomPlayers()
 
@@ -1424,7 +1452,7 @@ Page {
                             width: parent.width
                             height: 84
                             playerName: modelData.name
-                            roleText: modelData.isHost ? AppTheme.zhHost() : AppTheme.zhMember()
+                            roleText: root.dormDefenseRoleText(modelData)
                             statusText: root.seatStatusText(modelData)
                             ready: modelData.isReady
                             actionText: root.seatActionText(modelData)

@@ -14,6 +14,7 @@
 #include "../common/roomtypes.h"
 #include "../game/gamecontroller.h"
 #include "../game/doudizhucontroller.h"
+#include "../game/dormdefensecontroller.h"
 #include "../game/flightchesscontroller.h"
 #include "../game/survivorcontroller.h"
 #include "../lobby/roommanager.h"
@@ -39,6 +40,7 @@ private:
         std::unique_ptr<RoomManager> roomManager;
         std::unique_ptr<GameController> gameController;
         std::unique_ptr<DouDiZhuController> douDiZhuController;
+        std::unique_ptr<DormDefenseController> dormDefenseController;
         std::unique_ptr<FlightChessController> flightChessController;
         std::unique_ptr<SurvivorController> survivorController;
     };
@@ -57,6 +59,7 @@ private:
     void handleReady(ENetPeer *peer, bool ready);
     void handleStartGame(ENetPeer *peer);
     void handleChangeSeat(ENetPeer *peer, const QString &seatType);
+    void handleDormDefenseRole(ENetPeer *peer, const QString &role);
     void handleSwitchRoomGame(ENetPeer *peer, const QString &gameId);
     void handlePlacePiece(ENetPeer *peer, int row, int col);
     void handleFlightRoll(ENetPeer *peer);
@@ -68,6 +71,7 @@ private:
     void handleGameOver(ENetPeer *peer, int winner);
     void handleDouDiZhuPlay(ENetPeer *peer, const QJsonArray &cardIds);
     void handleDouDiZhuPass(ENetPeer *peer);
+    void handleDormDefenseAction(ENetPeer *peer, const QJsonObject &action);
 
     void sendJson(ENetPeer *peer, const QJsonObject &obj);
     void sendRaw(ENetPeer *peer, const QByteArray &payload, enet_uint8 channel, enet_uint32 flags);
@@ -76,6 +80,8 @@ private:
     bool processBinaryPacket(ENetPeer *peer, const QByteArray &payload);
     void broadcastRoomState(RoomState *room);
     void broadcastDouDiZhuStates(RoomState *room);
+    void broadcastDormDefenseStates(RoomState *room);
+    void broadcastDormDefenseGhostPosition(RoomState *room);
     void startRoomGame(RoomState *room, const QList<PlayerSession *> &activePlayers);
     void handlePlayerDisconnectInRoom(RoomState *room,
                                       const PlayerSession &session);
@@ -85,6 +91,8 @@ private:
     void resetFinishedRoom(RoomState *room);
     void removeRoomIfEmpty(const QString &roomId);
     QJsonArray roomListPayload() const;
+    QString dormDefenseRoleForPlayer(const RoomState *room, int playerId) const;
+    QJsonObject dormDefenseStateForPlayer(const RoomState *room, int playerId) const;
     bool resolveSessionRoom(ENetPeer *peer, PlayerSession *&session, RoomState *&room);
     bool ensureControllerKind(ENetPeer *peer,
                               const RoomState *room,

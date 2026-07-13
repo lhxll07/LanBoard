@@ -29,6 +29,11 @@ Rectangle {
             textColor: "#F6F3EC", mutedColor: "#B0C4D4",
             tagBg: "#324754", tagText: "#D0E0EC"
         };
+        if (gameType === "dormdefense") return {
+            gradientTop: "#3B2F2A", gradientBot: "#6F4E37",
+            textColor: "#FFF8EE", mutedColor: "#E6D4C2",
+            tagBg: "#8B6545", tagText: "#FFF0DE"
+        };
         // survivor
         return {
             gradientTop: "#1C2A24", gradientBot: "#2E443A",
@@ -222,6 +227,47 @@ Rectangle {
                 ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = "#E86A54";
                 ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI*2); ctx.fill();
+            }
+        }
+    }
+
+    // ---- DormDefense icon ----
+    Item {
+        anchors.right: parent.right; anchors.top: parent.top
+        anchors.rightMargin: 16; anchors.topMargin: 16
+        width: 98; height: 88
+        visible: root.gameType === "dormdefense"
+
+        Canvas {
+            anchors.fill: parent
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+
+                ctx.fillStyle = "#E8D7B5";
+                ctx.fillRect(18, 16, 52, 52);
+
+                ctx.fillStyle = "#8A5E3B";
+                ctx.fillRect(8, 28, 14, 28);
+
+                ctx.fillStyle = "#6C90B5";
+                ctx.fillRect(34, 34, 20, 14);
+
+                ctx.fillStyle = "#D0B13F";
+                ctx.beginPath();
+                ctx.arc(78, 28, 10, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = "#E36A5B";
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(76, 28, 18, Math.PI * 0.1, Math.PI * 1.65);
+                ctx.stroke();
+
+                ctx.fillStyle = "#E36A5B";
+                ctx.font = "bold 18px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("鬼", 76, 34);
             }
         }
     }

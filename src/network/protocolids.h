@@ -15,6 +15,7 @@ inline const QString StartGame = QStringLiteral("start_game");
 inline const QString GameStart = QStringLiteral("game_start");
 inline const QString SwitchRoomGame = QStringLiteral("switch_room_game");
 inline const QString ChangeSeat = QStringLiteral("change_seat");
+inline const QString DormDefenseRole = QStringLiteral("dormdefense_role");
 inline const QString PlacePiece = QStringLiteral("place_piece");
 inline const QString FlightRoll = QStringLiteral("flight_roll");
 inline const QString FlightMove = QStringLiteral("flight_move");
@@ -23,6 +24,9 @@ inline const QString GameOver = QStringLiteral("game_over");
 inline const QString DouDiZhuPlay = QStringLiteral("ddz_play");
 inline const QString DouDiZhuPass = QStringLiteral("ddz_pass");
 inline const QString DouDiZhuState = QStringLiteral("ddz_state");
+inline const QString DormDefenseAction = QStringLiteral("dormdefense_action");
+inline const QString DormDefenseState = QStringLiteral("dormdefense_state");
+inline const QString DormDefenseGhostPosition = QStringLiteral("dormdefense_ghost_position");
 inline const QString Error = QStringLiteral("error");
 
 }  // namespace LanBoard::Protocol

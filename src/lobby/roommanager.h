@@ -17,7 +17,7 @@ class RoomManager : public QObject
     Q_PROPERTY(QString gameId READ gameId NOTIFY gameChanged)
     Q_PROPERTY(QString gameName READ gameName NOTIFY gameChanged)
     Q_PROPERTY(int maxPlayers READ maxPlayers NOTIFY gameChanged)
-    Q_PROPERTY(int roomCapacity READ roomCapacity CONSTANT)
+    Q_PROPERTY(int roomCapacity READ roomCapacity NOTIFY gameChanged)
     Q_PROPERTY(int activePlayerCount READ activePlayerCount NOTIFY playerListChanged)
 
 public:
@@ -33,7 +33,11 @@ public:
         ActiveSeatFull,
         MissingPlayers,
         PlayersNotReady,
-        GameInProgress
+        GameInProgress,
+        InvalidDormDefenseRole,
+        DormDefenseGhostRequiresActiveSeat,
+        DormDefenseGhostAlreadyTaken,
+        DormDefenseGhostRequired
     };
 
     explicit RoomManager(QObject *parent = nullptr);
@@ -47,6 +51,7 @@ public:
     void setGameInProgress(bool inProgress);
     ActionError tryAddRoomPlayer(const QString &name, bool host, int playerId);
     ActionError tryChangeSeat(int playerId, const QString &seatType);
+    ActionError tryChangeDormDefenseRole(int playerId, const QString &role);
     ActionError trySwitchGame(int playerId, const QString &gameId);
     ActionError tryStartGame(int playerId);
     Q_INVOKABLE void addTestPlayer(const QString &name);
@@ -66,7 +71,7 @@ public:
     QString gameName() const;
     bool gameInProgress() const { return m_gameInProgress; }
     int maxPlayers() const;
-    int roomCapacity() const { return 8; }
+    int roomCapacity() const;
     int activePlayerCount() const;
     int allocatePlayerId() const;
     void setLocalPlayerId(int playerId);
@@ -94,6 +99,7 @@ signals:
 private:
     int indexOfPlayerId(int playerId) const;
     void normalizeSeats(bool fillMissingActiveSeats = true);
+    void normalizeDormDefenseRoles();
     void emitStateChanged();
 
     QVector<LanBoard::RoomPlayerState> m_players;
