@@ -44,6 +44,12 @@ Makefile
 *.ipa
 lanboard_server*.tar.gz
 
+# Office documents
+*.doc
+*.docx
+*.ppt
+*.pptx
+
 # Android signing / local machine config
 *.jks
 *.keystore
