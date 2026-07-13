@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="980" viewBox="0 0 1800 980">
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .title { font: 700 28px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #18212b; }
+      .subtitle { font: 15px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #647383; }
+      .zone-title { font: 700 16px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #233142; letter-spacing: 0.4px; }
+      .box-title { font: 700 18px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #152536; }
+      .box-text { font: 14px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #455767; }
+      .cap { fill: #fefdf9; stroke: #d8d0c3; stroke-width: 1.2; }
+      .zone-room { fill: #fbfbf8; stroke: #ddd8cf; stroke-width: 1.25; }
+      .zone-match { fill: #fcfaf4; stroke: #ddd2bf; stroke-width: 1.25; }
+      .zone-end { fill: #faf8fc; stroke: #d9d2df; stroke-width: 1.25; }
+      .box { fill: #fffdfa; stroke: #c9c3b7; stroke-width: 1.45; }
+      .box-core { fill: #fffdfa; stroke: #cdb694; stroke-width: 1.65; }
+      .box-game { fill: #fffdfa; stroke: #a4b89a; stroke-width: 1.65; }
+      .box-data { fill: #fffdfa; stroke: #b7abc8; stroke-width: 1.65; }
+      .box-net { fill: #fffdfa; stroke: #9fb6c9; stroke-width: 1.65; }
+      .edge { stroke: #596575; stroke-width: 2.1; fill: none; marker-end: url(#arrow); }
+      .edge-dash { stroke: #7a8795; stroke-width: 1.8; stroke-dasharray: 8 7; fill: none; marker-end: url(#arrow); }
+      .tag { font: 12px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #637486; text-anchor: middle; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#596575"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="980"/>
+  <text class="title" x="56" y="58">LanBoard 经典桌游通用状态图</text>
+  <text class="subtitle" x="56" y="88">五子棋、斗地主、飞行棋共享的房间组织、对局推进与回房流程</text>
+
+  <rect class="zone-room" x="48" y="126" width="1704" height="228" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="140" width="182" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="161" y="159" text-anchor="middle">房间阶段与开局条件</text>
+
+  <rect class="zone-match" x="48" y="390" width="1704" height="252" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="404" width="168" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="154" y="423" text-anchor="middle">对局阶段与状态同步</text>
+
+  <rect class="zone-end" x="48" y="678" width="1704" height="252" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="692" width="196" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="168" y="711" text-anchor="middle">结算阶段与回房复用</text>
+
+  <rect class="box" x="96" y="214" width="282" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="120" y="250">QML 房间页</text>
+  <text class="box-text" x="120" y="276">创建、加入、准备与切换桌游</text>
+
+  <rect class="box-core" x="426" y="196" width="320" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="450" y="232">AppController</text>
+  <text class="box-text" x="450" y="258">接收页面操作并驱动房间链路</text>
+  <text class="box-text" x="450" y="282">协调 RoomManager 与目标控制器</text>
+
+  <rect class="box-core" x="816" y="196" width="352" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="840" y="232">RoomManager</text>
+  <text class="box-text" x="840" y="258">玩家列表、座位、准备态与房主权限</text>
+  <text class="box-text" x="840" y="282">人数规则校验与 gameId 切换</text>
+
+  <rect class="box-data" x="1232" y="214" width="398" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="1256" y="250">RoomSnapshot / GameDefinition</text>
+  <text class="box-text" x="1256" y="276">共享房间快照、人数规则与页面路由</text>
+
+  <path class="edge" d="M 344 256 L 426 256"/>
+  <path class="edge" d="M 734 256 L 816 256"/>
+  <path class="edge" d="M 1150 256 L 1232 256"/>
+  <text class="tag" x="385" y="242">发起操作</text>
+  <text class="tag" x="775" y="242">协调房间</text>
+  <text class="tag" x="1191" y="242">读取规则</text>
+
+  <rect class="box-game" x="120" y="478" width="318" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="144" y="514">经典桌游控制器</text>
+  <text class="box-text" x="144" y="540">五子棋、斗地主、飞行棋控制器实例</text>
+
+  <rect class="box-data" x="506" y="460" width="362" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="530" y="496">对局状态</text>
+  <text class="box-text" x="530" y="522">棋盘、手牌、回合方、骰子与胜负状态</text>
+  <text class="box-text" x="530" y="546">按游戏类型映射到统一生命周期接口</text>
+
+  <rect class="box-net" x="944" y="460" width="382" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="968" y="496">NetworkManager</text>
+  <text class="box-text" x="968" y="522">同步局域网 Host 或 ECS 在线房间控制消息</text>
+  <text class="box-text" x="968" y="546">广播 room_state、move、turn、game_over</text>
+
+  <rect class="box" x="1394" y="478" width="304" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="1418" y="514">QML 游戏页</text>
+  <text class="box-text" x="1418" y="540">渲染棋盘、手牌、回合提示与操作入口</text>
+
+  <path class="edge" d="M 267 316 L 267 478"/>
+  <path class="edge" d="M 679 316 L 679 460"/>
+  <path class="edge" d="M 852 520 L 944 520"/>
+  <path class="edge" d="M 1302 520 L 1394 520"/>
+  <text class="tag" x="285" y="397" transform="rotate(-90 285 397)">实例化</text>
+  <text class="tag" x="697" y="388" transform="rotate(-90 697 388)">建立状态</text>
+  <text class="tag" x="898" y="504">同步控制</text>
+  <text class="tag" x="1348" y="504">渲染交互</text>
+
+  <rect class="box-data" x="120" y="766" width="286" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="144" y="802">结算结果</text>
+  <text class="box-text" x="144" y="828">胜者、结束原因与再来一局资格</text>
+
+  <rect class="box-core" x="514" y="748" width="350" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="538" y="784">RoomManager 回房复位</text>
+  <text class="box-text" x="538" y="810">清空 ready、gameInProgress 等局内状态</text>
+  <text class="box-text" x="538" y="834">保留房间成员，回到统一房间态</text>
+
+  <rect class="box-net" x="938" y="748" width="398" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="962" y="784">房间广播与再次开局</text>
+  <text class="box-text" x="962" y="810">同步结算、回房、取消准备与重新准备</text>
+  <text class="box-text" x="962" y="834">重新满足条件后复用同一条开局链路</text>
+
+  <rect class="box" x="1400" y="766" width="314" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="1424" y="802">QML 房间页复用</text>
+  <text class="box-text" x="1424" y="828">显示结算后的房间态，而非停留在旧对局页</text>
+
+  <path class="edge" d="M 267 562 L 267 766"/>
+  <path class="edge" d="M 422 808 L 514 808"/>
+  <path class="edge" d="M 846 808 L 938 808"/>
+  <path class="edge" d="M 1308 808 L 1400 808"/>
+  <path class="edge-dash" d="M 1123 748 L 1123 580"/>
+  <text class="tag" x="285" y="664" transform="rotate(-90 285 664)">生成结算</text>
+  <text class="tag" x="468" y="794">回房复位</text>
+  <text class="tag" x="892" y="794">状态广播</text>
+  <text class="tag" x="1354" y="794">页面复用</text>
+  <text class="tag" x="1141" y="664" transform="rotate(-90 1141 664)">再来一局</text>
+</svg>

@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="980" viewBox="0 0 1800 980">
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .title { font: 700 28px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #18212b; }
+      .subtitle { font: 15px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #647383; }
+      .zone-title { font: 700 16px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #233142; letter-spacing: 0.4px; }
+      .box-title { font: 700 18px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #152536; }
+      .box-text { font: 14px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #455767; }
+      .cap { fill: #fefdf9; stroke: #d8d0c3; stroke-width: 1.2; }
+      .zone-core { fill: #f9fbf7; stroke: #d5ddd0; stroke-width: 1.25; }
+      .zone-sim { fill: #fbfbf8; stroke: #ddd8cf; stroke-width: 1.25; }
+      .zone-net { fill: #faf8fc; stroke: #d9d2df; stroke-width: 1.25; }
+      .box { fill: #fffdfa; stroke: #c9c3b7; stroke-width: 1.45; }
+      .box-game { fill: #fffdfa; stroke: #a4b89a; stroke-width: 1.65; }
+      .box-data { fill: #fffdfa; stroke: #b7abc8; stroke-width: 1.65; }
+      .box-net { fill: #fffdfa; stroke: #9fb6c9; stroke-width: 1.65; }
+      .edge { stroke: #596575; stroke-width: 2.1; fill: none; marker-end: url(#arrow); }
+      .edge-dash { stroke: #7a8795; stroke-width: 1.8; stroke-dasharray: 8 7; fill: none; marker-end: url(#arrow); }
+      .tag { font: 12px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #637486; text-anchor: middle; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#596575"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="980"/>
+  <text class="title" x="56" y="58">LanBoard Survivor 子系统架构图</text>
+  <text class="subtitle" x="56" y="88">控制器、状态模型、数值模拟、同步与渲染的主干关系</text>
+
+  <rect class="zone-core" x="48" y="126" width="1704" height="240" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="140" width="168" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="154" y="159" text-anchor="middle">控制与状态核心</text>
+
+  <rect class="zone-sim" x="48" y="402" width="1704" height="238" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="416" width="182" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="161" y="435" text-anchor="middle">运行时与数值模拟</text>
+
+  <rect class="zone-net" x="48" y="676" width="1704" height="250" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="690" width="196" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="168" y="709" text-anchor="middle">网络同步与前端渲染</text>
+
+  <rect class="box-game" x="96" y="208" width="324" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="120" y="244">SurvivorController</text>
+  <text class="box-text" x="120" y="270">驱动 tick、升级、HUD、结算与联机入口</text>
+
+  <rect class="box-data" x="496" y="190" width="386" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="520" y="226">MatchState</text>
+  <text class="box-text" x="520" y="252">players、enemies、projectiles、pickups、zones</text>
+  <text class="box-text" x="520" y="276">level、exp、wave、timers、damageNumbers</text>
+
+  <rect class="box" x="958" y="208" width="314" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="982" y="244">交互状态</text>
+  <text class="box-text" x="982" y="270">升级、宝箱、排行榜等派生状态</text>
+
+  <rect class="box" x="1348" y="208" width="314" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="1372" y="244">运行模式</text>
+  <text class="box-text" x="1372" y="270">本地、局域网 Host、ECS 在线权威模式</text>
+
+  <path class="edge" d="M 420 250 L 496 250"/>
+  <path class="edge" d="M 882 250 L 958 250"/>
+  <path class="edge-dash" d="M 420 232 L 460 232 L 460 182 L 1505 182 L 1505 208"/>
+  <text class="tag" x="458" y="236">读写状态</text>
+  <text class="tag" x="920" y="236">派生 HUD</text>
+  <text class="tag" x="982" y="170">配置模式</text>
+
+  <rect class="box-game" x="96" y="484" width="300" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="120" y="520">survivorruntime.*</text>
+  <text class="box-text" x="120" y="546">派生属性、相机锚点、渲染快照</text>
+
+  <rect class="box-game" x="472" y="466" width="328" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="496" y="502">survivorsimulation.*</text>
+  <text class="box-text" x="496" y="528">武器、升级、经验、波次、Boss、掉落规则</text>
+  <text class="box-text" x="496" y="552">提供实时战斗数值与事件调度</text>
+
+  <rect class="box-data" x="876" y="484" width="300" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="900" y="520">RenderSnapshot</text>
+  <text class="box-text" x="900" y="546">战斗场景的可渲染快照</text>
+
+  <rect class="box-data" x="1252" y="484" width="420" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="1276" y="520">survivorworld.h</text>
+  <text class="box-text" x="1276" y="546">PlayerState、Enemy、Projectile、Pickup、Zone 等结构</text>
+
+  <path class="edge" d="M 258 292 L 258 484"/>
+  <path class="edge" d="M 689 310 L 689 466"/>
+  <path class="edge" d="M 689 310 L 1026 484"/>
+  <path class="edge" d="M 689 310 L 1462 484"/>
+  <text class="tag" x="276" y="388" transform="rotate(-90 276 388)">驱动</text>
+  <text class="tag" x="707" y="388" transform="rotate(-90 707 388)">应用规则</text>
+  <text class="tag" x="858" y="378" transform="rotate(27 858 378)">导出快照</text>
+  <text class="tag" x="1088" y="384" transform="rotate(14 1088 384)">复用结构</text>
+
+  <rect class="box-net" x="96" y="766" width="330" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="120" y="802">survivornetcodec.*</text>
+  <text class="box-text" x="120" y="828">输入包、快照包、HUD 状态包编解码</text>
+
+  <rect class="box-net" x="502" y="748" width="382" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="526" y="784">同步通道</text>
+  <text class="box-text" x="526" y="810">上行：输入、升级选择、宝箱关闭</text>
+  <text class="box-text" x="526" y="834">下行：FastState、HudState、结算状态</text>
+
+  <rect class="box" x="960" y="766" width="314" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="984" y="802">SurvivorRenderItem</text>
+  <text class="box-text" x="984" y="828">Scene Graph 渲染战斗层与雷达层</text>
+
+  <rect class="box" x="1350" y="766" width="314" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="1374" y="802">SurvivorPage.qml</text>
+  <text class="box-text" x="1374" y="828">HUD、升级面板、结算层与触摸摇杆</text>
+
+  <path class="edge" d="M 1026 568 L 1026 766"/>
+  <path class="edge" d="M 261 568 L 261 766"/>
+  <path class="edge-dash" d="M 426 808 L 502 808"/>
+  <path class="edge" d="M 884 808 L 960 808"/>
+  <path class="edge" d="M 1274 808 L 1350 808"/>
+  <text class="tag" x="1044" y="667" transform="rotate(-90 1044 667)">渲染数据</text>
+  <text class="tag" x="279" y="667" transform="rotate(-90 279 667)">二进制编码</text>
+  <text class="tag" x="464" y="792">网络同步</text>
+  <text class="tag" x="922" y="792">渲染</text>
+  <text class="tag" x="1312" y="792">承载界面</text>
+</svg>

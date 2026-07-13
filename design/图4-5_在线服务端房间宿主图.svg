@@ -1,0 +1,69 @@
+<svg width="1800" height="1000" viewBox="0 0 1800 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1800" height="1000" fill="#FFFFFF"/>
+  <text x="72" y="74" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#1F2D3D">LanBoard 在线服务端房间宿主图</text>
+  <text x="72" y="112" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" fill="#667085">独立服务端如何托管在线房间、维护会话并推进具体游戏</text>
+
+  <rect x="42" y="154" width="1716" height="764" rx="24" fill="#FFFCF7" stroke="#E7D7C3" stroke-width="2"/>
+
+  <rect x="72" y="176" width="250" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="108" y="204" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">客户端接入</text>
+
+  <rect x="82" y="254" width="360" height="144" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="108" y="304" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">在线客户端</text>
+  <text x="108" y="342" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">list_rooms / create_room / join_room</text>
+  <text x="108" y="374" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">ready / start_game / 实时战斗输入</text>
+
+  <rect x="82" y="454" width="360" height="144" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="108" y="504" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">ENet Peer</text>
+  <text x="108" y="542" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">每个连接对应一个 peer</text>
+  <text x="108" y="574" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">进入 ServerApp 的统一消息入口</text>
+
+  <rect x="548" y="176" width="312" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="584" y="204" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">服务端会话层</text>
+
+  <rect x="548" y="254" width="470" height="176" rx="22" fill="#FFFFFF" stroke="#BCD0EA" stroke-width="2.4"/>
+  <text x="578" y="304" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">ServerApp</text>
+  <text x="578" y="342" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">统一处理 connect / disconnect / receive</text>
+  <text x="578" y="374" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">按消息类型分派到建房、入房、准备、开局</text>
+  <text x="578" y="406" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">以及各类游戏事件处理函数</text>
+
+  <rect x="548" y="468" width="470" height="186" rx="22" fill="#FFFFFF" stroke="#CBBBE9" stroke-width="2.4"/>
+  <text x="578" y="518" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">PlayerSession</text>
+  <text x="578" y="556" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">记录 playerId、roomId 与 ENetPeer 绑定关系</text>
+  <text x="578" y="588" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">为房间广播、断线清理和输入转发提供寻址依据</text>
+  <text x="578" y="620" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">同一玩家在服务端始终通过会话对象定位</text>
+
+  <rect x="1124" y="176" width="320" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="1160" y="204" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">房间宿主与控制器集群</text>
+
+  <rect x="1128" y="254" width="598" height="242" rx="22" fill="#FFFFFF" stroke="#C7DDB9" stroke-width="2.4"/>
+  <text x="1160" y="304" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">RoomState</text>
+  <text x="1160" y="342" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">每个在线房间持有一组独立实例：</text>
+  <text x="1160" y="374" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">RoomManager + GameController + DouDiZhuController</text>
+  <text x="1160" y="406" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">+ FlightChessController + SurvivorController</text>
+  <text x="1160" y="438" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">不同房间之间相互隔离，各自推进房间状态与游戏状态</text>
+
+  <rect x="1128" y="560" width="598" height="276" rx="22" fill="#FFFFFF" stroke="#B9D6DE" stroke-width="2.4"/>
+  <text x="1160" y="610" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">权威推进职责</text>
+  <text x="1160" y="648" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">1. 校验 ready、seat change、switch room game、start game 合法性</text>
+  <text x="1160" y="680" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">2. 处理五子棋落子、斗地主出牌、飞行棋掷骰与移动</text>
+  <text x="1160" y="712" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">3. 在 Survivor 中推进权威世界状态并向成员下发 fast / HUD 包</text>
+  <text x="1160" y="744" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">4. 断线时清理 PlayerSession，必要时重置房间或删除空房间</text>
+  <text x="1160" y="776" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">5. 统一广播 room_state、game_over 与各种对局结果</text>
+
+  <path d="M442 326H518" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M518 326L500 314V338L518 326Z" fill="#5B6B7F"/>
+  <text x="452" y="308" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">消息接入</text>
+
+  <path d="M442 526H518" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M518 526L500 514V538L518 526Z" fill="#5B6B7F"/>
+  <text x="452" y="508" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">peer 绑定</text>
+
+  <path d="M1018 332H1090" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1090 332L1072 320V344L1090 332Z" fill="#5B6B7F"/>
+  <text x="1040" y="314" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">房间映射</text>
+
+  <path d="M1018 560H1090" stroke="#7A8797" stroke-width="2.5" stroke-dasharray="10 10"/>
+  <path d="M1090 560L1072 548V572L1090 560Z" fill="#7A8797"/>
+  <text x="1034" y="542" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">会话维护</text>
+</svg>

@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1080" viewBox="0 0 1800 1080">
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .title { font: 700 28px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #18212b; }
+      .subtitle { font: 15px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #617080; }
+      .zone-title { font: 700 16px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #233142; letter-spacing: 0.5px; }
+      .box-title { font: 700 18px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #152536; }
+      .box-text { font: 14px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #425466; }
+      .cap { fill: #fefdf9; stroke: #d8d0c3; stroke-width: 1.2; }
+      .zone-shell { fill: #fbfbf8; stroke: #ddd8cf; stroke-width: 1.25; }
+      .zone-core { fill: #fcfaf4; stroke: #ddd2bf; stroke-width: 1.25; }
+      .zone-game { fill: #f9fbf7; stroke: #d5ddd0; stroke-width: 1.25; }
+      .zone-server { fill: #faf8fc; stroke: #d9d2df; stroke-width: 1.25; }
+      .box { fill: #fffdfa; stroke: #c9c3b7; stroke-width: 1.45; }
+      .box-core { fill: #fffdfa; stroke: #cdb694; stroke-width: 1.65; }
+      .box-net { fill: #fffdfa; stroke: #9fb6c9; stroke-width: 1.65; }
+      .box-game { fill: #fffdfa; stroke: #a4b89a; stroke-width: 1.65; }
+      .box-data { fill: #fffdfa; stroke: #b7abc8; stroke-width: 1.65; }
+      .box-server { fill: #fffdfa; stroke: #a791c2; stroke-width: 1.65; }
+      .edge { stroke: #596575; stroke-width: 2.15; fill: none; marker-end: url(#arrow); }
+      .edge-dash { stroke: #7a8795; stroke-width: 1.85; stroke-dasharray: 8 7; fill: none; marker-end: url(#arrow); }
+      .tag { font: 12px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #637486; text-anchor: middle; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#596575"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="1080"/>
+  <text class="title" x="56" y="58">LanBoard 系统架构实体关系图</text>
+  <text class="subtitle" x="56" y="88">模块化单体 + 应用服务层 + 房间会话驱动 + 权威式联机模型</text>
+
+  <rect class="zone-shell" x="48" y="126" width="1704" height="166" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="140" width="206" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="173" y="159" text-anchor="middle">表现层与应用服务层</text>
+
+  <rect class="zone-core" x="48" y="320" width="1704" height="230" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="334" width="326" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="233" y="353" text-anchor="middle">房间模型、网络基础设施与共享数据</text>
+
+  <rect class="zone-game" x="48" y="580" width="1088" height="450" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="594" width="274" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="207" y="613" text-anchor="middle">游戏控制层与 Survivor 运行时</text>
+
+  <rect class="zone-server" x="1164" y="580" width="588" height="450" rx="22" ry="22"/>
+  <rect class="cap" x="1186" y="594" width="206" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="1289" y="613" text-anchor="middle">在线服务端与房间宿主</text>
+
+  <rect class="box" x="82" y="178" width="268" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="106" y="214">QML Shell</text>
+  <text class="box-text" x="106" y="240">页面壳层、导航切换、游戏页路由</text>
+
+  <rect class="box-core" x="438" y="166" width="348" height="108" rx="16" ry="16"/>
+  <text class="box-title" x="462" y="202">AppController</text>
+  <text class="box-text" x="462" y="228">应用服务层总调度</text>
+  <text class="box-text" x="462" y="252">协调房间、网络与控制器</text>
+
+  <rect class="box-data" x="890" y="178" width="286" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="914" y="214">GameDefinition</text>
+  <text class="box-text" x="914" y="240">gameId、人数规则、页面路由</text>
+
+  <rect class="box" x="1288" y="178" width="360" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="1312" y="214">配置与平台能力</text>
+  <text class="box-text" x="1312" y="240">QSettings、剪贴板、Android 辅助能力</text>
+
+  <rect class="box-core" x="82" y="376" width="322" height="118" rx="16" ry="16"/>
+  <text class="box-title" x="106" y="412">RoomManager</text>
+  <text class="box-text" x="106" y="438">房间规则、准备状态、座位管理</text>
+  <text class="box-text" x="106" y="462">切换桌游、开局校验、旁观位</text>
+
+  <rect class="box-net" x="486" y="364" width="408" height="142" rx="16" ry="16"/>
+  <text class="box-title" x="510" y="400">NetworkManager</text>
+  <text class="box-text" x="510" y="426">局域网发现、ENet 会话、在线大厅</text>
+  <text class="box-text" x="510" y="450">控制消息与二进制战斗快照</text>
+  <text class="box-text" x="510" y="474">输入包、快照包、HUD 状态包</text>
+
+  <rect class="box-data" x="976" y="376" width="294" height="118" rx="16" ry="16"/>
+  <text class="box-title" x="1000" y="412">RoomSnapshot</text>
+  <text class="box-text" x="1000" y="438">房间共享快照</text>
+  <text class="box-text" x="1000" y="462">players、gameId、gameInProgress</text>
+
+  <rect class="box-data" x="1352" y="376" width="308" height="118" rx="16" ry="16"/>
+  <text class="box-title" x="1376" y="412">协议与编解码</text>
+  <text class="box-text" x="1376" y="438">protocolids、enetutils、NetCodec</text>
+  <text class="box-text" x="1376" y="462">统一支撑桌游与实时战斗链路</text>
+
+  <rect class="box-game" x="82" y="664" width="270" height="116" rx="16" ry="16"/>
+  <text class="box-title" x="106" y="700">GameControllerBase</text>
+  <text class="box-text" x="106" y="726">统一生命周期接口</text>
+  <text class="box-text" x="106" y="750">startNewGame / reset / winner</text>
+
+  <rect class="box-game" x="410" y="664" width="298" height="116" rx="16" ry="16"/>
+  <text class="box-title" x="434" y="700">经典桌游控制器</text>
+  <text class="box-text" x="434" y="726">五子棋、斗地主、飞行棋</text>
+  <text class="box-text" x="434" y="750">共享房间、开局、结算流程</text>
+
+  <rect class="box-game" x="766" y="648" width="318" height="148" rx="16" ry="16"/>
+  <text class="box-title" x="790" y="684">SurvivorController</text>
+  <text class="box-text" x="790" y="710">驱动 tick、升级、HUD、结算</text>
+  <text class="box-text" x="790" y="734">支持本地、局域网与 ECS 在线战斗</text>
+  <text class="box-text" x="790" y="758">构建快照并同步 HUD</text>
+
+  <rect class="box-data" x="82" y="844" width="360" height="116" rx="16" ry="16"/>
+  <text class="box-title" x="106" y="880">MatchState</text>
+  <text class="box-text" x="106" y="906">players、enemies、projectiles、pickups</text>
+  <text class="box-text" x="106" y="930">level、exp、wave、timers</text>
+
+  <rect class="box-game" x="500" y="844" width="584" height="116" rx="16" ry="16"/>
+  <text class="box-title" x="524" y="880">Survivor 子模块分层</text>
+  <text class="box-text" x="524" y="906">survivorworld / survivorruntime / survivorsimulation</text>
+  <text class="box-text" x="524" y="930">survivornetcodec / SurvivorRenderItem</text>
+
+  <rect class="box-server" x="1198" y="664" width="504" height="136" rx="16" ry="16"/>
+  <text class="box-title" x="1222" y="700">ServerApp</text>
+  <text class="box-text" x="1222" y="726">在线房间宿主，而非简单转发器</text>
+  <text class="box-text" x="1222" y="750">负责建房、接入、广播、结算与权威推进</text>
+  <text class="box-text" x="1222" y="774">在线 Survivor 由服务端推进世界状态</text>
+
+  <rect class="box-data" x="1198" y="860" width="220" height="100" rx="16" ry="16"/>
+  <text class="box-title" x="1222" y="896">PlayerSession</text>
+  <text class="box-text" x="1222" y="922">playerId、roomId、ENetPeer</text>
+
+  <rect class="box-data" x="1482" y="860" width="220" height="100" rx="16" ry="16"/>
+  <text class="box-title" x="1506" y="896">RoomState</text>
+  <text class="box-text" x="1506" y="922">RoomManager 与控制器实例</text>
+
+  <path class="edge" d="M 350 220 L 438 220"/>
+  <path class="edge" d="M 786 220 L 890 220"/>
+  <path class="edge-dash" d="M 786 198 L 840 198 L 840 154 L 1468 154 L 1468 178"/>
+
+  <path class="edge" d="M 612 274 L 612 364"/>
+  <path class="edge" d="M 404 435 L 486 435"/>
+  <path class="edge" d="M 894 435 L 976 435"/>
+  <path class="edge" d="M 1270 435 L 1352 435"/>
+
+  <path class="edge" d="M 217 494 L 217 664"/>
+  <path class="edge" d="M 597 506 L 597 664"/>
+  <path class="edge" d="M 925 506 L 925 648"/>
+
+  <path class="edge" d="M 925 796 L 925 844"/>
+  <path class="edge" d="M 500 902 L 442 902"/>
+
+  <path class="edge-dash" d="M 894 435 L 1198 720"/>
+  <path class="edge-dash" d="M 1506 494 L 1506 664"/>
+  <path class="edge-dash" d="M 1198 732 L 1084 732"/>
+
+  <path class="edge" d="M 1450 800 L 1308 860"/>
+  <path class="edge" d="M 1450 800 L 1592 860"/>
+
+  <text class="tag" x="394" y="206">调用</text>
+  <text class="tag" x="838" y="206">读取规则</text>
+  <text class="tag" x="1154" y="144">读写配置</text>
+  <text class="tag" x="630" y="319" transform="rotate(-90 630 319)">协调</text>
+  <text class="tag" x="935" y="423">导出快照</text>
+  <text class="tag" x="1311" y="423">使用协议</text>
+  <text class="tag" x="1048" y="565" transform="rotate(43 1048 565)">在线接入</text>
+  <text class="tag" x="1524" y="579" transform="rotate(-90 1524 579)">协议复用</text>
+  <text class="tag" x="1141" y="718">状态同步</text>
+  <text class="tag" x="943" y="820" transform="rotate(-90 943 820)">核心状态</text>
+  <text class="tag" x="1379" y="824" transform="rotate(-23 1379 824)">会话管理</text>
+  <text class="tag" x="1521" y="824" transform="rotate(23 1521 824)">房间宿主</text>
+</svg>

@@ -53,6 +53,20 @@ local.properties
 # Logs
 *.log
 
+# Local report drafts and generated presentation workspaces
+LanBoard_Report_*.docx
+temp_*.docx
+temp_*.doc
+__pycache__/
+*.pyc
+*.zip
+projects/*
+!projects/lanboard-defense-preview_ppt169_20260710/
+projects/lanboard-defense-preview_ppt169_20260710/*
+!projects/lanboard-defense-preview_ppt169_20260710/exports/
+projects/lanboard-defense-preview_ppt169_20260710/exports/*
+!projects/lanboard-defense-preview_ppt169_20260710/exports/lanboard-defense-preview_20260710_104113.pptx
+
 # OS junk
 .DS_Store
 Thumbs.db

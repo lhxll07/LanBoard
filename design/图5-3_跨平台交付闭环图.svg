@@ -1,0 +1,60 @@
+<svg width="1800" height="960" viewBox="0 0 1800 960" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1800" height="960" fill="#FFFFFF"/>
+  <text x="72" y="74" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#1F2D3D">LanBoard 跨平台交付闭环图</text>
+  <text x="72" y="112" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" fill="#667085">客户端开发、桌面构建、移动打包与 ECS 在线服务部署的工程闭环</text>
+
+  <rect x="42" y="154" width="1716" height="734" rx="24" fill="#FFFCF7" stroke="#E7D7C3" stroke-width="2"/>
+
+  <rect x="72" y="176" width="260" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="108" y="204" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">工程交付主链路</text>
+
+  <rect x="86" y="268" width="320" height="190" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="112" y="318" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">客户端开发</text>
+  <text x="112" y="356" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">Qt6 / QML / C++ 统一代码基座</text>
+  <text x="112" y="388" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">大厅、房间、桌游与 Survivor 共存</text>
+  <text x="112" y="420" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">联机协议、运行时与 UI 同步迭代</text>
+
+  <rect x="448" y="268" width="320" height="190" rx="22" fill="#FFFFFF" stroke="#BCD0EA" stroke-width="2.4"/>
+  <text x="474" y="318" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">Windows 构建</text>
+  <text x="474" y="356" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">桌面端调试、联调与答辩演示</text>
+  <text x="474" y="388" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">补齐运行库与资源分发</text>
+  <text x="474" y="420" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">验证完整功能链路</text>
+
+  <rect x="810" y="268" width="320" height="190" rx="22" fill="#FFFFFF" stroke="#CBBBE9" stroke-width="2.4"/>
+  <text x="836" y="318" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">Android 打包</text>
+  <text x="836" y="356" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">APK 构建、签名与触屏适配</text>
+  <text x="836" y="388" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">验证移动导航、摇杆与联机流程</text>
+  <text x="836" y="420" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">形成可分发的移动端版本</text>
+
+  <rect x="1172" y="268" width="320" height="190" rx="22" fill="#FFFFFF" stroke="#C7DDB9" stroke-width="2.4"/>
+  <text x="1198" y="318" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">ECS 服务端部署</text>
+  <text x="1198" y="356" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">Ubuntu 构建、端口放行、进程管理</text>
+  <text x="1198" y="388" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">在线大厅、房间宿主与公网联调</text>
+  <text x="1198" y="420" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">形成在线联机基础设施</text>
+
+  <rect x="604" y="548" width="592" height="250" rx="24" fill="#FFFFFF" stroke="#D5C89A" stroke-width="2.4"/>
+  <text x="688" y="600" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">交付闭环价值</text>
+  <text x="646" y="640" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">1. 同一套核心代码同时覆盖桌面端、移动端与服务端联机演示</text>
+  <text x="646" y="672" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">2. 本地调试、局域网测试与在线联调形成持续验证闭环</text>
+  <text x="646" y="704" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">3. 项目不仅可运行，而且具备可打包、可部署、可演示的工程完整性</text>
+  <text x="646" y="736" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">4. 课程作品因此从功能原型提升为可交付的软件系统</text>
+
+  <path d="M406 364H434" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M434 364L416 352V376L434 364Z" fill="#5B6B7F"/>
+  <path d="M768 364H796" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M796 364L778 352V376L796 364Z" fill="#5B6B7F"/>
+  <path d="M1130 364H1158" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1158 364L1140 352V376L1158 364Z" fill="#5B6B7F"/>
+
+  <text x="410" y="248" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">桌面验证</text>
+  <text x="770" y="248" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">移动分发</text>
+  <text x="1134" y="248" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">公网联调</text>
+
+  <path d="M1332 458C1332 550 1234 626 1176 648" stroke="#7A8797" stroke-width="2.5" stroke-dasharray="10 10"/>
+  <path d="M1176 648L1197 640L1186 662L1176 648Z" fill="#7A8797"/>
+  <text x="1336" y="512" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">线上结果回流</text>
+
+  <path d="M604 676C514 666 444 608 406 458" stroke="#7A8797" stroke-width="2.5" stroke-dasharray="10 10"/>
+  <path d="M406 458L420 477L396 474L406 458Z" fill="#7A8797"/>
+  <text x="470" y="724" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">问题回灌开发侧</text>
+</svg>

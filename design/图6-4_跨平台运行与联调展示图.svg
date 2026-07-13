@@ -1,0 +1,56 @@
+<svg width="1800" height="980" viewBox="0 0 1800 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1800" height="980" fill="#FFFFFF"/>
+  <text x="72" y="74" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#1F2D3D">LanBoard 跨平台运行与联调展示图</text>
+  <text x="72" y="112" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" fill="#667085">同一代码基同时服务 Windows 答辩端、Android 触屏端与 ECS 在线服务端</text>
+
+  <rect x="42" y="154" width="1716" height="756" rx="24" fill="#FFFCF7" stroke="#E7D7C3" stroke-width="2"/>
+  <rect x="72" y="176" width="306" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="108" y="204" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">跨平台运行与答辩场景</text>
+
+  <g transform="translate(110 260)">
+    <rect width="462" height="388" rx="28" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2.4"/>
+    <rect x="34" y="42" width="394" height="238" rx="18" fill="#F3EFE8" stroke="#DDD0C0" stroke-width="1.6"/>
+    <rect x="62" y="74" width="338" height="170" rx="14" fill="#FFFFFF"/>
+    <rect x="74" y="90" width="120" height="24" rx="12" fill="#EFE7DD"/>
+    <rect x="74" y="126" width="146" height="84" rx="18" fill="#F5F0E8"/>
+    <rect x="234" y="126" width="146" height="84" rx="18" fill="#F5F0E8"/>
+    <text x="34" y="28" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#243B53">Windows 桌面端</text>
+    <text x="36" y="320" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">用于开发调试、规则联调与答辩投屏展示</text>
+    <text x="36" y="354" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">适合清晰演示桌游流程、房间状态与网络日志</text>
+  </g>
+
+  <g transform="translate(668 260)">
+    <rect width="462" height="388" rx="28" fill="#FFFFFF" stroke="#BCD0EA" stroke-width="2.4"/>
+    <rect x="120" y="34" width="220" height="302" rx="30" fill="#F7FAFF" stroke="#D2DFF2" stroke-width="1.8"/>
+    <rect x="136" y="66" width="188" height="236" rx="22" fill="#FFFFFF"/>
+    <rect x="154" y="88" width="152" height="54" rx="16" fill="#EEF4FC"/>
+    <rect x="154" y="156" width="152" height="70" rx="16" fill="#F4F8FE"/>
+    <rect x="154" y="240" width="152" height="36" rx="18" fill="#DCE8F8"/>
+    <text x="34" y="28" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#243B53">Android 触屏端</text>
+    <text x="36" y="320" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">用于移动交互验证、局域网联机与 APK 分发测试</text>
+    <text x="36" y="354" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">重点展示摇杆、全屏战斗、侧滑返回与导航切换</text>
+  </g>
+
+  <g transform="translate(1226 260)">
+    <rect width="462" height="388" rx="28" fill="#FFFFFF" stroke="#C7DDB9" stroke-width="2.4"/>
+    <rect x="54" y="54" width="354" height="202" rx="22" fill="#F8FFF5" stroke="#D7E7CC" stroke-width="1.8"/>
+    <rect x="86" y="88" width="290" height="34" rx="12" fill="#EAF5E1"/>
+    <rect x="86" y="138" width="290" height="24" rx="12" fill="#F1F9EB"/>
+    <rect x="86" y="176" width="290" height="24" rx="12" fill="#F1F9EB"/>
+    <rect x="86" y="214" width="290" height="24" rx="12" fill="#F1F9EB"/>
+    <text x="34" y="28" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#243B53">ECS 在线服务端</text>
+    <text x="36" y="320" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">用于在线大厅、在线房间与公网多人联机宿主</text>
+    <text x="36" y="354" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">重点展示独立部署、持续运行与远程联调能力</text>
+  </g>
+
+  <path d="M572 454H640" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M640 454L622 442V466L640 454Z" fill="#5B6B7F"/>
+  <path d="M1130 454H1198" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1198 454L1180 442V466L1198 454Z" fill="#5B6B7F"/>
+  <text x="584" y="426" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">同一工程</text>
+  <text x="1148" y="426" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">在线联调</text>
+
+  <rect x="110" y="712" width="1578" height="116" rx="22" fill="#FFFFFF" stroke="#D5C89A" stroke-width="2.2"/>
+  <text x="142" y="754" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#23364A">工程价值</text>
+  <text x="142" y="788" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">LanBoard 最终形成的不是“单端小游戏”，而是一套可开发、可构建、可部署、可联调的跨平台联机软件系统。这一特征对于课程答辩展示尤为关键，因为它直接体现了工程完整度。</text>
+</svg>

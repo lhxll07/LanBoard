@@ -1,0 +1,81 @@
+<svg width="1800" height="1040" viewBox="0 0 1800 1040" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1800" height="1040" fill="#FFFFFF"/>
+  <text x="72" y="74" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#1F2D3D">LanBoard 网络管理与协议实现图</text>
+  <text x="72" y="112" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" fill="#667085">局域网发现、在线大厅、ENet 会话与二进制战斗快照的统一组织方式</text>
+
+  <rect x="42" y="154" width="1716" height="844" rx="24" fill="#FFFCF7" stroke="#E7D7C3" stroke-width="2"/>
+
+  <rect x="72" y="178" width="290" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="108" y="206" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">接入场景</text>
+
+  <rect x="86" y="246" width="410" height="178" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="112" y="296" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">局域网发现</text>
+  <text x="112" y="334" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">UDP 广播查询</text>
+  <text x="112" y="366" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">房间公告、列表刷新、超时剔除</text>
+
+  <rect x="86" y="460" width="410" height="178" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="112" y="510" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">Host / Client 房间通信</text>
+  <text x="112" y="548" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">房主建房、成员加入、房间消息转发</text>
+  <text x="112" y="580" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">适用于经典桌游与局域网 Survivor</text>
+
+  <rect x="86" y="674" width="410" height="178" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="112" y="724" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">在线大厅 / 在线房间</text>
+  <text x="112" y="762" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">列房、建房、入房与 ECS 服务端接入</text>
+  <text x="112" y="794" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">公网演示与远程联调使用同一客户端入口</text>
+
+  <rect x="600" y="178" width="292" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="636" y="206" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">统一网络门面</text>
+
+  <rect x="592" y="286" width="612" height="268" rx="24" fill="#FFFFFF" stroke="#BCD0EA" stroke-width="2.5"/>
+  <text x="642" y="338" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">NetworkManager</text>
+  <text x="642" y="378" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">统一封装 startServer、connectToServer</text>
+  <text x="642" y="410" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">createOnlineRoom、joinOnlineRoom 等联机入口</text>
+  <text x="642" y="442" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">内部同时维护 discovery socket、ENet host</text>
+  <text x="642" y="474" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">以及大厅连接与房间连接</text>
+  <text x="642" y="506" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">通过 Qt 信号向 AppController 和具体控制器回传网络事件</text>
+
+  <rect x="1288" y="178" width="314" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="1324" y="206" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">协议与数据平面</text>
+
+  <rect x="1332" y="256" width="360" height="196" rx="22" fill="#FFFFFF" stroke="#CBBBE9" stroke-width="2.4"/>
+  <text x="1362" y="306" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">控制消息（JSON）</text>
+  <text x="1362" y="344" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">ready / start_game / change_seat</text>
+  <text x="1362" y="376" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">list_rooms / create_room / join_room</text>
+  <text x="1362" y="408" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">place_piece / room_state / change_seat</text>
+  <text x="1362" y="440" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">优势：可读、易调试、适合低频控制流程</text>
+
+  <rect x="1332" y="500" width="360" height="240" rx="22" fill="#FFFFFF" stroke="#B9D6DE" stroke-width="2.4"/>
+  <text x="1362" y="550" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">实时快照（二进制）</text>
+  <text x="1362" y="588" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">FastState：位置、敌人、投射物、伤害数字</text>
+  <text x="1362" y="620" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">HudState：升级选项、宝箱奖励、交互状态</text>
+  <text x="1362" y="652" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">Input：移动输入</text>
+  <text x="1362" y="684" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">ChooseLevelUp / CloseChest：可靠事件</text>
+  <text x="1362" y="716" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">优势：减小高频同步开销，降低后期拥塞</text>
+
+  <rect x="592" y="646" width="612" height="224" rx="24" fill="#FFFFFF" stroke="#C7DDB9" stroke-width="2.5"/>
+  <text x="642" y="690" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">ENet 通道分层</text>
+  <text x="642" y="734" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">Channel 0：常规 JSON 控制消息</text>
+  <text x="642" y="766" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">Channel 1：Survivor 输入上行</text>
+  <text x="642" y="798" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">Channel 2：FastState 高频状态下行</text>
+  <text x="642" y="830" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">Channel 3：HudState 与升级、宝箱等可靠交互</text>
+
+  <path d="M496 336H580" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M580 336L562 324V348L580 336Z" fill="#5B6B7F"/>
+  <path d="M496 550H580" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M580 550L562 538V562L580 550Z" fill="#5B6B7F"/>
+  <path d="M496 764H580" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M580 764L562 752V776L580 764Z" fill="#5B6B7F"/>
+  <text x="510" y="318" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">统一入口</text>
+
+  <path d="M1204 420H1312" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1312 420L1294 408V432L1312 420Z" fill="#5B6B7F"/>
+  <text x="1244" y="402" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">控制消息</text>
+
+  <path d="M1204 758H1312" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1312 758L1294 746V770L1312 758Z" fill="#5B6B7F"/>
+  <text x="1244" y="740" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">快照数据</text>
+
+  <path d="M898 554V616" stroke="#7A8797" stroke-width="2.5" stroke-dasharray="10 10"/>
+  <path d="M898 616L886 598H910L898 616Z" fill="#7A8797"/>
+  <text x="918" y="590" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">按粒度分流</text>
+</svg>

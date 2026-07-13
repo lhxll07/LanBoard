@@ -1,0 +1,59 @@
+<svg width="1800" height="980" viewBox="0 0 1800 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1800" height="980" fill="#FFFFFF"/>
+  <text x="72" y="74" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#1F2D3D">LanBoard Survivor 性能优化链路图</text>
+  <text x="72" y="112" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" fill="#667085">运行时、快照同步与 Scene Graph 渲染如何共同缓解后期满屏怪场景压力</text>
+
+  <rect x="42" y="154" width="1716" height="786" rx="24" fill="#FFFCF7" stroke="#E7D7C3" stroke-width="2"/>
+
+  <rect x="72" y="176" width="256" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="108" y="204" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">瓶颈到优化闭环</text>
+
+  <rect x="86" y="258" width="372" height="248" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="114" y="306" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#243B53">阶段一：运行时压力识别</text>
+  <text x="114" y="344" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">后期敌人、投射物、掉落物与伤害数字同时增长</text>
+  <text x="114" y="376" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">症状：表面仍有帧率，但整体动作明显变慢</text>
+  <text x="114" y="408" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">瓶颈同时落在世界推进、碰撞结算与状态打包</text>
+  <text x="114" y="440" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">优化入口：固定步长、补帧限制、对象压缩</text>
+
+  <rect x="500" y="258" width="372" height="248" rx="22" fill="#FFFFFF" stroke="#BCD0EA" stroke-width="2.4"/>
+  <text x="528" y="306" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#243B53">阶段二：权威模拟与对象裁剪</text>
+  <text x="528" y="344" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">以固定 Tick 推进模拟步骤</text>
+  <text x="528" y="376" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">限制最大补帧步数，避免长时间阻塞</text>
+  <text x="528" y="408" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">用查询网格、碰撞分离与数量压缩减轻更新压力</text>
+  <text x="528" y="440" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">目标：先稳住世界推进，再谈显示流畅度</text>
+
+  <rect x="914" y="258" width="372" height="248" rx="22" fill="#FFFFFF" stroke="#CBBBE9" stroke-width="2.4"/>
+  <text x="942" y="306" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#243B53">阶段三：快照分层与负载拆分</text>
+  <text x="942" y="344" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">FastState 只下发高频战斗必需数据</text>
+  <text x="942" y="376" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">HudState 单独承载升级、宝箱与交互归属</text>
+  <text x="942" y="408" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">减少高频链路对关键交互的覆盖和阻塞</text>
+  <text x="942" y="440" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">目标：先让“网络同步”不拖慢画面</text>
+
+  <rect x="1328" y="258" width="374" height="248" rx="22" fill="#FFFFFF" stroke="#C7DDB9" stroke-width="2.4"/>
+  <text x="1356" y="306" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="20" font-weight="700" fill="#243B53">阶段四：Scene Graph 渲染承接</text>
+  <text x="1356" y="344" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">RenderSnapshot 统一喂给渲染项</text>
+  <text x="1356" y="376" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">玩家、敌人、投射物与小地图直接转为几何节点</text>
+  <text x="1356" y="408" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">减少界面层频繁对象创建与绑定更新</text>
+  <text x="1356" y="440" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">目标：把“显示压力”从业务层剥离出去</text>
+
+  <rect x="86" y="612" width="1616" height="246" rx="24" fill="#FFFFFF" stroke="#D5C89A" stroke-width="2.4"/>
+  <text x="116" y="660" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">协同优化结果</text>
+  <text x="116" y="700" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">运行时层：固定步长与补帧限制优先保证数值系统稳定，不让“帧率问题”演化成“时间系统问题”。</text>
+  <text x="116" y="732" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">同步层：快照与 HUD 分路降低多人联机中的覆盖冲突，使升级、宝箱和交互归属不再被高频状态链路吞没。</text>
+  <text x="116" y="764" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">渲染层：Scene Graph 直接承接快照显示，减少页面对象开销，使后期满屏怪场景仍能保持较好的流畅性。</text>
+  <text x="116" y="796" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">整体意义：LanBoard 的性能优化并非单点修补，而是沿着“推进、同步、渲染”三条链路共同重构出的完整闭环。</text>
+
+  <path d="M458 384H486" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M486 384L468 372V396L486 384Z" fill="#5B6B7F"/>
+  <path d="M872 384H900" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M900 384L882 372V396L900 384Z" fill="#5B6B7F"/>
+  <path d="M1286 384H1314" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1314 384L1296 372V396L1314 384Z" fill="#5B6B7F"/>
+  <text x="436" y="238" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">稳住时间基准</text>
+  <text x="854" y="238" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">拆开同步负载</text>
+  <text x="1268" y="238" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">下放显示压力</text>
+
+  <path d="M894 506V584" stroke="#7A8797" stroke-width="2.5" stroke-dasharray="10 10"/>
+  <path d="M894 584L882 566H906L894 584Z" fill="#7A8797"/>
+  <text x="914" y="552" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">形成优化闭环</text>
+</svg>

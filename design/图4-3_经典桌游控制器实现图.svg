@@ -1,0 +1,46 @@
+<svg width="1800" height="920" viewBox="0 0 1800 920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1800" height="920" fill="#FFFFFF"/>
+  <text x="72" y="74" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#1F2D3D">LanBoard 经典桌游控制器实现图</text>
+  <text x="72" y="112" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" fill="#667085">统一生命周期接口之下，不同回合制玩法各自保留规则独立性</text>
+
+  <rect x="42" y="154" width="1716" height="706" rx="24" fill="#FFFCF7" stroke="#E7D7C3" stroke-width="2"/>
+
+  <rect x="640" y="220" width="520" height="170" rx="24" fill="#FFFFFF" stroke="#BCD0EA" stroke-width="2.5"/>
+  <text x="676" y="270" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">GameControllerBase</text>
+  <text x="676" y="308" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">抽象出 isGameOver、winner、startNewGame、reset</text>
+  <text x="676" y="340" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">统一平台层对“开局、结束、回房、再来一局”的调度方式</text>
+
+  <rect x="94" y="514" width="470" height="204" rx="24" fill="#FFFFFF" stroke="#D1B185" stroke-width="2.4"/>
+  <text x="126" y="564" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">GameController（五子棋）</text>
+  <text x="126" y="602" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">处理棋盘状态、轮流落子、胜负判定与悔手边界</text>
+  <text x="126" y="634" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">网络上只需同步离散坐标与最终结果</text>
+  <text x="126" y="666" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">典型的确定性回合制控制器</text>
+
+  <rect x="666" y="514" width="470" height="204" rx="24" fill="#FFFFFF" stroke="#CBBBE9" stroke-width="2.4"/>
+  <text x="698" y="564" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">DouDiZhuController</text>
+  <text x="698" y="602" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">维护发牌、叫地主、手牌校验、出牌与过牌流程</text>
+  <text x="698" y="634" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">通过状态广播保持三人房间的一致视图</text>
+  <text x="698" y="666" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">是房间规则与卡牌规则耦合度最高的桌游子模块</text>
+
+  <rect x="1238" y="514" width="470" height="204" rx="24" fill="#FFFFFF" stroke="#C7DDB9" stroke-width="2.4"/>
+  <text x="1270" y="564" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">FlightChessController</text>
+  <text x="1270" y="602" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">处理骰子结果、飞机路径推进、碰撞与胜利终点</text>
+  <text x="1270" y="634" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">同时支持围观位与房间内切换观察身份</text>
+  <text x="1270" y="666" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">是规则事件型桌游的代表实现</text>
+
+  <path d="M900 390V470" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M900 470L888 452H912L900 470Z" fill="#5B6B7F"/>
+  <text x="922" y="440" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">生命周期</text>
+
+  <path d="M900 430C900 470 480 470 330 514" stroke="#7A8797" stroke-width="2.5" fill="none"/>
+  <path d="M330 514L344 496L352 520L330 514Z" fill="#7A8797"/>
+
+  <path d="M900 430C900 470 900 470 900 514" stroke="#7A8797" stroke-width="2.5" fill="none"/>
+  <path d="M900 514L888 496H912L900 514Z" fill="#7A8797"/>
+
+  <path d="M900 430C900 470 1320 470 1472 514" stroke="#7A8797" stroke-width="2.5" fill="none"/>
+  <path d="M1472 514L1450 520L1458 496L1472 514Z" fill="#7A8797"/>
+
+  <rect x="620" y="776" width="560" height="60" rx="18" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="654" y="814" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" fill="#344054">平台层只关心统一生命周期，规则差异保留在各控制器内部实现</text>
+</svg>

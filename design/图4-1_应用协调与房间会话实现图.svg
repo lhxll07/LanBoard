@@ -1,0 +1,87 @@
+<svg width="1800" height="1020" viewBox="0 0 1800 1020" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1800" height="1020" fill="#FFFFFF"/>
+  <text x="72" y="74" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#1F2D3D">LanBoard 应用协调与房间会话实现图</text>
+  <text x="72" y="112" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" fill="#667085">QML 页面动作如何收束为统一房间流程与游戏控制流程</text>
+
+  <rect x="42" y="154" width="1716" height="816" rx="24" fill="#FFFCF7" stroke="#E7D7C3" stroke-width="2"/>
+
+  <rect x="72" y="176" width="220" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="104" y="204" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">页面与交互入口</text>
+
+  <rect x="78" y="250" width="360" height="150" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="102" y="298" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">QML Shell</text>
+  <text x="102" y="334" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">首页、联机页、设置页与游戏页</text>
+  <text x="102" y="366" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">按钮、导航、卡片和触屏交互</text>
+
+  <rect x="78" y="470" width="360" height="164" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="102" y="518" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">页面动作</text>
+  <text x="102" y="554" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">开始本地游戏</text>
+  <text x="102" y="586" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">创建 / 加入房间</text>
+  <text x="102" y="618" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">准备、切换游戏、开局、回房</text>
+
+  <rect x="522" y="176" width="272" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="556" y="204" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">应用服务层编排</text>
+
+  <rect x="526" y="250" width="520" height="188" rx="24" fill="#FFFFFF" stroke="#D1B185" stroke-width="2.4"/>
+  <text x="558" y="300" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">AppController</text>
+  <text x="558" y="338" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">统一暴露给 QML 的门面对象</text>
+  <text x="558" y="370" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">负责模式切换、导航请求、房间流程启动</text>
+  <text x="558" y="402" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">同时协调 RoomManager、NetworkManager 和具体控制器</text>
+
+  <rect x="526" y="500" width="520" height="170" rx="24" fill="#FFFFFF" stroke="#BCD0EA" stroke-width="2.4"/>
+  <text x="558" y="550" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">RoomManager</text>
+  <text x="558" y="588" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">维护房间快照、玩家列表、准备状态与座位分布</text>
+  <text x="558" y="620" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">负责旁观位 / 游戏位、人数校验和开局合法性判断</text>
+
+  <rect x="526" y="726" width="520" height="182" rx="24" fill="#FFFFFF" stroke="#C7DDB9" stroke-width="2.4"/>
+  <text x="558" y="776" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">GameControllerBase 及其子类</text>
+  <text x="558" y="814" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">统一生命周期：startNewGame / reset / winner</text>
+  <text x="558" y="846" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">具体实现：五子棋、斗地主、飞行棋、Survivor</text>
+
+  <rect x="1132" y="176" width="260" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="1168" y="204" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">共享状态与网络桥接</text>
+
+  <rect x="1138" y="250" width="560" height="188" rx="24" fill="#FFFFFF" stroke="#CBBBE9" stroke-width="2.4"/>
+  <text x="1170" y="300" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">RoomSnapshot / GameDefinition</text>
+  <text x="1170" y="338" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">共享 roomId、gameId、玩家状态、房间容量和 gameInProgress</text>
+  <text x="1170" y="370" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">统一描述不同玩法的最小公共业务语义</text>
+  <text x="1170" y="402" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">为 QML、NetworkManager 和服务端广播提供一致数据源</text>
+
+  <rect x="1138" y="500" width="560" height="170" rx="24" fill="#FFFFFF" stroke="#B9D6DE" stroke-width="2.4"/>
+  <text x="1170" y="550" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">NetworkManager</text>
+  <text x="1170" y="588" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">房间消息、局域网发现、在线大厅、实时快照传输</text>
+  <text x="1170" y="620" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">将本地房间状态广播给远端，或接收远端状态并回灌本地</text>
+
+  <rect x="1138" y="726" width="560" height="182" rx="24" fill="#FFFFFF" stroke="#D5C89A" stroke-width="2.4"/>
+  <text x="1170" y="776" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="24" font-weight="700" fill="#23364A">统一流程结果</text>
+  <text x="1170" y="814" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">房间就绪 -> 进入目标游戏页</text>
+  <text x="1170" y="846" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">对局结束 -> 结算 -> 清除准备状态 -> 返回房间</text>
+
+  <path d="M438 324H500" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M500 324L482 312V336L500 324Z" fill="#5B6B7F"/>
+  <text x="450" y="308" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">页面调用</text>
+
+  <path d="M786 438V486" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M786 486L774 468H798L786 486Z" fill="#5B6B7F"/>
+  <text x="800" y="464" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">房间状态推进</text>
+
+  <path d="M786 670V712" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M786 712L774 694H798L786 712Z" fill="#5B6B7F"/>
+  <text x="800" y="700" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">启动具体控制器</text>
+
+  <path d="M1046 324H1110" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1110 324L1092 312V336L1110 324Z" fill="#5B6B7F"/>
+  <text x="1060" y="306" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">生成快照</text>
+
+  <path d="M1046 586H1110" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1110 586L1092 574V598L1110 586Z" fill="#5B6B7F"/>
+  <text x="1060" y="568" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">广播与同步</text>
+
+  <path d="M1380 670V712" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1380 712L1368 694H1392L1380 712Z" fill="#5B6B7F"/>
+  <text x="1394" y="700" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">流程闭环</text>
+
+  <path d="M1380 438V486" stroke="#7A8797" stroke-width="2.5" stroke-dasharray="10 10"/>
+  <path d="M1380 486L1368 468H1392L1380 486Z" fill="#7A8797"/>
+  <text x="1410" y="462" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">共享视图</text>
+</svg>

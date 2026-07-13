@@ -1,0 +1,82 @@
+<svg width="1800" height="1080" viewBox="0 0 1800 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1800" height="1080" fill="#FFFFFF"/>
+  <text x="72" y="74" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="34" font-weight="700" fill="#1F2D3D">LanBoard Survivor 运行时实现图</text>
+  <text x="72" y="112" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" fill="#667085">将实时战斗拆为控制、运行时、数值模拟、快照编码和渲染承接五个部分</text>
+
+  <rect x="42" y="154" width="1716" height="884" rx="24" fill="#FFFCF7" stroke="#E7D7C3" stroke-width="2"/>
+
+  <rect x="72" y="178" width="314" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="108" y="206" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">输入与交互</text>
+
+  <rect x="84" y="252" width="372" height="174" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="110" y="302" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">QML / 摇杆 / HUD</text>
+  <text x="110" y="340" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">移动输入、升级选择、宝箱关闭</text>
+  <text x="110" y="372" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">同时显示 HP、经验、武器栏与小地图</text>
+
+  <rect x="84" y="486" width="400" height="188" rx="22" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="110" y="536" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">SurvivorController</text>
+  <text x="110" y="574" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">统一控制入口，维护 matchState</text>
+  <text x="110" y="606" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">与 UI 同步缓存</text>
+  <text x="110" y="638" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">暴露运行状态、升级与宝箱交互</text>
+
+  <rect x="520" y="178" width="332" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="556" y="206" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">运行时与数值核心</text>
+
+  <rect x="526" y="252" width="540" height="174" rx="22" fill="#FFFFFF" stroke="#BCD0EA" stroke-width="2.4"/>
+  <text x="556" y="302" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">Survivor::Runtime</text>
+  <text x="556" y="340" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">初始化玩家会话、同步基础属性、计算相机锚点</text>
+  <text x="556" y="372" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">负责“从状态推导展示数据”的轻量逻辑</text>
+
+  <rect x="526" y="486" width="540" height="212" rx="22" fill="#FFFFFF" stroke="#C7DDB9" stroke-width="2.4"/>
+  <text x="556" y="536" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">Survivor::Simulation</text>
+  <text x="556" y="574" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">推进敌人、投射物、区域武器、掉落物与伤害数字</text>
+  <text x="556" y="606" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">处理升级、进化、经验曲线、Boss 与分钟波次</text>
+  <text x="556" y="638" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">通过 query grid、分离碰撞和压缩更新减少后期卡顿</text>
+
+  <rect x="526" y="758" width="540" height="192" rx="22" fill="#FFFFFF" stroke="#CBBBE9" stroke-width="2.4"/>
+  <text x="556" y="808" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">MatchState / RenderSnapshot</text>
+  <text x="556" y="846" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">玩家、敌人、投射物、区域武器、拾取物和伤害数字</text>
+  <text x="556" y="878" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">同一世界状态同时服务于渲染、HUD 与网络同步</text>
+
+  <rect x="1130" y="178" width="300" height="42" rx="21" fill="#FFFFFF" stroke="#D8C7B3" stroke-width="2"/>
+  <text x="1168" y="206" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="18" font-weight="700" fill="#344054">同步与渲染承接</text>
+
+  <rect x="1138" y="252" width="570" height="174" rx="22" fill="#FFFFFF" stroke="#B9D6DE" stroke-width="2.4"/>
+  <text x="1168" y="302" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">Survivor::NetCodec</text>
+  <text x="1168" y="340" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">FastState / HudState / Input / ChooseLevelUp / CloseChest</text>
+  <text x="1168" y="372" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">对战斗状态做二进制压缩与可靠事件分流</text>
+
+  <rect x="1138" y="486" width="570" height="174" rx="22" fill="#FFFFFF" stroke="#D5C89A" stroke-width="2.4"/>
+  <text x="1168" y="536" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">SurvivorRenderItem</text>
+  <text x="1168" y="574" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">QQuickItem + Scene Graph 绘制玩家、怪物、投射物和小地图</text>
+  <text x="1168" y="606" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">支持 compactLayout 与 radarMode 两类显示模式</text>
+
+  <rect x="1138" y="758" width="570" height="192" rx="22" fill="#FFFFFF" stroke="#C7DDB9" stroke-width="2.4"/>
+  <text x="1168" y="808" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="22" font-weight="700" fill="#243B53">多人战斗闭环</text>
+  <text x="1168" y="846" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">本地输入 -> 权威模拟 -> 快照编码 -> 远端解码 -> 插值渲染</text>
+  <text x="1168" y="878" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="17" fill="#52667A">升级、宝箱等关键交互走可靠链路，减少闪烁与丢包影响</text>
+
+  <path d="M484 622H512" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M512 622L494 610V634L512 622Z" fill="#5B6B7F"/>
+  <text x="470" y="602" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">输入驱动</text>
+
+  <path d="M796 426V466" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M796 466L784 448H808L796 466Z" fill="#5B6B7F"/>
+  <text x="812" y="448" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">属性与视角</text>
+
+  <path d="M796 698V738" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M796 738L784 720H808L796 738Z" fill="#5B6B7F"/>
+  <text x="812" y="720" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">输出世界状态</text>
+
+  <path d="M1066 340H1110" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1110 340L1092 328V352L1110 340Z" fill="#5B6B7F"/>
+  <text x="1078" y="322" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">网络编码</text>
+
+  <path d="M1066 846H1110" stroke="#5B6B7F" stroke-width="3"/>
+  <path d="M1110 846L1092 834V858L1110 846Z" fill="#5B6B7F"/>
+  <text x="1078" y="828" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">渲染快照</text>
+
+  <path d="M1422 426V466" stroke="#7A8797" stroke-width="2.5" stroke-dasharray="10 10"/>
+  <path d="M1422 466L1410 448H1434L1422 466Z" fill="#7A8797"/>
+  <text x="1450" y="448" font-family="Microsoft YaHei, PingFang SC, Noto Sans SC, sans-serif" font-size="16" fill="#667085">远端渲染</text>
+</svg>

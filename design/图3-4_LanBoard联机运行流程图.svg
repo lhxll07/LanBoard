@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1040" viewBox="0 0 1800 1040">
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .title { font: 700 28px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #18212b; }
+      .subtitle { font: 15px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #647383; }
+      .zone-title { font: 700 16px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #233142; letter-spacing: 0.4px; }
+      .box-title { font: 700 18px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #152536; }
+      .box-text { font: 14px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #455767; }
+      .cap { fill: #fefdf9; stroke: #d8d0c3; stroke-width: 1.2; }
+      .lane-local { fill: #fbfbf8; stroke: #ddd8cf; stroke-width: 1.25; }
+      .lane-lan { fill: #fcfaf4; stroke: #ddd2bf; stroke-width: 1.25; }
+      .lane-online { fill: #faf8fc; stroke: #d9d2df; stroke-width: 1.25; }
+      .box { fill: #fffdfa; stroke: #c9c3b7; stroke-width: 1.45; }
+      .box-core { fill: #fffdfa; stroke: #cdb694; stroke-width: 1.65; }
+      .box-net { fill: #fffdfa; stroke: #9fb6c9; stroke-width: 1.65; }
+      .box-server { fill: #fffdfa; stroke: #a791c2; stroke-width: 1.65; }
+      .edge { stroke: #596575; stroke-width: 2.1; fill: none; marker-end: url(#arrow); }
+      .edge-dash { stroke: #7a8795; stroke-width: 1.8; stroke-dasharray: 8 7; fill: none; marker-end: url(#arrow); }
+      .tag { font: 12px "Microsoft YaHei", "Noto Sans SC", sans-serif; fill: #637486; text-anchor: middle; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#596575"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="1040"/>
+  <text class="title" x="56" y="58">LanBoard 联机运行流程图</text>
+  <text class="subtitle" x="56" y="88">本地、局域网与 ECS 在线三条主链路</text>
+
+  <rect class="lane-local" x="48" y="126" width="1704" height="238" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="140" width="132" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="136" y="159" text-anchor="middle">本地模式</text>
+
+  <rect class="lane-lan" x="48" y="400" width="1704" height="278" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="414" width="176" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="158" y="433" text-anchor="middle">局域网联机模式</text>
+
+  <rect class="lane-online" x="48" y="714" width="1704" height="278" rx="22" ry="22"/>
+  <rect class="cap" x="70" y="728" width="160" height="28" rx="14" ry="14"/>
+  <text class="zone-title" x="150" y="747" text-anchor="middle">ECS 在线模式</text>
+
+  <rect class="box" x="96" y="210" width="240" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="120" y="246">QML 页面</text>
+  <text class="box-text" x="120" y="272">发起本地开始</text>
+
+  <rect class="box-core" x="454" y="192" width="286" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="478" y="228">AppController</text>
+  <text class="box-text" x="478" y="254">启动本地房间并导航到目标页</text>
+
+  <rect class="box" x="858" y="210" width="244" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="882" y="246">RoomManager</text>
+  <text class="box-text" x="882" y="272">维护本地玩家与开局条件</text>
+
+  <rect class="box-net" x="1220" y="192" width="470" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="1244" y="228">GameController / SurvivorController</text>
+  <text class="box-text" x="1244" y="254">直接进入本地运行，不经过网络层</text>
+
+  <path class="edge" d="M 336 252 L 454 252"/>
+  <path class="edge" d="M 740 252 L 858 252"/>
+  <path class="edge" d="M 1102 252 L 1220 252"/>
+  <text class="tag" x="395" y="236">发起</text>
+  <text class="tag" x="799" y="236">初始化</text>
+  <text class="tag" x="1161" y="236">启动</text>
+
+  <rect class="box" x="96" y="508" width="216" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="120" y="544">房主客户端</text>
+  <text class="box-text" x="120" y="570">创建局域网房间</text>
+
+  <rect class="box-core" x="406" y="490" width="290" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="430" y="526">AppController</text>
+  <text class="box-text" x="430" y="552">startRoomAsHost() 初始化房间</text>
+
+  <rect class="box-net" x="790" y="472" width="322" height="156" rx="16" ry="16"/>
+  <text class="box-title" x="814" y="508">NetworkManager</text>
+  <text class="box-text" x="814" y="534">UDP 广播发现与 ENet 主机模式会话</text>
+  <text class="box-text" x="814" y="558">统一广播 room_state 与对局控制消息</text>
+
+  <rect class="box" x="1206" y="490" width="236" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="1230" y="526">加入方客户端</text>
+  <text class="box-text" x="1230" y="552">扫描或手输 IP 后接入房间</text>
+  <text class="box-text" x="1230" y="576">向 Host 上行输入与操作</text>
+
+  <rect class="box" x="1536" y="508" width="160" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="1560" y="544">本机控制器</text>
+  <text class="box-text" x="1560" y="570">由房主权威推进</text>
+
+  <path class="edge" d="M 312 550 L 406 550"/>
+  <path class="edge" d="M 696 550 L 790 550"/>
+  <path class="edge" d="M 1112 550 L 1206 550"/>
+  <path class="edge" d="M 1442 550 L 1536 550"/>
+  <path class="edge-dash" d="M 1206 592 L 1112 592"/>
+  <text class="tag" x="359" y="534">建房</text>
+  <text class="tag" x="743" y="534">启动 Host</text>
+  <text class="tag" x="1159" y="534">状态下行</text>
+  <text class="tag" x="1489" y="534">权威推进</text>
+  <text class="tag" x="1159" y="612">输入上行</text>
+
+  <rect class="box" x="96" y="822" width="216" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="120" y="858">在线客户端</text>
+  <text class="box-text" x="120" y="884">列房、建房或入房</text>
+
+  <rect class="box-core" x="406" y="804" width="290" height="120" rx="16" ry="16"/>
+  <text class="box-title" x="430" y="840">AppController</text>
+  <text class="box-text" x="430" y="866">触发在线大厅与在线房间链路</text>
+
+  <rect class="box-net" x="790" y="786" width="322" height="156" rx="16" ry="16"/>
+  <text class="box-title" x="814" y="822">NetworkManager</text>
+  <text class="box-text" x="814" y="848">ENet 连接 ECS 服务端</text>
+  <text class="box-text" x="814" y="872">JSON 控制消息与二进制战斗快照</text>
+
+  <rect class="box-server" x="1206" y="768" width="308" height="192" rx="16" ry="16"/>
+  <text class="box-title" x="1230" y="804">ServerApp</text>
+  <text class="box-text" x="1230" y="830">在线大厅列房与在线房间宿主</text>
+  <text class="box-text" x="1230" y="854">广播 room_state、game_over 与战斗快照</text>
+  <text class="box-text" x="1230" y="878">在线 Survivor 由服务端权威推进</text>
+
+  <rect class="box" x="1570" y="822" width="126" height="84" rx="16" ry="16"/>
+  <text class="box-title" x="1588" y="856">RoomState</text>
+  <text class="box-text" x="1588" y="882">房间状态</text>
+
+  <path class="edge" d="M 312 864 L 406 864"/>
+  <path class="edge" d="M 696 864 L 790 864"/>
+  <path class="edge" d="M 1112 864 L 1206 864"/>
+  <path class="edge" d="M 1514 864 L 1570 864"/>
+  <path class="edge-dash" d="M 1206 920 L 1112 920"/>
+  <text class="tag" x="359" y="848">在线操作</text>
+  <text class="tag" x="743" y="848">建立连接</text>
+  <text class="tag" x="1159" y="848">房间接入</text>
+  <text class="tag" x="1542" y="848">托管</text>
+  <text class="tag" x="1159" y="940">状态与快照下行</text>
+</svg>
