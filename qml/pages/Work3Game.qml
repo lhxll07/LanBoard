@@ -73,6 +73,15 @@ Item {
     readonly property int activeEnemySpawnIntervalMs: openingEnemySpawnSlowActive ? currentEnemySpawnIntervalMs * 2 : currentEnemySpawnIntervalMs
 
     property var moveDir: ({ left: false, right: false, up: false, down: false })
+    readonly property bool mobileInputEnabled: Qt.platform.os === "android"
+    readonly property real joystickBaseSize: 104
+    readonly property real joystickHandleTravel: 30
+    property bool joystickTracking: false
+    property bool joystickVisible: false
+    property real joystickAnchorX: 0
+    property real joystickAnchorY: 0
+    property real joystickDx: 0
+    property real joystickDy: 0
     property var enemies: []
     property var bullets: []
     property var enemyBullets: []
@@ -306,16 +315,65 @@ Item {
         return bulletLevels.length + rectangleBulletLevels.length + mergedBullets.length
     }
 
+    function clampValue(value, minValue, maxValue) {
+        return Math.max(minValue, Math.min(maxValue, value))
+    }
+
+    function clearJoystickInput() {
+        joystickTracking = false
+        joystickVisible = false
+        joystickDx = 0
+        joystickDy = 0
+    }
+
     function resetMoveDir() {
         moveDir.left = false
         moveDir.right = false
         moveDir.up = false
         moveDir.down = false
+        clearJoystickInput()
         playerMoving = false
     }
 
     function refreshPlayerMoving() {
         playerMoving = moveDir.left || moveDir.right || moveDir.up || moveDir.down
+                || Math.abs(joystickDx) > 0.01 || Math.abs(joystickDy) > 0.01
+    }
+
+    function beginJoystick(x, y) {
+        if (!mobileInputEnabled || !running || screenState !== "playing" || choosingUpgrade)
+            return
+
+        var radius = joystickBaseSize / 2
+        joystickTracking = true
+        joystickVisible = true
+        joystickAnchorX = clampValue(x, gameLeft + radius, gameRight - radius)
+        joystickAnchorY = clampValue(y, gameTop + radius, height - radius)
+        joystickDx = 0
+        joystickDy = 0
+        refreshPlayerMoving()
+    }
+
+    function updateJoystick(x, y) {
+        if (!joystickTracking)
+            return
+
+        var dx = (x - joystickAnchorX) / joystickHandleTravel
+        var dy = (y - joystickAnchorY) / joystickHandleTravel
+        var length = Math.sqrt(dx * dx + dy * dy)
+        if (length > 1) {
+            dx /= length
+            dy /= length
+        }
+
+        joystickDx = dx
+        joystickDy = dy
+        refreshPlayerMoving()
+    }
+
+    function endJoystick() {
+        clearJoystickInput()
+        refreshPlayerMoving()
     }
 
     function expRequirementForLevel(levelValue) {
@@ -1583,14 +1641,19 @@ Item {
             return
 
         var step = 5
-        if (moveDir.left)
-            playerX -= step
-        if (moveDir.right)
-            playerX += step
-        if (moveDir.up)
-            playerY -= step
-        if (moveDir.down)
-            playerY += step
+        if (Math.abs(joystickDx) > 0.01 || Math.abs(joystickDy) > 0.01) {
+            playerX += joystickDx * step
+            playerY += joystickDy * step
+        } else {
+            if (moveDir.left)
+                playerX -= step
+            if (moveDir.right)
+                playerX += step
+            if (moveDir.up)
+                playerY -= step
+            if (moveDir.down)
+                playerY += step
+        }
 
         playerX = Math.max(0, Math.min(gameAreaWidth - blockSize, playerX))
         playerY = Math.max(gameTop, Math.min(height - blockSize, playerY))
@@ -2378,6 +2441,92 @@ Item {
             GradientStop { position: 0.22; color: "#00000000" }
             GradientStop { position: 0.78; color: "#00000000" }
             GradientStop { position: 1.0; color: "#66000000" }
+        }
+    }
+
+    MultiPointTouchArea {
+        id: joystickTouchArea
+
+        x: root.gameLeft
+        y: root.gameTop
+        width: root.gameAreaWidth
+        height: root.height - root.gameTop
+        enabled: root.mobileInputEnabled
+                 && root.running
+                 && root.screenState === "playing"
+                 && !root.choosingUpgrade
+        mouseEnabled: false
+        z: 42
+
+        touchPoints: [
+            TouchPoint { id: joystickTouchPoint }
+        ]
+
+        onPressed: {
+            if (joystickTouchPoint.pressed)
+                root.beginJoystick(joystickTouchArea.x + joystickTouchPoint.x,
+                                   joystickTouchArea.y + joystickTouchPoint.y)
+        }
+
+        onUpdated: {
+            if (joystickTouchPoint.pressed)
+                root.updateJoystick(joystickTouchArea.x + joystickTouchPoint.x,
+                                    joystickTouchArea.y + joystickTouchPoint.y)
+        }
+
+        onReleased: root.endJoystick()
+        onCanceled: root.endJoystick()
+    }
+
+    Item {
+        id: joystickBase
+
+        x: root.joystickAnchorX - width / 2
+        y: root.joystickAnchorY - height / 2
+        width: root.joystickBaseSize
+        height: width
+        visible: root.mobileInputEnabled && root.joystickVisible
+        z: 43
+
+        Rectangle {
+            x: 4
+            y: 7
+            width: parent.width
+            height: parent.height
+            radius: width / 2
+            color: "#50000000"
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: "#c011151c"
+            border.width: 3
+            border.color: "#8bdcff"
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 12
+            radius: width / 2
+            color: "#1c5f73b9"
+            border.width: 2
+            border.color: "#556cffd6"
+        }
+
+        Rectangle {
+            x: parent.width / 2 - width / 2 + root.joystickDx * root.joystickHandleTravel
+            y: parent.height / 2 - height / 2 + root.joystickDy * root.joystickHandleTravel
+            width: 42
+            height: 42
+            radius: width / 2
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#e8edf1" }
+                GradientStop { position: 0.52; color: "#8bdcff" }
+                GradientStop { position: 1.0; color: "#2d82e6" }
+            }
+            border.width: 2
+            border.color: "#ffffff"
         }
     }
 
