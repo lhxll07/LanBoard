@@ -87,6 +87,13 @@ if (LANBOARD_BUILD_APP)
             qml/pages/FlightChessPage.qml
             qml/pages/SurvivorPage.qml
             qml/pages/DormDefensePage.qml
+            qml/pages/Work3Page.qml
+            qml/pages/Work3Game.qml
+        RESOURCES
+            qml/assets/work3/b1.png
+            qml/assets/work3/b2.png
+            qml/assets/work3/myabi.png
+            qml/assets/work3/myabi-hd.png
         SOURCES
             src/app/appcontroller.h
             src/common/types.h

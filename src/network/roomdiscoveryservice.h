@@ -77,7 +77,7 @@ private:
         QList<Endpoint> endpoints;
     };
 
-    static constexpr quint16 DiscoveryPort = 44568;
+    static constexpr quint16 DiscoveryPort = 46568;
     static constexpr int DiscoveryIntervalMs = 2500;
 
     bool ensureSocket();

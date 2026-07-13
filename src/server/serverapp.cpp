@@ -31,6 +31,17 @@ QString normalizedRoomName(const QString &roomName, const QString &hostName, con
     return QStringLiteral("%1的%2房间").arg(hostName, LanBoard::gameName(gameId));
 }
 
+QVariantList activePlayersExcept(const LanBoard::RoomSnapshot &snapshot, int excludedPlayerId)
+{
+    QVariantList players;
+    for (const LanBoard::RoomPlayerState &player : snapshot.players) {
+        if (!player.isActive() || player.playerId == excludedPlayerId)
+            continue;
+        players.append(player.toVariantMap());
+    }
+    return players;
+}
+
 }
 
 ServerApp::ServerApp(QObject *parent)
@@ -969,7 +980,7 @@ void ServerApp::handlePlayerDisconnectInRoom(RoomState *room,
     case LanBoard::GameControllerKind::DormDefense:
         if (room->roomManager->gameInProgress() && room->dormDefenseController) {
             room->dormDefenseController->configureNetworkSession(
-                room->roomManager->snapshot().activePlayerVariantList(),
+                activePlayersExcept(room->roomManager->snapshot(), session.playerId),
                 -1,
                 true,
                 true);

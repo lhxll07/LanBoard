@@ -275,6 +275,10 @@ void RoomDiscoveryService::broadcastPublishedRoom()
             NetworkAddressUtils::bestLocalIpv4())).toJson(QJsonDocument::Compact);
         socket.writeDatagram(payload, QHostAddress::Broadcast, DiscoveryPort);
     }
+
+    const QByteArray loopbackPayload = QJsonDocument(roomAnnouncementMessage(
+        NetworkAddressUtils::bestLocalIpv4())).toJson(QJsonDocument::Compact);
+    socket.writeDatagram(loopbackPayload, QHostAddress::LocalHost, DiscoveryPort);
 }
 
 bool RoomDiscoveryService::ensureSocket()
@@ -285,7 +289,7 @@ bool RoomDiscoveryService::ensureSocket()
     m_socket = new QUdpSocket(this);
     m_socket->setProxy(QNetworkProxy::NoProxy);
     connect(m_socket, &QUdpSocket::readyRead, this, &RoomDiscoveryService::onReadyRead);
-    const bool bound = m_socket->bind(QHostAddress::AnyIPv4,
+    const bool bound = m_socket->bind(QHostAddress::Any,
                                       DiscoveryPort,
                                       QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint);
     if (bound)

@@ -173,7 +173,7 @@ void NetworkDiscoveryTest::receivesAnnouncementFromUdpSocket()
 
     QUdpSocket sender;
     const QByteArray payload = QJsonDocument(message).toJson(QJsonDocument::Compact);
-    QCOMPARE(sender.writeDatagram(payload, QHostAddress::LocalHost, 44568),
+    QCOMPARE(sender.writeDatagram(payload, QHostAddress::LocalHost, 46568),
              static_cast<qint64>(payload.size()));
 
     QTRY_VERIFY_WITH_TIMEOUT(!roomByUid(service, QStringLiteral("udp-room")).isEmpty(), 2000);

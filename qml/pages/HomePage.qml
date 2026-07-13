@@ -16,6 +16,8 @@ Page {
         survivorCardOffset.y = 20
         dormDefenseCard.opacity = 0
         dormDefenseCardOffset.y = 20
+        work3Card.opacity = 0
+        work3CardOffset.y = 20
         entryAnim.stop()
         entryAnim.idx = 0
         entryAnim.start()
@@ -119,6 +121,18 @@ Page {
                 transform: Translate { id: dormDefenseCardOffset; y: 20 }
                 onClicked: AppCtrl.openLobbyForGame("dormdefense")
             }
+
+            GameCard {
+                id: work3Card
+                width: parent.width; height: 168
+                gameType: "work3"
+                titleText: "弹幕试炼"
+                subtitleText: "本地横屏弹幕射击原型，支持移动端虚拟摇杆与升级选择。"
+                tagText: "本地原型"
+                opacity: 0
+                transform: Translate { id: work3CardOffset; y: 20 }
+                onClicked: AppCtrl.openWork3Game()
+            }
         }
     }
 
@@ -129,7 +143,8 @@ Page {
             { item: douDiZhuCard, offset: douDiZhuCardOffset },
             { item: flightChessCard, offset: flightChessCardOffset },
             { item: survivorCard, offset: survivorCardOffset },
-            { item: dormDefenseCard, offset: dormDefenseCardOffset }
+            { item: dormDefenseCard, offset: dormDefenseCardOffset },
+            { item: work3Card, offset: work3CardOffset }
         ]
         property int idx: 0
         running: false

@@ -75,11 +75,30 @@ void NetworkManager::startServer(quint16 port)
     ENetHost *createdHost = nullptr;
     quint16 boundPort = 0;
 
-    constexpr int HostPortRetryCount = 8;
-    for (int attempt = 0; attempt < HostPortRetryCount; ++attempt) {
+    QList<quint16> candidatePorts;
+    auto appendCandidate = [&candidatePorts](quint16 candidate) {
+        if (candidate == 0 || candidatePorts.contains(candidate))
+            return;
+        candidatePorts.append(candidate);
+    };
+    auto appendWindow = [&appendCandidate](quint16 base) {
+        for (int offset = 1; offset <= 64; ++offset) {
+            if (static_cast<int>(base) + offset <= 65535)
+                appendCandidate(static_cast<quint16>(base + offset));
+            if (static_cast<int>(base) - offset >= 1024)
+                appendCandidate(static_cast<quint16>(base - offset));
+        }
+    };
+
+    appendCandidate(port);
+    appendCandidate(LanBoard::DefaultLanPort);
+    appendWindow(port);
+    appendWindow(LanBoard::DefaultLanPort);
+
+    for (const quint16 candidate : candidatePorts) {
         ENetAddress address {};
         address.host = ENET_HOST_ANY;
-        address.port = static_cast<quint16>(port + attempt);
+        address.port = candidate;
         createdHost = enet_host_create(&address, 16, EnetChannelCount, 0, 0);
         if (!createdHost)
             continue;

@@ -72,9 +72,9 @@ Page {
     readonly property string resultMessage: ctrl.playerControlsGhost
                                              ? (localResultVictory
                                                 ? "所有房门已被摧毁，鬼方获得胜利。"
-                                                : "鬼被炮塔击败，守夜人获得胜利。")
+                                                : "鬼被驱退到天亮，守夜人获得胜利。")
                                              : (localResultVictory
-                                                ? "鬼已被击败，守夜人获得胜利。"
+                                                ? "你们撑到了天亮，守夜人获得胜利。"
                                                 : "所有房门已被摧毁，鬼方获得胜利。")
     readonly property var botProfiles: [
         { accent: "#7BE0FF", face: "#E2E9F2", hair: "#2D3640" },
@@ -138,9 +138,9 @@ Page {
 
     function cardCostText(type) {
         if (type === "generator")
-            return "G:200  P:0"
+            return "G:90  P:0"
         if (type === "turret")
-            return "G:8  P:1"
+            return "G:20  P:2"
         if (type === "bed")
             return "G:" + String(25 * Math.pow(2, Math.max(0, ctrl.bedLevel - 1)))
         if (type === "door")
@@ -259,6 +259,8 @@ Page {
             ctrl.upgradeBed()
         } else if (pendingActionType === "door") {
             ctrl.upgradeDoor()
+        } else if (pendingActionType === "repair") {
+            ctrl.repairDoor()
         }
 
         closeActionPanel()
@@ -586,34 +588,56 @@ Page {
         anchors.fill: parent
 
         Item {
+            id: playSurface
             anchors.fill: parent
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            anchors.topMargin: 20
-            anchors.bottomMargin: 14
+            anchors.leftMargin: compactLayout ? 10 : 16
+            anchors.rightMargin: compactLayout ? 10 : 16
+            anchors.topMargin: compactLayout ? 12 : 20
+            anchors.bottomMargin: compactLayout ? 10 : 14
+
+            readonly property bool compactLayout: width < 520
+            readonly property int avatarSize: compactLayout ? 48 : 62
+            readonly property int avatarInnerSize: compactLayout ? 32 : 40
+            readonly property int avatarRadius: compactLayout ? 10 : 12
+            readonly property int panelGap: compactLayout ? 8 : 10
+            readonly property int cameraPadSize: compactLayout ? 96 : 108
+            readonly property int cameraStickSize: compactLayout ? 34 : 38
+            readonly property int topSafeMargin: compactLayout
+                ? Math.max(avatarStrip.y + avatarStrip.height,
+                           resourcePanel.visible ? resourcePanel.y + resourcePanel.height : 0,
+                           ghostStatusPanel.visible ? ghostStatusPanel.y + ghostStatusPanel.height : 0,
+                           prepHint.visible ? prepHint.y + prepHint.height : 0,
+                           debugPanel.visible ? debugPanel.y + debugPanel.height : 0) + 8
+                : 0
+            readonly property int bottomSafeMargin: compactLayout
+                ? ((root.buildPanelVisible || root.actionPanelVisible)
+                   ? Math.max(buildPanel.visible ? buildPanel.height : 0,
+                              actionPanel.visible ? actionPanel.height : 0) + 34
+                   : (cameraPad.visible ? cameraPad.height + 34 : 18))
+                : 18
 
             Row {
                 id: avatarStrip
                 anchors.left: parent.left
                 anchors.top: parent.top
-                spacing: 8
+                spacing: playSurface.compactLayout ? 6 : 8
 
                 Repeater {
                     model: root.teammates
 
                     delegate: Rectangle {
-                        width: 62
-                        height: 62
-                        radius: 12
+                        width: playSurface.avatarSize
+                        height: playSurface.avatarSize
+                        radius: playSurface.avatarRadius
                         color: "#24000000"
                         border.width: 1
                         border.color: "#56FFFFFF"
 
                         Rectangle {
                             anchors.centerIn: parent
-                            width: 40
-                            height: 40
-                            radius: 11
+                            width: playSurface.avatarInnerSize
+                            height: playSurface.avatarInnerSize
+                            radius: playSurface.compactLayout ? 9 : 11
                             color: "#13171A"
                             border.width: 1
                             border.color: "#44FFFFFF"
@@ -642,11 +666,12 @@ Page {
             }
 
             Rectangle {
+                id: resourcePanel
                 anchors.left: parent.left
                 anchors.top: avatarStrip.bottom
-                anchors.topMargin: 10
-                width: 230
-                height: 56
+                anchors.topMargin: playSurface.panelGap
+                width: Math.min(parent.width, playSurface.compactLayout ? 266 : 318)
+                height: playSurface.compactLayout ? 46 : 56
                 radius: 14
                 color: "#24000000"
                 border.width: 1
@@ -655,13 +680,28 @@ Page {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
-                    spacing: 14
+                    anchors.leftMargin: playSurface.compactLayout ? 8 : 10
+                    anchors.rightMargin: playSurface.compactLayout ? 8 : 10
+                    spacing: playSurface.compactLayout ? 8 : 14
+
+                    Text {
+                        text: "W" + Math.max(1, ctrl.wave)
+                        color: "#DFF7FF"
+                        font.pixelSize: playSurface.compactLayout ? 14 : 16
+                        font.weight: Font.Black
+                    }
+
+                    Text {
+                        text: "夜" + ctrl.nightRemaining
+                        color: "#E8F1F6"
+                        font.pixelSize: playSurface.compactLayout ? 13 : 15
+                        font.weight: Font.DemiBold
+                        visible: ctrl.timeRemaining <= 0
+                    }
 
                     Canvas {
-                        Layout.preferredWidth: 28
-                        Layout.preferredHeight: 28
+                        Layout.preferredWidth: playSurface.compactLayout ? 22 : 28
+                        Layout.preferredHeight: playSurface.compactLayout ? 22 : 28
                         onPaint: {
                             const ctx = getContext("2d")
                             ctx.reset()
@@ -680,13 +720,13 @@ Page {
                     Text {
                         text: ctrl.gold
                         color: "#FFFFFF"
-                        font.pixelSize: 22
+                        font.pixelSize: playSurface.compactLayout ? 18 : 22
                         font.weight: Font.Black
                     }
 
                     Canvas {
-                        Layout.preferredWidth: 28
-                        Layout.preferredHeight: 28
+                        Layout.preferredWidth: playSurface.compactLayout ? 22 : 28
+                        Layout.preferredHeight: playSurface.compactLayout ? 22 : 28
                         onPaint: {
                             const ctx = getContext("2d")
                             ctx.reset()
@@ -706,22 +746,24 @@ Page {
                     Text {
                         text: ctrl.power
                         color: "#FFFFFF"
-                        font.pixelSize: 22
+                        font.pixelSize: playSurface.compactLayout ? 18 : 22
                         font.weight: Font.Black
                     }
                 }
             }
 
             Rectangle {
+                id: debugPanel
                 anchors.left: parent.left
-                anchors.top: avatarStrip.bottom
-                anchors.topMargin: 72
-                width: 430
+                anchors.top: resourcePanel.visible ? resourcePanel.bottom : ghostStatusPanel.bottom
+                anchors.topMargin: playSurface.panelGap
+                width: Math.min(parent.width, 430)
                 height: debugText.implicitHeight + 12
                 radius: 10
                 color: "#2A000000"
                 border.width: 1
                 border.color: "#34FFFFFF"
+                visible: ctrl.debugState.length > 0 && !playSurface.compactLayout
 
                 Text {
                     id: debugText
@@ -735,11 +777,12 @@ Page {
             }
 
             Rectangle {
+                id: ghostStatusPanel
                 anchors.left: parent.left
                 anchors.top: avatarStrip.bottom
-                anchors.topMargin: 10
-                width: 250
-                height: 48
+                anchors.topMargin: playSurface.panelGap
+                width: Math.min(parent.width, playSurface.compactLayout ? 210 : 250)
+                height: playSurface.compactLayout ? 44 : 48
                 radius: 14
                 color: "#24000000"
                 border.width: 1
@@ -755,27 +798,31 @@ Page {
                         Layout.fillWidth: true
                         text: "鬼方视角"
                         color: "#FFFFFF"
-                        font.pixelSize: 16
+                        font.pixelSize: playSurface.compactLayout ? 14 : 16
                         font.weight: Font.Black
                     }
 
                     Text {
                         Layout.fillWidth: true
-                        text: "Lv." + ctrl.ghostLevel + "   HP " + ctrl.ghostHp + "/" + ctrl.ghostMaxHp
+                        text: "W" + Math.max(1, ctrl.wave)
+                              + "   Lv." + ctrl.ghostLevel
+                              + "   夜" + ctrl.nightRemaining
+                              + "   HP " + ctrl.ghostHp + "/" + ctrl.ghostMaxHp
                         color: "#FFD5D5"
-                        font.pixelSize: 14
+                        font.pixelSize: playSurface.compactLayout ? 12 : 14
                         font.weight: Font.DemiBold
                     }
                 }
             }
 
             Rectangle {
+                id: prepHint
                 anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: avatarStrip.bottom
-                anchors.topMargin: 12
+                anchors.top: resourcePanel.visible ? resourcePanel.bottom : avatarStrip.bottom
+                anchors.topMargin: playSurface.panelGap
                 visible: !ctrl.playerControlsGhost && ctrl.timeRemaining > 0 && !ctrl.playerRoomSelected
-                width: Math.min(parent.width - 40, 360)
-                height: 42
+                width: Math.min(parent.width, playSurface.compactLayout ? parent.width : 360)
+                height: playSurface.compactLayout ? 38 : 42
                 radius: 12
                 color: "#8C1A2025"
                 border.width: 1
@@ -783,18 +830,21 @@ Page {
 
                 Text {
                     anchors.centerIn: parent
+                    width: parent.width - 18
                     text: "准备阶段点击任意房间入住，30 秒后鬼开始行动"
                     color: "#F3FBFF"
-                    font.pixelSize: 14
+                    font.pixelSize: playSurface.compactLayout ? 12 : 14
                     font.weight: Font.DemiBold
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
                 }
             }
 
             Item {
                 id: mapViewport
                 anchors.fill: parent
-                anchors.topMargin: 0
-                anchors.bottomMargin: 18
+                anchors.topMargin: playSurface.topSafeMargin
+                anchors.bottomMargin: playSurface.bottomSafeMargin
                 z: -1
                 clip: true
 
@@ -1379,8 +1429,8 @@ Page {
                                                      "升级",
                                                      row,
                                                      column,
-                                                     8 * Math.pow(2, Math.max(0, nextLevel - 2)),
-                                                     Math.pow(2, Math.max(0, nextLevel - 1)),
+                                                     20 * Math.pow(2, Math.max(0, nextLevel - 2)),
+                                                     Math.max(2, Math.pow(2, Math.max(1, nextLevel - 1))),
                                                      "升级炮台 Lv." + cell.level + " -> Lv." + nextLevel)
                                 return
                             }
@@ -1393,7 +1443,7 @@ Page {
                                                      "升级",
                                                      row,
                                                      column,
-                                                     200 * Math.pow(2, Math.max(0, nextLevel - 2)),
+                                                     90 * Math.pow(2, Math.max(0, nextLevel - 2)),
                                                      0,
                                                      "升级发电机 Lv." + cell.level + " -> Lv." + nextLevel)
                                 return
@@ -1414,13 +1464,17 @@ Page {
 
                             if (cell.tileType === "door"
                                     || (cell.tileType === "otherDoor" && inLocalRoom)) {
-                                root.openActionPanel("door",
-                                                     "升级",
-                                                     row,
-                                                     column,
-                                                     ctrl.doorMaxHp * 2,
-                                                     0,
-                                                     "升级门 " + ctrl.doorMaxHp + " -> " + (ctrl.doorMaxHp * 2))
+                                if (ctrl.doorHp < ctrl.doorMaxHp) {
+                                    root.openActionPanel("repair", row, column)
+                                } else {
+                                    root.openActionPanel("door",
+                                                         "升级",
+                                                         row,
+                                                         column,
+                                                         ctrl.doorMaxHp * 2,
+                                                         0,
+                                                         "升级门 " + ctrl.doorMaxHp + " -> " + (ctrl.doorMaxHp * 2))
+                                }
                                 return
                             }
 
@@ -1462,10 +1516,10 @@ Page {
                 id: miniMapCard
                 anchors.top: parent.top
                 anchors.right: parent.right
-                anchors.topMargin: 8
-                anchors.rightMargin: 8
-                width: 128
-                height: 104
+                anchors.topMargin: playSurface.compactLayout ? 4 : 8
+                anchors.rightMargin: playSurface.compactLayout ? 4 : 8
+                width: playSurface.compactLayout ? 108 : 128
+                height: playSurface.compactLayout ? 88 : 104
                 radius: 12
                 color: "#A0121619"
                 border.width: 1
@@ -1624,11 +1678,14 @@ Page {
                 id: cameraPad
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: 24
-                width: 108
-                height: 108
-                radius: 54
-                visible: (root.cameraPanEnabled || root.ghostMovementMode) && !ctrl.gameOver
+                anchors.bottomMargin: playSurface.compactLayout ? 18 : 24
+                width: playSurface.cameraPadSize
+                height: playSurface.cameraPadSize
+                radius: width / 2
+                visible: (root.cameraPanEnabled || root.ghostMovementMode)
+                         && !ctrl.gameOver
+                         && !root.buildPanelVisible
+                         && !root.actionPanelVisible
                 color: "#16000000"
                 border.width: 3
                 border.color: root.ghostMovementMode ? "#4AF4AAAA" : "#37FFFFFF"
@@ -1646,9 +1703,9 @@ Page {
 
                 Rectangle {
                     id: cameraStick
-                    width: 38
-                    height: 38
-                    radius: 19
+                    width: playSurface.cameraStickSize
+                    height: playSurface.cameraStickSize
+                    radius: width / 2
                     color: root.ghostMovementMode ? "#FFD7D7" : "#D8F3FF"
                     border.width: 2
                     border.color: root.ghostMovementMode ? "#E89191" : "#7ACAE8"
@@ -1657,7 +1714,7 @@ Page {
 
                     property real centerX: (cameraPad.width - width) / 2
                     property real centerY: (cameraPad.height - height) / 2
-                    property real maxDistance: 26
+                    property real maxDistance: playSurface.compactLayout ? 23 : 26
                     property real panOriginX: 0
                     property real panOriginY: 0
                     property bool suppressCameraSync: false
@@ -1715,12 +1772,13 @@ Page {
             }
 
             Rectangle {
+                id: buildPanel
                 visible: root.buildPanelVisible
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: 24
-                width: Math.min(parent.width - 34, 320)
-                height: 126
+                anchors.bottomMargin: playSurface.compactLayout ? 18 : 24
+                width: Math.min(parent.width - (playSurface.compactLayout ? 16 : 34), 320)
+                height: playSurface.compactLayout ? 118 : 126
                 radius: 18
                 color: "#D2192025"
                 border.width: 1
@@ -1729,14 +1787,14 @@ Page {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 10
+                    anchors.margins: playSurface.compactLayout ? 10 : 12
+                    spacing: playSurface.compactLayout ? 8 : 10
 
                     Text {
                         Layout.fillWidth: true
                         text: "选择要建造的建筑"
                         color: "#F8FCFF"
-                        font.pixelSize: 15
+                        font.pixelSize: playSurface.compactLayout ? 14 : 15
                         font.weight: Font.Black
                         horizontalAlignment: Text.AlignHCenter
                     }
@@ -1747,7 +1805,7 @@ Page {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 56
+                            Layout.preferredHeight: playSurface.compactLayout ? 50 : 56
                             radius: 14
                             color: "#163329"
                             border.width: 1
@@ -1766,15 +1824,15 @@ Page {
                                 Text {
                                     text: "发电机"
                                     color: "#F7FFFA"
-                                    font.pixelSize: 14
+                                    font.pixelSize: playSurface.compactLayout ? 13 : 14
                                     font.weight: Font.Black
                                     anchors.horizontalCenter: parent.horizontalCenter
                                 }
 
                                 Text {
-                                    text: "G:200  P:0"
+                                    text: "G:90  P:0"
                                     color: root.canAffordBuildType("generator") ? "#A8F1C7" : "#FFB3B3"
-                                    font.pixelSize: 11
+                                    font.pixelSize: playSurface.compactLayout ? 10 : 11
                                     anchors.horizontalCenter: parent.horizontalCenter
                                 }
                             }
@@ -1782,7 +1840,7 @@ Page {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 56
+                            Layout.preferredHeight: playSurface.compactLayout ? 50 : 56
                             radius: 14
                             color: "#33251A"
                             border.width: 1
@@ -1801,15 +1859,15 @@ Page {
                                 Text {
                                     text: "炮台"
                                     color: "#FFF8F2"
-                                    font.pixelSize: 14
+                                    font.pixelSize: playSurface.compactLayout ? 13 : 14
                                     font.weight: Font.Black
                                     anchors.horizontalCenter: parent.horizontalCenter
                                 }
 
                                 Text {
-                                    text: "G:8  P:1"
+                                    text: "G:20  P:2"
                                     color: root.canAffordBuildType("turret") ? "#FFD9B2" : "#FFB3B3"
-                                    font.pixelSize: 11
+                                    font.pixelSize: playSurface.compactLayout ? 10 : 11
                                     anchors.horizontalCenter: parent.horizontalCenter
                                 }
                             }
@@ -1826,12 +1884,15 @@ Page {
             }
 
             Rectangle {
+                id: actionPanel
                 visible: root.actionPanelVisible
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: 24
-                width: Math.min(parent.width - 34, 290)
-                height: 168
+                anchors.bottomMargin: playSurface.compactLayout ? 18 : 24
+                width: Math.min(parent.width - (playSurface.compactLayout ? 16 : 34), 320)
+                height: Math.min(parent.height - playSurface.topSafeMargin - 32,
+                                 Math.max(playSurface.compactLayout ? 156 : 168,
+                                          actionPanelLayout.implicitHeight + (playSurface.compactLayout ? 20 : 24)))
                 radius: 18
                 color: "#D61A2025"
                 border.width: 1
@@ -1839,15 +1900,16 @@ Page {
                 z: 40
 
                 ColumnLayout {
+                    id: actionPanelLayout
                     anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 8
+                    anchors.margins: playSurface.compactLayout ? 10 : 12
+                    spacing: playSurface.compactLayout ? 6 : 8
 
                     Text {
                         Layout.fillWidth: true
                         text: root.pendingActionTitle
                         color: "#F8FCFF"
-                        font.pixelSize: 15
+                        font.pixelSize: playSurface.compactLayout ? 14 : 15
                         font.weight: Font.Black
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
@@ -1857,7 +1919,7 @@ Page {
                         Layout.fillWidth: true
                         text: root.pendingActionDetail
                         color: "#D7E8F2"
-                        font.pixelSize: 12
+                        font.pixelSize: playSurface.compactLayout ? 11 : 12
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
                     }
@@ -1866,7 +1928,7 @@ Page {
                         Layout.fillWidth: true
                         text: root.pendingActionRequirement
                         color: root.pendingActionRequirementMet ? "#C7FFD8" : "#FFB3B3"
-                        font.pixelSize: 12
+                        font.pixelSize: playSurface.compactLayout ? 11 : 12
                         font.weight: Font.DemiBold
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
@@ -1877,7 +1939,7 @@ Page {
                         text: "金币 " + root.pendingActionGoldCost
                               + (root.pendingActionPowerCost > 0 ? "   电力 " + root.pendingActionPowerCost : "")
                         color: root.canAffordPendingAction() ? "#A8F1C7" : "#FFB3B3"
-                        font.pixelSize: 13
+                        font.pixelSize: playSurface.compactLayout ? 12 : 13
                         font.weight: Font.DemiBold
                         horizontalAlignment: Text.AlignHCenter
                     }

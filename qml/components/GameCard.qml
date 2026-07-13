@@ -34,6 +34,11 @@ Rectangle {
             textColor: "#FFF8EE", mutedColor: "#E6D4C2",
             tagBg: "#8B6545", tagText: "#FFF0DE"
         };
+        if (gameType === "work3") return {
+            gradientTop: "#151923", gradientBot: "#324A5A",
+            textColor: "#F6F3EC", mutedColor: "#B9D2D6",
+            tagBg: "#3E6572", tagText: "#D9F4F5"
+        };
         // survivor
         return {
             gradientTop: "#1C2A24", gradientBot: "#2E443A",
@@ -269,6 +274,61 @@ Rectangle {
                 ctx.textAlign = "center";
                 ctx.fillText("鬼", 76, 34);
             }
+        }
+    }
+
+    // ---- Work3 icon ----
+    Item {
+        anchors.right: parent.right; anchors.top: parent.top
+        anchors.rightMargin: 16; anchors.topMargin: 16
+        width: 100; height: 90
+        visible: root.gameType === "work3"
+
+        Canvas {
+            anchors.fill: parent
+            onPaint: {
+                const ctx = getContext("2d");
+                ctx.reset();
+
+                const cx = 50, cy = 44;
+                ctx.globalAlpha = 0.38;
+                ctx.strokeStyle = "#9ADFE9";
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 4; ++i) {
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 16 + i * 10, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = "#F3D35E";
+                ctx.beginPath();
+                ctx.moveTo(18, 16);
+                ctx.lineTo(30, 22);
+                ctx.lineTo(22, 34);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = "#DA6D60";
+                ctx.beginPath();
+                ctx.arc(78, 28, 9, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = "#8DD9C8";
+                ctx.beginPath();
+                ctx.arc(76, 66, 7, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        Image {
+            anchors.centerIn: parent
+            width: 54
+            height: 54
+            source: "../assets/work3/myabi.png"
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
         }
     }
 

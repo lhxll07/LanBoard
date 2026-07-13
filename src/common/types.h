@@ -7,6 +7,9 @@
 
 namespace LanBoard {
 
+inline constexpr quint16 DefaultLanPort = 46567;
+inline constexpr quint16 LegacyLanPort = 44567;
+
 enum class NavigationPage {
     Home = 0,
     Room = 1,
@@ -15,7 +18,8 @@ enum class NavigationPage {
     DouDiZhu = 4,
     FlightChess = 5,
     Survivor = 6,
-    DormDefense = 7
+    DormDefense = 7,
+    Work3 = 8
 };
 
 enum class GameControllerKind {

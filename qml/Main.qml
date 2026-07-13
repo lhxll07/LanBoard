@@ -20,7 +20,8 @@ ApplicationWindow {
             || stackView.currentItem.objectName === "doudizhuPage"
             || stackView.currentItem.objectName === "flightChessPage"
             || stackView.currentItem.objectName === "survivorPage"
-            || stackView.currentItem.objectName === "dormDefensePage"))
+            || stackView.currentItem.objectName === "dormDefensePage"
+            || stackView.currentItem.objectName === "work3Page"))
 
     // 页面路由表
     readonly property var pageRoutes: [
@@ -31,7 +32,8 @@ ApplicationWindow {
         { name: "doudizhuPage",  url: "pages/DouDiZhuPage.qml" },
         { name: "flightChessPage", url: "pages/FlightChessPage.qml" },
         { name: "survivorPage",  url: "pages/SurvivorPage.qml" },
-        { name: "dormDefensePage", url: "pages/DormDefensePage.qml" }
+        { name: "dormDefensePage", url: "pages/DormDefensePage.qml" },
+        { name: "work3Page",     url: "pages/Work3Page.qml" }
     ]
 
     function handleBackNavigation() {
@@ -59,6 +61,10 @@ ApplicationWindow {
                 stackView.currentItem.leaveCurrentGame()
             } else if (stackView.currentItem
                     && stackView.currentItem.objectName === "dormDefensePage"
+                    && stackView.currentItem.leaveCurrentGame) {
+                stackView.currentItem.leaveCurrentGame()
+            } else if (stackView.currentItem
+                    && stackView.currentItem.objectName === "work3Page"
                     && stackView.currentItem.leaveCurrentGame) {
                 stackView.currentItem.leaveCurrentGame()
             } else {
@@ -111,7 +117,8 @@ ApplicationWindow {
                         || window.stackView.currentItem.objectName === "flightChessPage"
                         || window.stackView.currentItem.objectName === "doudizhuPage"
                         || window.stackView.currentItem.objectName === "survivorPage"
-                        || window.stackView.currentItem.objectName === "dormDefensePage")) {
+                        || window.stackView.currentItem.objectName === "dormDefensePage"
+                        || window.stackView.currentItem.objectName === "work3Page")) {
                     window.stackView.pop()
                 } else if (window.stackView.depth === 1) {
                     window.currentTab = 1

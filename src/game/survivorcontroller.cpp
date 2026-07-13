@@ -609,7 +609,7 @@ bool SurvivorController::chooseLevelUp(const QString &upgradeId)
         if (PlayerState *player = localPlayerState())
             player->levelUpChoices.clear();
         m_levelUpChoices.clear();
-        syncHudState();
+        syncHudState(false);
         emit stateChanged();
         emit frameChanged();
         return true;
@@ -666,7 +666,7 @@ bool SurvivorController::closeChestRewards()
         }
         m_chestRewardEntries.clear();
         m_matchState.chestTitle.clear();
-        syncHudState();
+        syncHudState(false);
         emit stateChanged();
         emit frameChanged();
         return true;
@@ -1121,12 +1121,28 @@ void SurvivorController::stepRemoteInterpolation(int elapsedMs)
             to.radius = lerpReal(from.radius, to.radius, alpha);
         }
 
-        const int pickupCount = qMin(m_networkBaseSnapshot.pickups.size(), m_renderSnapshot.pickups.size());
-        for (int i = 0; i < pickupCount; ++i) {
-            const RenderPickup &from = m_networkBaseSnapshot.pickups.at(i);
-            RenderPickup &to = m_renderSnapshot.pickups[i];
-            if (from.kind != to.kind || from.exp != to.exp)
+        QVector<bool> matchedPickups(m_networkBaseSnapshot.pickups.size(), false);
+        for (RenderPickup &to : m_renderSnapshot.pickups) {
+            int bestIndex = -1;
+            qreal bestDistanceSquared = 0.18 * 0.18;
+            for (int i = 0; i < m_networkBaseSnapshot.pickups.size(); ++i) {
+                if (matchedPickups.at(i))
+                    continue;
+                const RenderPickup &from = m_networkBaseSnapshot.pickups.at(i);
+                if (from.kind != to.kind || from.exp != to.exp)
+                    continue;
+                const qreal dx = from.x - to.x;
+                const qreal dy = from.y - to.y;
+                const qreal distanceSquared = dx * dx + dy * dy;
+                if (distanceSquared >= bestDistanceSquared)
+                    continue;
+                bestDistanceSquared = distanceSquared;
+                bestIndex = i;
+            }
+            if (bestIndex < 0)
                 continue;
+            matchedPickups[bestIndex] = true;
+            const RenderPickup &from = m_networkBaseSnapshot.pickups.at(bestIndex);
             to.x = lerpReal(from.x, to.x, alpha);
             to.y = lerpReal(from.y, to.y, alpha);
             to.radius = lerpReal(from.radius, to.radius, alpha);
@@ -1296,11 +1312,14 @@ SurvivorController::RenderSnapshot SurvivorController::buildNetworkRenderSnapsho
     const QVector2D origin = cameraAnchorForPlayer(playerId);
     snapshot.players = m_renderSnapshot.players;
 
-    auto insideRange = [origin](qreal x, qreal y, qreal radius = 0.0) {
+    auto insideRange = [origin](qreal x,
+                                qreal y,
+                                qreal radius = 0.0,
+                                qreal cullRadius = NetworkCullRadius) {
         const qreal dx = x - origin.x();
         const qreal dy = y - origin.y();
         const qreal padded = qMax<qreal>(0.0, radius);
-        return dx * dx + dy * dy <= (NetworkCullRadius + padded) * (NetworkCullRadius + padded);
+        return dx * dx + dy * dy <= (cullRadius + padded) * (cullRadius + padded);
     };
 
     snapshot.enemies.reserve(m_renderSnapshot.enemies.size());
@@ -1325,7 +1344,7 @@ SurvivorController::RenderSnapshot SurvivorController::buildNetworkRenderSnapsho
 
     snapshot.pickups.reserve(m_renderSnapshot.pickups.size());
     for (const RenderPickup &pickup : m_renderSnapshot.pickups) {
-        if (insideRange(pickup.x, pickup.y, pickup.radius))
+        if (insideRange(pickup.x, pickup.y, pickup.radius, NetworkPickupCullRadius))
             snapshot.pickups.append(pickup);
     }
 
@@ -1412,17 +1431,23 @@ void SurvivorController::syncInteractionState()
     m_matchState.chestTitle = interactionPlayer ? interactionPlayer->chestTitle : QString();
 }
 
-void SurvivorController::syncHudState()
+void SurvivorController::syncHudState(bool allowPreserveRemoteInteractionUi)
 {
-    syncInteractionState();
+    const bool preserveRemoteInteractionUi = allowPreserveRemoteInteractionUi
+        && m_networkSession
+        && !m_networkAuthoritative
+        && m_lastAppliedHudStateSeq < m_lastAppliedFastStateSeq;
 
     const PlayerState *player = hudPlayerState();
     if (!player) {
         m_matchState.level = 1;
         m_matchState.exp = 0;
         m_matchState.expToNext = 5;
-        m_matchState.levelUpPending = false;
-        m_matchState.chestPending = false;
+        if (!preserveRemoteInteractionUi) {
+            syncInteractionState();
+            m_matchState.levelUpPending = false;
+            m_matchState.chestPending = false;
+        }
         refreshLevelUpChoiceCache();
         refreshChestRewardCache();
         refreshUpgradeSummary();
@@ -1435,6 +1460,18 @@ void SurvivorController::syncHudState()
     m_matchState.level = player->level;
     m_matchState.exp = player->exp;
     m_matchState.expToNext = player->expToNext;
+
+    if (preserveRemoteInteractionUi) {
+        refreshLevelUpChoiceCache();
+        refreshChestRewardCache();
+        refreshUpgradeSummary();
+        refreshHudSlotCaches();
+        refreshLeaderboardCache();
+        updateStatusText();
+        return;
+    }
+
+    syncInteractionState();
     const bool localOwnsInteraction = player->playerId == m_matchState.pendingInteractionPlayerId;
     m_matchState.levelUpPending = localOwnsInteraction && !player->levelUpChoices.isEmpty();
     m_matchState.chestPending = localOwnsInteraction && !player->chestRewardEntries.isEmpty();
@@ -1480,17 +1517,17 @@ QVariantList SurvivorController::exportDamageNumberVariantList() const
     return numbers;
 }
 
-void SurvivorController::emitNetworkSyncIfNeeded(bool force)
+void SurvivorController::emitNetworkSyncIfNeeded(bool force, int elapsedMs)
 {
     if (!m_networkSession || !m_networkAuthoritative)
         return;
 
     bool includeHudDetails = force || m_networkHudDirty || m_matchState.gameOver;
     if (!force) {
-        m_networkBroadcastAccumulatorMs += TickIntervalMs;
+        m_networkBroadcastAccumulatorMs += qMax(1, elapsedMs);
         if (m_networkBroadcastAccumulatorMs < NetworkSnapshotIntervalMs)
             return;
-        m_networkHudBroadcastAccumulatorMs += TickIntervalMs;
+        m_networkHudBroadcastAccumulatorMs += qMax(1, elapsedMs);
         if (m_networkHudBroadcastAccumulatorMs >= NetworkHudSnapshotIntervalMs)
             includeHudDetails = true;
     }
@@ -1708,7 +1745,7 @@ void SurvivorController::tick()
         return;
     if (m_matchState.pendingInteractionPlayerId >= 0) {
         refreshFrameCache();
-        emitNetworkSyncIfNeeded();
+        emitNetworkSyncIfNeeded(false, realElapsedMs);
         emit frameChanged();
         return;
     }
@@ -1746,7 +1783,7 @@ void SurvivorController::tick()
         return;
 
     refreshFrameCache();
-    emitNetworkSyncIfNeeded();
+    emitNetworkSyncIfNeeded(false, simulatedSteps * TickIntervalMs);
     const bool shouldEmitStateChanged =
         previousHp != hp()
         || previousMaxHp != maxHp()
@@ -1874,13 +1911,20 @@ void SurvivorController::simulateStep(int elapsedMs)
         const int enemyCount = m_matchState.enemies.size();
         const bool latePressure = currentWaveIndex() >= 10;
         const bool finalPressure = currentWaveIndex() >= 12;
-        if (enemyCount > enemyCap)
-            spawnBurst = qMax(1, spawnBurst - 1);
-        const int overflowThreshold = enemyCap * (latePressure ? 17 : 15) / 10;
+        const int softCap = finalPressure
+            ? enemyCap + qMax(36, enemyCap / 4)
+            : (latePressure ? enemyCap + qMax(24, enemyCap / 5)
+                            : enemyCap + qMax(10, enemyCap / 12));
+        if (enemyCount >= softCap) {
+            spawnBurst = 0;
+        } else if (enemyCount > enemyCap) {
+            spawnBurst = latePressure ? qMax(0, spawnBurst - 2) : qMax(0, spawnBurst - 1);
+        }
+        const int overflowThreshold = enemyCap * (latePressure ? 13 : 15) / 10;
         const int overflowSkipChance = finalPressure ? 18 : (latePressure ? 35 : 70);
         if (enemyCount > overflowThreshold
             && QRandomGenerator::global()->bounded(100) < overflowSkipChance) {
-            spawnBurst = latePressure ? qMax(1, spawnBurst - 1) : 0;
+            spawnBurst = latePressure ? qMax(0, spawnBurst - 1) : 0;
         }
         for (int spawnIndex = 0; spawnIndex < spawnBurst; ++spawnIndex)
             spawnEnemy(false);
@@ -2200,8 +2244,8 @@ void SurvivorController::trimEnemyPopulation()
     const bool latePressure = waveIndex >= 10;
     const bool finalPressure = waveIndex >= 12;
     const int softCap = finalPressure
-        ? enemyCap + qMax(52, enemyCap / 2)
-        : (latePressure ? enemyCap + qMax(32, enemyCap / 3)
+        ? enemyCap + qMax(36, enemyCap / 4)
+        : (latePressure ? enemyCap + qMax(24, enemyCap / 5)
                         : enemyCap + qMax(10, enemyCap / 12));
     if (m_matchState.enemies.size() <= softCap)
         return;
@@ -2290,8 +2334,6 @@ void SurvivorController::appendEnemyCandidateIdsNear(const QVector2D &position,
             out += it.value();
         }
     }
-    std::sort(out.begin(), out.end());
-    out.erase(std::unique(out.begin(), out.end()), out.end());
 }
 
 void SurvivorController::resolveEnemySeparation()
@@ -3701,7 +3743,8 @@ int SurvivorController::scaledEnemyCount(int baseCount, qreal extraPerPlayer) co
     if (playerCount <= 1)
         return baseCount;
 
-    const qreal multiplier = 1.0 + extraPerPlayer * (playerCount - 1);
+    const qreal multiplayerPressure = qSqrt(static_cast<qreal>(playerCount - 1));
+    const qreal multiplier = qMin<qreal>(2.0, 1.0 + extraPerPlayer * 0.55 * multiplayerPressure);
     return qMax(baseCount, qRound(baseCount * multiplier));
 }
 

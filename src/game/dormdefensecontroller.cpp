@@ -341,6 +341,14 @@ int DormDefenseController::doorMaxHp() const
     return m_doorMaxHp;
 }
 
+int DormDefenseController::nightRemaining() const
+{
+    if (m_gameOver)
+        return 0;
+    const int nightElapsed = qMax(0, m_elapsedTicks - InitialTimeRemaining);
+    return qMax(0, NightDurationTicks - nightElapsed);
+}
+
 QString DormDefenseController::statusText() const
 {
     if (m_roleSelectionRequired)
@@ -353,8 +361,8 @@ QString DormDefenseController::statusText() const
                 ? QStringLiteral("The ghost broke into the dorm. You win.")
                 : QStringLiteral("The defenders held the line. You lose.");
         }
-        return victory()
-            ? QStringLiteral("The ghost has been defeated. The dorm is safe.")
+    return victory()
+            ? QStringLiteral("Dawn breaks. The dorm is safe.")
             : QStringLiteral("The door was broken. The ghost entered the dorm.");
     }
 
@@ -367,20 +375,34 @@ QString DormDefenseController::statusText() const
             .arg(m_timeRemaining);
     }
 
+    if (m_respawnCountdown > 0) {
+        return QStringLiteral("The ghost was driven back. It will recover in %1s. Dawn in %2s.")
+            .arg(m_respawnCountdown)
+            .arg(nightRemaining());
+    }
+
     if (m_ghostMode == GhostMode::Retreat) {
         if (m_ticksOutOfCombat >= GhostRecoveryDelayTicks)
-            return QStringLiteral("Ghost is retreating and recovering health.");
-        return QStringLiteral("Ghost is retreating from turret fire.");
+            return QStringLiteral("Wave %1: ghost is retreating and recovering health. Dawn in %2s.")
+                .arg(qMax(1, m_wave))
+                .arg(nightRemaining());
+        return QStringLiteral("Wave %1: ghost is retreating from turret fire. Dawn in %2s.")
+            .arg(qMax(1, m_wave))
+            .arg(nightRemaining());
     }
 
     if (m_ghostDistance > 0) {
-        return QStringLiteral("Ghost Lv.%1 is approaching. %2 tiles away from the door.")
+        return QStringLiteral("Wave %1: Ghost Lv.%2 is approaching. %3 tiles away. Dawn in %4s.")
+            .arg(qMax(1, m_wave))
             .arg(m_ghostLevel)
-            .arg(m_ghostDistance);
+            .arg(m_ghostDistance)
+            .arg(nightRemaining());
     }
 
-    return QStringLiteral("Ghost Lv.%1 is attacking the door. Repair it or build more turrets.")
-        .arg(m_ghostLevel);
+    return QStringLiteral("Wave %1: Ghost Lv.%2 is attacking the door. Dawn in %3s.")
+        .arg(qMax(1, m_wave))
+        .arg(m_ghostLevel)
+        .arg(nightRemaining());
 }
 
 QString DormDefenseController::helpText() const
@@ -655,6 +677,29 @@ QVariantMap DormDefenseController::actionInfo(const QString &type, int row, int 
         return info;
     }
 
+    if (type == QStringLiteral("repair")) {
+        const bool available = m_doorHp < m_doorMaxHp;
+        const int goldCost = 18 + m_ghostLevel * 6;
+        const int powerCost = 4 + m_ghostLevel;
+        info[QStringLiteral("goldCost")] = available ? goldCost : 0;
+        info[QStringLiteral("powerCost")] = available ? powerCost : 0;
+        info[QStringLiteral("title")] = available
+            ? QStringLiteral("修复铁门")
+            : QStringLiteral("铁门耐久已满");
+        info[QStringLiteral("verb")] = available ? QStringLiteral("修复") : QStringLiteral("已满");
+        info[QStringLiteral("detailText")] = available
+            ? QStringLiteral("恢复：%1 -> %2")
+                  .arg(m_doorHp)
+                  .arg(qMin(m_doorMaxHp, m_doorHp + 28 + m_bedLevel * 4))
+            : QStringLiteral("耐久：%1/%2").arg(m_doorHp).arg(m_doorMaxHp);
+        info[QStringLiteral("requirementText")] = available
+            ? QStringLiteral("消耗随鬼等级提高")
+            : QStringLiteral("前置：铁门已满耐久");
+        info[QStringLiteral("requirementMet")] = available;
+        info[QStringLiteral("available")] = available;
+        return info;
+    }
+
     const BuildingKind kind = parseBuildingKind(type);
     if (kind == BuildingKind::None)
         return info;
@@ -798,7 +843,12 @@ bool DormDefenseController::chooseDefenderRoom(int row, int column)
 
 bool DormDefenseController::moveGhostBy(int deltaRow, int deltaColumn)
 {
-    if (!localControlsGhost() || m_gameOver || m_roleSelectionRequired || m_timeRemaining > 0)
+    if (!localControlsGhost()
+        || m_gameOver
+        || m_roleSelectionRequired
+        || m_timeRemaining > 0
+        || m_respawnCountdown > 0
+        || m_ghostHp <= 0)
         return false;
 
     if ((deltaRow == 0 && deltaColumn == 0)
@@ -858,7 +908,12 @@ bool DormDefenseController::moveGhostBy(int deltaRow, int deltaColumn)
 
 bool DormDefenseController::moveGhostVector(qreal deltaRow, qreal deltaColumn)
 {
-    if (!localControlsGhost() || m_gameOver || m_roleSelectionRequired || m_timeRemaining > 0)
+    if (!localControlsGhost()
+        || m_gameOver
+        || m_roleSelectionRequired
+        || m_timeRemaining > 0
+        || m_respawnCountdown > 0
+        || m_ghostHp <= 0)
         return false;
 
     if ((qFuzzyIsNull(deltaRow) && qFuzzyIsNull(deltaColumn))
@@ -949,7 +1004,7 @@ bool DormDefenseController::moveGhostVector(qreal deltaRow, qreal deltaColumn)
 
 bool DormDefenseController::selectGhostTargetAt(int row, int column)
 {
-    if (!localControlsGhost() || m_gameOver)
+    if (!localControlsGhost() || m_gameOver || m_respawnCountdown > 0 || m_ghostHp <= 0)
         return false;
 
     if (m_networked && !isAuthoritativeInstance()) {
@@ -1179,6 +1234,19 @@ bool DormDefenseController::assignPlayerRoom(int roomIndex)
     if (roomIndex < 0 || roomIndex >= m_rooms.size())
         return false;
 
+    RoomState &selectedRoom = m_rooms[roomIndex];
+    selectedRoom.doorHp = InitialDoorHp;
+    selectedRoom.doorMaxHp = InitialDoorHp;
+    selectedRoom.gold = 12;
+    selectedRoom.power = 2;
+    selectedRoom.bedLevel = 1;
+    selectedRoom.active = true;
+    for (const auto &slot : roomBuildSlots(roomIndex)) {
+        CellData &cell = m_cells[cellIndex(slot.first, slot.second)];
+        cell.buildingKind = BuildingKind::None;
+        cell.level = 0;
+    }
+
     m_playerRoomIndex = roomIndex;
     if (m_networked && m_sessionLocalPlayerId >= 0)
         m_playerRoomByPlayerId.insert(m_sessionLocalPlayerId, roomIndex);
@@ -1190,6 +1258,15 @@ bool DormDefenseController::assignPlayerRoom(int roomIndex)
             || !m_rooms.at(m_targetRoomIndex).active) {
             chooseRandomTargetRoom(false);
         }
+        if (currentTargetRoomIndex() == roomIndex && m_wave <= 2) {
+            int activeRoomCount = 0;
+            for (const RoomState &room : m_rooms) {
+                if (room.active)
+                    ++activeRoomCount;
+            }
+            if (activeRoomCount > 1)
+                chooseRandomTargetRoom(true);
+        }
     } else if (m_networked) {
         m_rooms[roomIndex].active = true;
         if (!ghostIsHumanControlled()
@@ -1200,7 +1277,7 @@ bool DormDefenseController::assignPlayerRoom(int roomIndex)
         }
     }
     applyRoomOwnershipPresentation();
-    syncMembersFromPrimaryRoomState();
+    syncPrimaryRoomStateFromMembers();
     m_lastActionMessage = QStringLiteral("You moved into room %1. Build your defenses before the ghost arrives.")
         .arg(roomIndex + 1);
     emit boardChanged();
@@ -1297,6 +1374,9 @@ void DormDefenseController::configureNetworkSession(const QVariantList &activePl
                                                     bool networked,
                                                     bool authoritative)
 {
+    const bool wasHumanGhostControlled = m_ghostHumanControlled;
+    const qreal previousGhostRow = m_ghostCenterRow;
+    const qreal previousGhostColumn = m_ghostCenterColumn;
     m_networked = networked;
     m_authoritative = authoritative;
     m_sessionLocalPlayerId = localPlayerId;
@@ -1311,6 +1391,16 @@ void DormDefenseController::configureNetworkSession(const QVariantList &activePl
                                                      localPlayerId >= 0
                                                          ? LocalRole::Defender
                                                          : LocalRole::Spectator);
+    }
+    if (!m_roleSelectionRequired && wasHumanGhostControlled && !m_ghostHumanControlled) {
+        const int startRow = qBound(0, static_cast<int>(qFloor(previousGhostRow)), RowCount - 1);
+        const int startColumn = qBound(0, static_cast<int>(qFloor(previousGhostColumn)), ColumnCount - 1);
+        if (currentTargetRoomIndex() < 0)
+            chooseRandomTargetRoom(false);
+        initializeGhostPath(startRow, startColumn);
+        m_ghostDistance = qMax(0, m_ghostPath.size() - 1);
+        m_ghostMode = GhostMode::Assault;
+        m_ticksOutOfCombat = 0;
     }
     m_playerControlsGhost = !m_roleSelectionRequired && localControlsGhost();
     emit roleChanged();
@@ -2137,9 +2227,9 @@ QVector<QPair<int, int>> DormDefenseController::buildPath(int startRow,
 void DormDefenseController::spawnGhostForWave()
 {
     m_ghostLevel = 1;
-    m_ghostMaxHp = 60;
+    m_ghostMaxHp = 120;
     m_ghostHp = m_ghostMaxHp;
-    m_ghostAttack = 1;
+    m_ghostAttack = 2;
     m_ghostDistance = qMax(0, m_ghostPath.size() - 1);
     m_ghostDoorHitCount = 0;
     m_respawnCountdown = 0;
@@ -2161,6 +2251,21 @@ void DormDefenseController::onTick()
             RoomState &room = m_rooms[roomIndex];
             room.gold += bedGoldOutputForLevel(room.bedLevel);
             room.power += 1 + roomGeneratorPowerOutput(roomIndex);
+        }
+
+        const int nightElapsed = qMax(0, m_elapsedTicks - InitialTimeRemaining);
+        if (m_timeRemaining <= 0 && nightElapsed > 0 && nightElapsed % 45 == 0) {
+            const int supplyGold = 24 + qMax(1, m_wave) * 4;
+            const int supplyPower = 3 + qMax(0, m_wave / 2);
+            for (RoomState &room : m_rooms) {
+                if (!room.active)
+                    continue;
+                room.gold += supplyGold;
+                room.power += supplyPower;
+            }
+            m_lastActionMessage = QStringLiteral("Night supply arrived: each surviving room gained %1 gold and %2 power.")
+                                      .arg(supplyGold)
+                                      .arg(supplyPower);
         }
     }
     if (!localControlsGhost()
@@ -2192,6 +2297,10 @@ void DormDefenseController::onTick()
     if (m_timeRemaining > 0) {
         --m_timeRemaining;
         if (m_timeRemaining == 0) {
+            m_wave = qMax(1, m_wave);
+            m_lastActionMessage = ghostIsHumanControlled()
+                ? QStringLiteral("Night begins. The ghost can now enter the corridor.")
+                : QStringLiteral("Wave 1 begins. The ghost is moving toward a dorm.");
             if (m_networked && isAuthoritativeInstance()) {
                 assignMissingDefenderRooms();
             } else if (!localControlsGhost() && !playerRoomSelected()) {
@@ -2201,6 +2310,40 @@ void DormDefenseController::onTick()
         setTurretVolley({}, 0);
         if (aiBoardChanged)
             emit boardChanged();
+        emit resourcesChanged();
+        emit statusChanged();
+        emit ghostStateChanged();
+        return;
+    }
+
+    if (nightRemaining() <= 0) {
+        updateStatus(QStringLiteral("Dawn breaks. The defenders survived the night."));
+        setGameFinished(true);
+        return;
+    }
+
+    if (m_respawnCountdown > 0) {
+        --m_respawnCountdown;
+        if (m_respawnCountdown <= 0) {
+            const int gainedMaxHp = 16 + qMax(1, m_wave) * 2;
+            ++m_ghostLevel;
+            m_ghostMaxHp += gainedMaxHp;
+            if (m_ghostLevel % 3 == 0)
+                ++m_ghostAttack;
+            m_ghostHp = m_ghostMaxHp;
+            m_ghostDoorHitCount = 0;
+            m_ticksOutOfCombat = 0;
+            m_ghostMode = GhostMode::Assault;
+            m_ghostCenterRow = GhostSpawnRow + 0.5;
+            m_ghostCenterColumn = GhostSpawnColumn + 0.5;
+            m_networkGhostDisplayRow = m_ghostCenterRow;
+            m_networkGhostDisplayColumn = m_ghostCenterColumn;
+            chooseRandomTargetRoom(true);
+            initializeGhostPath(GhostSpawnRow, GhostSpawnColumn);
+            m_ghostDistance = qMax(0, m_ghostPath.size() - 1);
+            updateStatus(QStringLiteral("The ghost recovered as Lv.%1 and returned stronger.")
+                             .arg(m_ghostLevel));
+        }
         emit resourcesChanged();
         emit statusChanged();
         emit ghostStateChanged();
@@ -2244,11 +2387,7 @@ void DormDefenseController::onTick()
             m_ticksOutOfCombat = 0;
 
         if (m_ghostHp <= 0) {
-            m_ghostHp = 0;
-            updateStatus(QStringLiteral("The ghost has been defeated."));
-            setGameFinished(true);
-            emit resourcesChanged();
-            emit statusChanged();
+            handleGhostHpDepleted();
             return;
         }
         if (m_ghostDistance > 0) {
@@ -2286,11 +2425,7 @@ void DormDefenseController::onTick()
             m_ghostHp = qMax(0, m_ghostHp - damage);
 
         if (m_ghostHp <= 0) {
-            m_ghostHp = 0;
-            updateStatus(QStringLiteral("The ghost has been defeated."));
-            setGameFinished(true);
-            emit resourcesChanged();
-            emit statusChanged();
+            handleGhostHpDepleted();
             return;
         }
         --m_ghostDistance;
@@ -2310,11 +2445,7 @@ void DormDefenseController::onTick()
             m_ghostHp = qMax(0, m_ghostHp - damage);
 
         if (m_ghostHp <= 0) {
-            m_ghostHp = 0;
-            updateStatus(QStringLiteral("The ghost has been defeated."));
-            setGameFinished(true);
-            emit resourcesChanged();
-            emit statusChanged();
+            handleGhostHpDepleted();
             return;
         }
         const int targetRoomIndex = currentTargetRoomIndex();
@@ -2335,11 +2466,30 @@ void DormDefenseController::onTick()
         }
 
         if (targetRoom.doorHp <= 0) {
+            const bool localPlayerRoomDestroyed = !m_networked
+                && !localControlsGhost()
+                && targetRoom.isPlayerRoom;
             clearRoomAfterDoorDestroyed(targetRoomIndex);
+            if (localPlayerRoomDestroyed) {
+                if (hasAnyActiveRoom()) {
+                    chooseRandomTargetRoom(true);
+                    m_lastActionMessage = QStringLiteral("Your room was overrun. The remaining rooms are still holding until dawn.");
+                    emit boardChanged();
+                    emit ghostStateChanged();
+                    emit statusChanged();
+                    return;
+                }
+                setGameFinished(false);
+                return;
+            }
             if (!hasAnyActiveRoom()) {
                 setGameFinished(false);
                 return;
             }
+            if (m_wave >= 4)
+                levelUpGhost(1, true);
+            else
+                m_ghostHp = qMin(m_ghostMaxHp, m_ghostHp + m_ghostMaxHp / 3);
             chooseRandomTargetRoom(true);
             emit boardChanged();
             emit ghostStateChanged();
@@ -2363,7 +2513,31 @@ void DormDefenseController::onTick()
 
 void DormDefenseController::scheduleGhostRespawn()
 {
-    m_respawnCountdown = 0;
+    if (m_gameOver || m_respawnCountdown > 0)
+        return;
+
+    m_respawnCountdown = 5;
+    m_ghostHp = 0;
+    m_ghostDistance = 0;
+    m_ghostPath.clear();
+    m_ghostDoorHitCount = 0;
+    m_ticksOutOfCombat = 0;
+    setTurretVolley({}, 0);
+    updateStatus(QStringLiteral("The ghost was driven back. It will recover in %1s.")
+                     .arg(m_respawnCountdown));
+    emit ghostStateChanged();
+}
+
+bool DormDefenseController::handleGhostHpDepleted()
+{
+    if (m_gameOver)
+        return true;
+
+    m_ghostHp = 0;
+    scheduleGhostRespawn();
+    emit resourcesChanged();
+    emit statusChanged();
+    return true;
 }
 
 void DormDefenseController::onCombatTick()
@@ -2444,8 +2618,7 @@ void DormDefenseController::onCombatTick()
         emit ghostStateChanged();
         emit statusChanged();
         if (m_ghostHp <= 0) {
-            updateStatus(QStringLiteral("The ghost has been defeated."));
-            setGameFinished(true);
+            handleGhostHpDepleted();
             return;
         }
     }
@@ -2457,6 +2630,7 @@ bool DormDefenseController::processAiRooms()
     bool boardChanged = false;
     const bool preparationPhase = m_timeRemaining > 0;
     const bool authoritativeNetworkView = m_networked && isAuthoritativeInstance();
+    const bool lateNight = !preparationPhase && nightRemaining() <= 60;
 
     for (int roomIndex = 0; roomIndex < m_rooms.size(); ++roomIndex) {
         RoomState &room = m_rooms[roomIndex];
@@ -2474,86 +2648,30 @@ bool DormDefenseController::processAiRooms()
             continue;
 
         const bool underDirectAttack = currentTargetRoomIndex() == roomIndex && m_ghostMode == GhostMode::Assault;
-        int actionsRemaining = preparationPhase ? 3 : (underDirectAttack ? 3 : 2);
+        int actionsRemaining = preparationPhase ? 3 : (underDirectAttack ? 4 : 2);
 
         while (actionsRemaining-- > 0) {
-            const int generatorCount = roomGeneratorCount(roomIndex);
-            const int turretCount = roomTurretCount(roomIndex);
-            const int nextDoorGold = room.doorMaxHp * 2;
-            const int nextBedGold = doublingCost(25, room.bedLevel + 1);
             const int currentDoorLevel = doorLevelForHp(room.doorMaxHp);
             const int requiredDoorLevel = requiredDoorLevelForRoom(roomIndex);
-            const bool doorInDanger = room.doorHp <= room.doorMaxHp * (underDirectAttack ? 7 : 4) / 10;
             const bool doorBelowRequired = currentDoorLevel < requiredDoorLevel;
             bool acted = false;
 
             if (doorBelowRequired) {
-                if (room.gold >= nextDoorGold && tryAiUpgradeDoor(roomIndex)) {
+                if (tryAiUpgradeDoor(roomIndex)) {
                     boardChanged = true;
                     continue;
                 }
-                break;
             }
 
             if (preparationPhase) {
-                if (room.bedLevel < 2 && room.gold >= nextBedGold && tryAiUpgradeBed(roomIndex))
-                    acted = true;
-                else if (room.bedLevel >= currentDoorLevel + 1 && room.gold >= nextDoorGold && tryAiUpgradeDoor(roomIndex))
-                    acted = true;
-                else if (turretCount < 1 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
-                    acted = true;
-                else if (room.bedLevel < 3 && room.gold >= nextBedGold && tryAiUpgradeBed(roomIndex))
-                    acted = true;
-                else if (currentDoorLevel < 2 && room.gold >= nextDoorGold && tryAiUpgradeDoor(roomIndex))
-                    acted = true;
-                else if (generatorCount < 1 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Generator))
-                    acted = true;
-                else if (room.bedLevel < 4 && room.gold >= nextBedGold && tryAiUpgradeBed(roomIndex))
-                    acted = true;
-                else if (room.gold >= nextDoorGold && currentDoorLevel < room.bedLevel && tryAiUpgradeDoor(roomIndex))
-                    acted = true;
-                else if (tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
-                    acted = true;
+                acted = tryAiEarlyEconomy(roomIndex);
             } else if (underDirectAttack) {
-                if (doorInDanger && room.gold >= nextDoorGold && tryAiUpgradeDoor(roomIndex))
-                    acted = true;
-                else if (room.bedLevel > currentDoorLevel && room.gold >= nextDoorGold && tryAiUpgradeDoor(roomIndex))
-                    acted = true;
-                else if (turretCount < 2 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
-                    acted = true;
-                else if (room.bedLevel < 4 && room.gold >= nextBedGold && tryAiUpgradeBed(roomIndex))
-                    acted = true;
-                else if (generatorCount < 1 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Generator))
-                    acted = true;
-                else if (tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
-                    acted = true;
+                acted = tryAiEmergencyDefense(roomIndex, true)
+                    || tryAiLateDefense(roomIndex)
+                    || tryAiBalancedGrowth(roomIndex);
             } else {
-                if (room.bedLevel < 2 && room.gold >= nextBedGold && tryAiUpgradeBed(roomIndex))
-                    acted = true;
-                else if (room.bedLevel > currentDoorLevel && room.gold >= nextDoorGold && tryAiUpgradeDoor(roomIndex))
-                    acted = true;
-                else if (turretCount < 1 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
-                    acted = true;
-                else if (room.bedLevel < 3 && room.gold >= nextBedGold && tryAiUpgradeBed(roomIndex))
-                    acted = true;
-                else if (currentDoorLevel < 2 && room.gold >= nextDoorGold && tryAiUpgradeDoor(roomIndex))
-                    acted = true;
-                else if (generatorCount < 1 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Generator))
-                    acted = true;
-                else if (room.bedLevel < 4 && room.gold >= nextBedGold && tryAiUpgradeBed(roomIndex))
-                    acted = true;
-                else if (room.gold >= nextDoorGold && currentDoorLevel < room.bedLevel && tryAiUpgradeDoor(roomIndex))
-                    acted = true;
-                else if (generatorCount < 2 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Generator))
-                    acted = true;
-                else if (turretCount < 2 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
-                    acted = true;
-                else if (room.bedLevel < 6 && room.gold >= nextBedGold && tryAiUpgradeBed(roomIndex))
-                    acted = true;
-                else if (room.gold >= nextDoorGold && currentDoorLevel < room.bedLevel && tryAiUpgradeDoor(roomIndex))
-                    acted = true;
-                else if (tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
-                    acted = true;
+                acted = tryAiEmergencyDefense(roomIndex, false)
+                    || (lateNight ? tryAiLateDefense(roomIndex) : tryAiBalancedGrowth(roomIndex));
             }
 
             if (!acted)
@@ -2584,6 +2702,55 @@ void DormDefenseController::startGhostRetreat()
     emit ghostStateChanged();
 }
 
+int DormDefenseController::roomDefenseScoreForGhost(int roomIndex) const
+{
+    if (roomIndex < 0 || roomIndex >= m_rooms.size() || !m_rooms.at(roomIndex).active)
+        return std::numeric_limits<int>::max() / 4;
+
+    const RoomState &room = m_rooms.at(roomIndex);
+    const int doorFrontRow = room.doorRow + 1;
+    const int doorFrontColumn = room.doorColumn;
+    const int turretPressure = turretDamageAt(doorFrontRow, doorFrontColumn);
+    const int turretCount = roomTurretCount(roomIndex);
+    const int generatorCount = roomGeneratorCount(roomIndex);
+    return room.doorHp
+        + room.doorMaxHp / 2
+        + turretPressure * 14
+        + turretCount * 18
+        + generatorCount * 4
+        + room.bedLevel * 8;
+}
+
+int DormDefenseController::roomEconomyScore(int roomIndex) const
+{
+    if (roomIndex < 0 || roomIndex >= m_rooms.size() || !m_rooms.at(roomIndex).active)
+        return 0;
+
+    const RoomState &room = m_rooms.at(roomIndex);
+    return room.bedLevel * 22
+        + roomGeneratorCount(roomIndex) * 18
+        + roomTurretCount(roomIndex) * 8
+        + room.gold / 12
+        + room.power / 5;
+}
+
+int DormDefenseController::roomTargetScoreForGhost(int roomIndex) const
+{
+    if (roomIndex < 0 || roomIndex >= m_rooms.size() || !m_rooms.at(roomIndex).active)
+        return std::numeric_limits<int>::min() / 4;
+
+    const RoomState &room = m_rooms.at(roomIndex);
+    const int defenseScore = roomDefenseScoreForGhost(roomIndex);
+    const int economyScore = roomEconomyScore(roomIndex);
+    const int damageBonus = (room.doorMaxHp - room.doorHp) * 110 / qMax(1, room.doorMaxHp);
+    const int humanBonus = (room.isPlayerRoom || roomHasHumanDefender(roomIndex)) ? 46 : 0;
+    const int lateGameEconomyWeight = qBound(1, m_wave / 2 + 1, 5);
+    return economyScore * lateGameEconomyWeight
+        + damageBonus
+        + humanBonus
+        - defenseScore;
+}
+
 void DormDefenseController::chooseRandomTargetRoom(bool preferDifferentRoom)
 {
     const QPair<int, int> previousPosition = currentGhostPosition();
@@ -2602,13 +2769,63 @@ void DormDefenseController::chooseRandomTargetRoom(bool preferDifferentRoom)
         return;
     }
 
+    const int playerRoomIndex = currentPlayerRoomIndex();
+    if (!m_networked
+        && !ghostIsHumanControlled()
+        && playerRoomIndex >= 0
+        && m_wave <= 2
+        && candidates.size() > 1) {
+        candidates.removeAll(playerRoomIndex);
+    }
+
+    if (candidates.isEmpty()) {
+        m_targetRoomIndex = -1;
+        m_ghostPath.clear();
+        return;
+    }
+
     if (preferDifferentRoom && candidates.size() > 1)
         candidates.removeAll(m_targetRoomIndex);
 
-    m_targetRoomIndex = candidates.at(QRandomGenerator::global()->bounded(candidates.size()));
+    int bestScore = std::numeric_limits<int>::min();
+    QVector<int> bestCandidates;
+    for (int roomIndex : candidates) {
+        const RoomState &room = m_rooms.at(roomIndex);
+        const QVector<QPair<int, int>> path = buildPath(previousPosition.first,
+                                                        previousPosition.second,
+                                                        room.doorRow + 1,
+                                                        room.doorColumn);
+        const int pathPenalty = path.isEmpty() ? 0 : path.size() / 2;
+        const int jitter = QRandomGenerator::global()->bounded(19);
+        const int score = roomTargetScoreForGhost(roomIndex) - pathPenalty + jitter;
+        if (score > bestScore + 18) {
+            bestScore = score;
+            bestCandidates = {roomIndex};
+        } else if (score >= bestScore - 18) {
+            bestCandidates.append(roomIndex);
+        }
+    }
+
+    if (bestCandidates.isEmpty())
+        m_targetRoomIndex = candidates.at(QRandomGenerator::global()->bounded(candidates.size()));
+    else
+        m_targetRoomIndex = bestCandidates.at(QRandomGenerator::global()->bounded(bestCandidates.size()));
     initializeGhostPath(previousPosition.first, previousPosition.second);
     m_ghostDistance = qMax(0, m_ghostPath.size() - 1);
     m_ghostMode = GhostMode::Assault;
+    if (!m_roleSelectionRequired
+        && !m_gameOver
+        && m_timeRemaining <= 0
+        && !ghostIsHumanControlled()) {
+        ++m_wave;
+        if (m_wave > 1 && m_wave % 3 == 0) {
+            levelUpGhost(1, true);
+        } else {
+            m_lastActionMessage = QStringLiteral("Wave %1 begins. The ghost changes target.")
+                .arg(m_wave);
+            emit statusChanged();
+        }
+    }
 }
 
 void DormDefenseController::levelUpGhost(int levelDelta, bool restoreHealth)
@@ -2617,9 +2834,10 @@ void DormDefenseController::levelUpGhost(int levelDelta, bool restoreHealth)
         return;
 
     m_ghostLevel += levelDelta;
-    const int gainedMaxHp = 8 * levelDelta;
+    const int gainedMaxHp = (14 + qMax(0, m_wave) * 2) * levelDelta;
     m_ghostMaxHp += gainedMaxHp;
-    m_ghostAttack += levelDelta;
+    if (m_ghostLevel % 3 == 0)
+        ++m_ghostAttack;
 
     if (restoreHealth)
         m_ghostHp = m_ghostMaxHp;
@@ -2641,11 +2859,11 @@ void DormDefenseController::setGameFinished(bool playerWon)
     m_winner = playerWon ? 1 : 2;
     if (localControlsGhost()) {
         m_lastActionMessage = playerWon
-            ? QStringLiteral("The defenders survived. The ghost has been repelled.")
+            ? QStringLiteral("The defenders survived until dawn. The ghost has been repelled.")
             : QStringLiteral("The ghost broke the door and won the match.");
     } else {
         m_lastActionMessage = playerWon
-            ? QStringLiteral("The ghost was driven away. You win.")
+            ? QStringLiteral("You survived until dawn. The dorm is safe.")
             : QStringLiteral("The door broke. Build defenses earlier next round.");
     }
     emit boardChanged();
@@ -2670,11 +2888,11 @@ void DormDefenseController::finalizeGameOver(int winner)
     const bool defendersWon = winner == 1;
     if (localControlsGhost()) {
         m_lastActionMessage = defendersWon
-            ? QStringLiteral("The defenders held the line. The ghost has been defeated.")
+            ? QStringLiteral("The defenders held the line until dawn.")
             : QStringLiteral("The ghost broke the door and won the match.");
     } else {
         m_lastActionMessage = defendersWon
-            ? QStringLiteral("The ghost has been defeated. You win.")
+            ? QStringLiteral("You survived until dawn. The dorm is safe.")
             : QStringLiteral("The dorm fell. The ghost won the match.");
     }
     emit boardChanged();
@@ -2782,6 +3000,7 @@ bool DormDefenseController::applyHumanGhostDoorDamage(int roomIndex, int damage)
             setGameFinished(false);
             return true;
         }
+        levelUpGhost(1, true);
     }
 
     emit boardChanged();
@@ -3239,6 +3458,143 @@ int DormDefenseController::requiredDoorLevelForRoom(int roomIndex) const
     return requiredLevel;
 }
 
+int DormDefenseController::buildSlotScoreForRoom(int roomIndex, int row, int column, BuildingKind buildingKind) const
+{
+    if (roomIndex < 0 || roomIndex >= m_rooms.size())
+        return std::numeric_limits<int>::min() / 4;
+
+    const RoomState &room = m_rooms.at(roomIndex);
+    const int doorDist = qAbs(row - room.doorRow) + qAbs(column - room.doorColumn);
+    const int bedDist = qAbs(row - room.bedRow) + qAbs(column - room.bedColumn);
+    const int innerRow = row - room.top;
+    const int innerColumn = column - room.left;
+    const int frontDoorBonus = (row == room.doorRow - 1 && qAbs(column - room.doorColumn) <= 1) ? 40 : 0;
+    const int lowerRowBonus = qMax(0, innerRow - 1) * 5;
+    const int centerColumnBonus = qAbs(innerColumn - 2) <= 1 ? 6 : 0;
+
+    switch (buildingKind) {
+    case BuildingKind::Turret:
+        return 200 - doorDist * 20 + frontDoorBonus + lowerRowBonus + centerColumnBonus;
+    case BuildingKind::Generator:
+        return 160 - bedDist * 18 + doorDist * 4 + (innerRow <= 2 ? 10 : 0) + (innerColumn <= 2 ? 4 : 0);
+    case BuildingKind::None:
+    default:
+        return 0;
+    }
+}
+
+bool DormDefenseController::tryAiEmergencyDefense(int roomIndex, bool underDirectAttack)
+{
+    if (roomIndex < 0 || roomIndex >= m_rooms.size())
+        return false;
+
+    const RoomState &room = m_rooms.at(roomIndex);
+    const int currentDoorLevel = doorLevelForHp(room.doorMaxHp);
+    const int turretCount = roomTurretCount(roomIndex);
+    const bool criticalDoor = room.doorHp <= room.doorMaxHp * (underDirectAttack ? 55 : 30) / 100;
+    const bool weakDoor = room.doorHp <= room.doorMaxHp * (underDirectAttack ? 78 : 45) / 100;
+
+    if (criticalDoor && tryAiRepairDoor(roomIndex))
+        return true;
+    if (criticalDoor && tryAiUpgradeDoor(roomIndex))
+        return true;
+    if (underDirectAttack
+        && turretCount < 2
+        && room.power >= buildingPowerCost(BuildingKind::Turret, 1) * 2
+        && room.gold >= buildingGoldCost(BuildingKind::Turret, 1) * 2
+        && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
+        return true;
+    if (weakDoor && tryAiRepairDoor(roomIndex))
+        return true;
+    if (underDirectAttack && currentDoorLevel < m_ghostLevel / 2 + 2 && tryAiUpgradeDoor(roomIndex))
+        return true;
+    return false;
+}
+
+bool DormDefenseController::tryAiEarlyEconomy(int roomIndex)
+{
+    if (roomIndex < 0 || roomIndex >= m_rooms.size())
+        return false;
+
+    const RoomState &room = m_rooms.at(roomIndex);
+    const int currentDoorLevel = doorLevelForHp(room.doorMaxHp);
+    const int generatorCount = roomGeneratorCount(roomIndex);
+    const int turretCount = roomTurretCount(roomIndex);
+
+    if (room.bedLevel < 2 && tryAiUpgradeBed(roomIndex))
+        return true;
+    if (room.bedLevel >= currentDoorLevel + 1 && tryAiUpgradeDoor(roomIndex))
+        return true;
+    if (room.bedLevel < 3 && tryAiUpgradeBed(roomIndex))
+        return true;
+    if (currentDoorLevel < 2 && tryAiUpgradeDoor(roomIndex))
+        return true;
+    if (generatorCount < 1 && room.bedLevel >= 3 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Generator))
+        return true;
+    if (room.bedLevel < 4 && tryAiUpgradeBed(roomIndex))
+        return true;
+    if (currentDoorLevel < room.bedLevel && tryAiUpgradeDoor(roomIndex))
+        return true;
+    if (turretCount < 1 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
+        return true;
+    return tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret);
+}
+
+bool DormDefenseController::tryAiBalancedGrowth(int roomIndex)
+{
+    if (roomIndex < 0 || roomIndex >= m_rooms.size())
+        return false;
+
+    const RoomState &room = m_rooms.at(roomIndex);
+    const int currentDoorLevel = doorLevelForHp(room.doorMaxHp);
+    const int generatorCount = roomGeneratorCount(roomIndex);
+    const int turretCount = roomTurretCount(roomIndex);
+    const int doorPressureLevel = qMax(2, m_ghostLevel / 2 + 1);
+
+    if (room.bedLevel < 3 && tryAiUpgradeBed(roomIndex))
+        return true;
+    if (currentDoorLevel < qMin(6, doorPressureLevel) && tryAiUpgradeDoor(roomIndex))
+        return true;
+    if (generatorCount < 1 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Generator))
+        return true;
+    if (room.bedLevel < 5 && tryAiUpgradeBed(roomIndex))
+        return true;
+    if (currentDoorLevel < room.bedLevel && tryAiUpgradeDoor(roomIndex))
+        return true;
+    if (generatorCount < 2 && room.bedLevel >= 4 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Generator))
+        return true;
+    if (turretCount < 2 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
+        return true;
+    if (turretCount < 3 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
+        return true;
+    if (room.bedLevel < 6 && tryAiUpgradeBed(roomIndex))
+        return true;
+    return tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret);
+}
+
+bool DormDefenseController::tryAiLateDefense(int roomIndex)
+{
+    if (roomIndex < 0 || roomIndex >= m_rooms.size())
+        return false;
+
+    const RoomState &room = m_rooms.at(roomIndex);
+    const int currentDoorLevel = doorLevelForHp(room.doorMaxHp);
+    const int turretCount = roomTurretCount(roomIndex);
+    const int minimumDoorLevel = qMin(6, qMax(3, m_ghostLevel / 2 + 2));
+
+    if (room.doorHp < room.doorMaxHp && tryAiRepairDoor(roomIndex))
+        return true;
+    if (currentDoorLevel < minimumDoorLevel && tryAiUpgradeDoor(roomIndex))
+        return true;
+    if (turretCount < 3 && tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
+        return true;
+    if (tryAiBuildOrUpgrade(roomIndex, BuildingKind::Turret))
+        return true;
+    if (currentDoorLevel < room.bedLevel && tryAiUpgradeDoor(roomIndex))
+        return true;
+    return tryAiBalancedGrowth(roomIndex);
+}
+
 bool DormDefenseController::tryAiRepairDoor(int roomIndex)
 {
     if (roomIndex < 0 || roomIndex >= m_rooms.size())
@@ -3317,36 +3673,35 @@ bool DormDefenseController::tryAiBuildOrUpgrade(int roomIndex, BuildingKind buil
 
     const QVector<QPair<int, int>> buildSlots = roomBuildSlots(roomIndex);
     const int currentDoorLevel = doorLevelForHp(room.doorMaxHp);
-
-    for (const auto &slot : buildSlots) {
-        CellData &cell = m_cells[cellIndex(slot.first, slot.second)];
-        if (cell.buildingKind != BuildingKind::None)
-            continue;
-
-        const int nextLevel = 1;
-        if (currentDoorLevel < requiredDoorLevelForBuilding(buildingKind, nextLevel))
-            continue;
-        if (room.bedLevel < requiredBedLevelForBuilding(buildingKind, nextLevel))
-            continue;
-
-        const int goldCost = buildingGoldCost(buildingKind, nextLevel);
-        const int powerCost = buildingPowerCost(buildingKind, nextLevel);
-        if (room.gold < goldCost || room.power < powerCost)
-            continue;
-
-        room.gold -= goldCost;
-        room.power -= powerCost;
-        cell.buildingKind = buildingKind;
-        cell.level = nextLevel;
-        return true;
-    }
-
-    int bestSlotIndex = -1;
-    int bestLevel = std::numeric_limits<int>::max();
+    int bestEmptySlotIndex = -1;
+    int bestEmptyScore = std::numeric_limits<int>::min();
+    int bestUpgradeSlotIndex = -1;
+    int bestUpgradeScore = std::numeric_limits<int>::min();
+    int bestUpgradeLevel = std::numeric_limits<int>::max();
 
     for (int slotIndex = 0; slotIndex < buildSlots.size(); ++slotIndex) {
         const auto &slot = buildSlots.at(slotIndex);
         CellData &cell = m_cells[cellIndex(slot.first, slot.second)];
+        if (cell.buildingKind == BuildingKind::None) {
+            const int nextLevel = 1;
+            if (currentDoorLevel < requiredDoorLevelForBuilding(buildingKind, nextLevel))
+                continue;
+            if (room.bedLevel < requiredBedLevelForBuilding(buildingKind, nextLevel))
+                continue;
+
+            const int goldCost = buildingGoldCost(buildingKind, nextLevel);
+            const int powerCost = buildingPowerCost(buildingKind, nextLevel);
+            if (room.gold < goldCost || room.power < powerCost)
+                continue;
+
+            const int score = buildSlotScoreForRoom(roomIndex, slot.first, slot.second, buildingKind);
+            if (score > bestEmptyScore) {
+                bestEmptyScore = score;
+                bestEmptySlotIndex = slotIndex;
+            }
+            continue;
+        }
+
         if (cell.buildingKind != buildingKind)
             continue;
 
@@ -3364,14 +3719,27 @@ bool DormDefenseController::tryAiBuildOrUpgrade(int roomIndex, BuildingKind buil
         if (room.gold < goldCost || room.power < powerCost)
             continue;
 
-        if (cell.level < bestLevel) {
-            bestLevel = cell.level;
-            bestSlotIndex = slotIndex;
+        const int score = buildSlotScoreForRoom(roomIndex, slot.first, slot.second, buildingKind);
+        if (score > bestUpgradeScore || (score == bestUpgradeScore && cell.level < bestUpgradeLevel)) {
+            bestUpgradeScore = score;
+            bestUpgradeLevel = cell.level;
+            bestUpgradeSlotIndex = slotIndex;
         }
     }
 
-    if (bestSlotIndex >= 0) {
-        const auto &slot = buildSlots.at(bestSlotIndex);
+    if (bestEmptySlotIndex >= 0) {
+        const auto &slot = buildSlots.at(bestEmptySlotIndex);
+        CellData &cell = m_cells[cellIndex(slot.first, slot.second)];
+        const int nextLevel = 1;
+        room.gold -= buildingGoldCost(buildingKind, nextLevel);
+        room.power -= buildingPowerCost(buildingKind, nextLevel);
+        cell.buildingKind = buildingKind;
+        cell.level = nextLevel;
+        return true;
+    }
+
+    if (bestUpgradeSlotIndex >= 0) {
+        const auto &slot = buildSlots.at(bestUpgradeSlotIndex);
         CellData &cell = m_cells[cellIndex(slot.first, slot.second)];
         const int nextLevel = cell.level + 1;
         room.gold -= buildingGoldCost(buildingKind, nextLevel);
@@ -3566,9 +3934,9 @@ int DormDefenseController::buildingGoldCost(BuildingKind buildingKind, int nextL
 {
     switch (buildingKind) {
     case BuildingKind::Generator:
-        return doublingCost(200, nextLevel);
+        return doublingCost(90, nextLevel);
     case BuildingKind::Turret:
-        return doublingCost(8, nextLevel);
+        return doublingCost(20, nextLevel);
     case BuildingKind::None:
     default:
         return 0;
@@ -3581,7 +3949,7 @@ int DormDefenseController::buildingPowerCost(BuildingKind buildingKind, int next
     case BuildingKind::Generator:
         return 0;
     case BuildingKind::Turret:
-        return 1 << qMax(0, nextLevel - 1);
+        return qMax(2, 1 << qMax(1, nextLevel - 1));
     case BuildingKind::None:
     default:
         return 0;
@@ -3600,7 +3968,7 @@ int DormDefenseController::generatorPowerOutputForLevel(int level) const
 
 int DormDefenseController::turretDamageForLevel(int level) const
 {
-    static constexpr std::array<int, 6> table = {1, 1, 2, 2, 3, 4};
+    static constexpr std::array<int, 6> table = {1, 2, 3, 5, 7, 10};
     return tableValue(table, level);
 }
 
@@ -3708,9 +4076,11 @@ void DormDefenseController::configureRolesFromPlayers(const QVariantList &active
         const QVariantMap player = playerVariant.toMap();
         const int playerId = player.value(QStringLiteral("playerId")).toInt();
         const QString snapshotRoleName = player.value(QStringLiteral("dormDefenseRole")).toString();
-        const LocalRole role = snapshotRoleName.isEmpty()
-            ? previousRoles.value(playerId, LocalRole::Defender)
-            : localRoleFromName(snapshotRoleName);
+        const LocalRole role = (!m_roleSelectionRequired && previousRoles.contains(playerId))
+            ? previousRoles.value(playerId)
+            : (snapshotRoleName.isEmpty()
+                   ? previousRoles.value(playerId, LocalRole::Defender)
+                   : localRoleFromName(snapshotRoleName));
         m_networkRolesByPlayerId.insert(playerId, role);
         if (previousSelections.contains(playerId))
             m_pendingRoleSelections.insert(playerId, previousSelections.value(playerId));

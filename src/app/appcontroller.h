@@ -62,6 +62,9 @@ public:
     Q_INVOKABLE void startLocalGame(const QString &gameId);
     Q_INVOKABLE void startDormDefenseLocalGame();
     Q_INVOKABLE void startSoloSurvivorSession();
+    Q_INVOKABLE void openWork3Game();
+    Q_INVOKABLE void lockLandscapeOrientation();
+    Q_INVOKABLE void lockPortraitOrientation();
     Q_INVOKABLE void startRoomAsHost(const QString &gameId = QStringLiteral("gomoku"));
     Q_INVOKABLE void joinRoom(const QString &ip, int port, const QString &playerName,
                               const QString &gameId = QStringLiteral("gomoku"));
@@ -155,9 +158,9 @@ private:
     int m_networkPlayerId = 0;
     int m_activeGuestPlayerId = -1;
     QString m_nickname;
-    quint16 m_defaultPort = 44567;
+    quint16 m_defaultPort = LanBoard::DefaultLanPort;
     QString m_recentJoinIp;
-    quint16 m_recentJoinPort = 44567;
+    quint16 m_recentJoinPort = LanBoard::DefaultLanPort;
     QString m_onlineServerName = QStringLiteral("ECS \u6f14\u793a\u670d\u52a1\u5668");
     QString m_onlineServerHost = QStringLiteral("47.105.54.227");
     quint16 m_onlineServerPort = 44567;

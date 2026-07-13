@@ -172,7 +172,7 @@ private:
     int healPlayer(PlayerState &player, int amount);
     void refreshDerivedStats();
     void refreshFrameCache();
-    void syncHudState();
+    void syncHudState(bool allowPreserveRemoteInteractionUi = true);
     void syncInteractionState();
     void refreshLevelUpChoiceCache();
     void refreshChestRewardCache();
@@ -258,7 +258,7 @@ private:
     int nearestLivingPlayerIndex(const QVector2D &position) const;
     QList<int> livingPlayerIndices() const;
     void syncPlayerMaxHp();
-    void emitNetworkSyncIfNeeded(bool force = false);
+    void emitNetworkSyncIfNeeded(bool force = false, int elapsedMs = TickIntervalMs);
     RenderSnapshot buildNetworkRenderSnapshot(int playerId) const;
     QVariantList exportDamageNumberVariantList() const;
     void adoptRemoteSnapshot(const QVector<PlayerState> &players,
@@ -268,6 +268,7 @@ private:
 
     static constexpr int TickIntervalMs = 16;
     static constexpr qreal NetworkCullRadius = 3.4;
+    static constexpr qreal NetworkPickupCullRadius = 4.8;
 
     QTimer m_tickTimer;
     QElapsedTimer m_frameTimer;
@@ -316,5 +317,5 @@ private:
     static constexpr int NetworkSnapshotIntervalMs = 33;
     static constexpr int NetworkHudSnapshotIntervalMs = 180;
     static constexpr int NetworkInterpolationMinMs = 16;
-    static constexpr int NetworkInterpolationMaxMs = 48;
+    static constexpr int NetworkInterpolationMaxMs = 50;
 };

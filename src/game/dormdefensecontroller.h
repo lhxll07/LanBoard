@@ -23,6 +23,7 @@ class DormDefenseController : public GameControllerBase
     Q_PROPERTY(int doorMaxHp READ doorMaxHp NOTIFY boardChanged)
     Q_PROPERTY(int wave READ wave NOTIFY statusChanged)
     Q_PROPERTY(int timeRemaining READ timeRemaining NOTIFY statusChanged)
+    Q_PROPERTY(int nightRemaining READ nightRemaining NOTIFY statusChanged)
     Q_PROPERTY(int ghostHp READ ghostHp NOTIFY statusChanged)
     Q_PROPERTY(int ghostMaxHp READ ghostMaxHp NOTIFY statusChanged)
     Q_PROPERTY(int ghostLevel READ ghostLevel NOTIFY statusChanged)
@@ -95,6 +96,7 @@ public:
     int doorMaxHp() const;
     int wave() const { return m_wave; }
     int timeRemaining() const { return m_timeRemaining; }
+    int nightRemaining() const;
     int ghostHp() const { return m_ghostHp; }
     int ghostMaxHp() const { return m_ghostMaxHp; }
     int ghostLevel() const { return m_ghostLevel; }
@@ -168,10 +170,11 @@ private:
     static constexpr int ColumnCount = 32;
     static constexpr int InitialDoorHp = 16;
     static constexpr int InitialTimeRemaining = 30;
-    static constexpr int DoorHitsPerGhostLevel = 8;
+    static constexpr int NightDurationTicks = 180;
+    static constexpr int DoorHitsPerGhostLevel = 14;
     static constexpr int GhostRecoveryDelayTicks = 5;
-    static constexpr int GhostRecoveryMinHpPerTick = 6;
-    static constexpr int GhostRetreatSafetyBuffer = 2;
+    static constexpr int GhostRecoveryMinHpPerTick = 10;
+    static constexpr int GhostRetreatSafetyBuffer = 12;
     static constexpr int RoleSelectionDuration = 10;
     static constexpr int CombatTickMs = 250;
     static constexpr int TurretAttackIntervalMs = 1000;
@@ -206,6 +209,7 @@ private:
     void onTick();
     void onCombatTick();
     void scheduleGhostRespawn();
+    bool handleGhostHpDepleted();
     bool processAiRooms();
     void chooseRandomTargetRoom(bool preferDifferentRoom);
     void startGhostRetreat();
@@ -227,6 +231,9 @@ private:
     void assignMissingDefenderRooms();
     void prunePlayerRoomAssignments();
     bool shouldGhostRetreat() const;
+    int roomDefenseScoreForGhost(int roomIndex) const;
+    int roomEconomyScore(int roomIndex) const;
+    int roomTargetScoreForGhost(int roomIndex) const;
     void setTurretVolley(const QVariantList &volley, int totalDamage);
     int cellIndex(int row, int column) const;
     bool isBuildableCell(int row, int column) const;
@@ -259,6 +266,11 @@ private:
     bool tryAiUpgradeDoor(int roomIndex);
     bool tryAiUpgradeBed(int roomIndex);
     bool tryAiBuildOrUpgrade(int roomIndex, BuildingKind buildingKind);
+    bool tryAiEmergencyDefense(int roomIndex, bool underDirectAttack);
+    bool tryAiEarlyEconomy(int roomIndex);
+    bool tryAiBalancedGrowth(int roomIndex);
+    bool tryAiLateDefense(int roomIndex);
+    int buildSlotScoreForRoom(int roomIndex, int row, int column, BuildingKind buildingKind) const;
     int roomGeneratorCount(int roomIndex) const;
     int roomTurretCount(int roomIndex) const;
     int roomGeneratorGoldOutput(int roomIndex) const;

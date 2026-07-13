@@ -5,6 +5,10 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 
+#if defined(Q_OS_ANDROID)
+#include <QtCore/qcoreapplication_platform.h>
+#endif
+
 #include "src/common/roomtypes.h"
 #include <QSettings>
 #include <QTimer>
@@ -16,6 +20,32 @@
 #include "src/game/survivorcontroller.h"
 #include "src/lobby/roommanager.h"
 #include "src/network/networkmanager.h"
+
+namespace {
+
+#if defined(Q_OS_ANDROID)
+constexpr int AndroidScreenOrientationSensorLandscape = 6;
+constexpr int AndroidScreenOrientationPortrait = 1;
+
+void setAndroidRequestedOrientation(int orientation)
+{
+    const auto requestOrientation = [orientation]() {
+        auto activity = QNativeInterface::QAndroidApplication::context();
+        if (!activity.isValid())
+            return;
+
+        activity.callMethod<void>("setRequestedOrientation", jint(orientation));
+    };
+
+#if QT_CONFIG(future)
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread(requestOrientation);
+#else
+    requestOrientation();
+#endif
+}
+#endif
+
+} // namespace
 
 AppController::AppController(QObject *parent)
     : QObject(parent)
@@ -358,6 +388,31 @@ void AppController::startSoloSurvivorSession()
     navigateToCurrentGame();
 }
 
+void AppController::openWork3Game()
+{
+    disconnectNetworkForTransition();
+    m_isDedicatedServerRoom = false;
+    setModeState(false, false, 0);
+    m_activeGuestPlayerId = -1;
+    resetGameControllers();
+    m_networkManager->setDiscoveryGameInProgress(false);
+    emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Work3));
+}
+
+void AppController::lockLandscapeOrientation()
+{
+#if defined(Q_OS_ANDROID)
+    setAndroidRequestedOrientation(AndroidScreenOrientationSensorLandscape);
+#endif
+}
+
+void AppController::lockPortraitOrientation()
+{
+#if defined(Q_OS_ANDROID)
+    setAndroidRequestedOrientation(AndroidScreenOrientationPortrait);
+#endif
+}
+
 void AppController::startRoomAsHost(const QString &gameId)
 {
     disconnectNetworkForTransition();
@@ -370,6 +425,12 @@ void AppController::startRoomAsHost(const QString &gameId)
         setModeState(false, false, 0);
         m_activeGuestPlayerId = -1;
         return;
+    }
+
+    if (m_defaultPort != m_networkManager->serverPort()) {
+        m_defaultPort = m_networkManager->serverPort();
+        saveSettings();
+        emit settingsChanged();
     }
 
     setModeState(true, false, 0);
@@ -1174,17 +1235,23 @@ void AppController::loadSettings()
     if (m_nickname.isEmpty())
         m_nickname = QStringLiteral("lhx");
 
-    const int port = settings.value(QStringLiteral("network/defaultPort"), 44567).toInt();
-    if (port >= 1 && port <= 65535)
-        m_defaultPort = static_cast<quint16>(port);
-    else
-        m_defaultPort = 44567;
+    const int port = settings.value(QStringLiteral("network/defaultPort"),
+                                    LanBoard::DefaultLanPort).toInt();
+    if (port >= 1 && port <= 65535) {
+        m_defaultPort = port == LanBoard::LegacyLanPort
+            ? LanBoard::DefaultLanPort
+            : static_cast<quint16>(port);
+    } else {
+        m_defaultPort = LanBoard::DefaultLanPort;
+    }
 
     m_recentJoinIp = settings.value(QStringLiteral("network/recentJoinIp")).toString().trimmed();
 
     const int recentPort = settings.value(QStringLiteral("network/recentJoinPort"), m_defaultPort).toInt();
     if (recentPort >= 1 && recentPort <= 65535)
-        m_recentJoinPort = static_cast<quint16>(recentPort);
+        m_recentJoinPort = recentPort == LanBoard::LegacyLanPort
+            ? m_defaultPort
+            : static_cast<quint16>(recentPort);
     else
         m_recentJoinPort = m_defaultPort;
 

@@ -32,8 +32,8 @@ public:
     explicit NetworkManager(QObject *parent = nullptr);
     ~NetworkManager() override;
 
-    void startServer(quint16 port = 44567);
-    void connectToServer(const QString &ip, quint16 port = 44567,
+    void startServer(quint16 port = LanBoard::DefaultLanPort);
+    void connectToServer(const QString &ip, quint16 port = LanBoard::DefaultLanPort,
                          const QString &playerName = QString(),
                          const QString &gameId = QStringLiteral("gomoku"));
     void disconnectAll();

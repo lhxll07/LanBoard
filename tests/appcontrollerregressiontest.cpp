@@ -39,6 +39,8 @@ private slots:
     void requestedSeatChangeKeepsRequestedPlayerActive();
     void pendingConnectionIsNotHandledAsDisconnect();
     void intentionalTransitionDoesNotNavigateThroughRoom();
+    void defaultLanRoomStartsOnConfiguredPort();
+    void occupiedConfiguredLanPortFallsBackToDefault();
     void hostedGameStartsLocally();
     void discoversHostedRoomAndExchangesMessage();
     void surrenderIsNotLimitedToCurrentTurn();
@@ -143,6 +145,51 @@ void AppControllerRegressionTest::intentionalTransitionDoesNotNavigateThroughRoo
     QCOMPARE(navigationSpy.count(), 1);
     QCOMPARE(navigationSpy.constFirst().at(0).toInt(),
              static_cast<int>(LanBoard::NavigationPage::Gomoku));
+}
+
+void AppControllerRegressionTest::defaultLanRoomStartsOnConfiguredPort()
+{
+    QTemporaryDir localSettingsDirectory;
+    QVERIFY(localSettingsDirectory.isValid());
+    QSettings::setPath(QSettings::IniFormat,
+                       QSettings::UserScope,
+                       localSettingsDirectory.path());
+
+    AppController controller;
+    QCOMPARE(controller.defaultPort(), LanBoard::DefaultLanPort);
+
+    controller.startRoomAsHost(QStringLiteral("gomoku"));
+
+    QVERIFY(controller.networkManager()->isHost());
+    QVERIFY(controller.networkManager()->serverPort() >= LanBoard::DefaultLanPort);
+    QVERIFY(controller.networkManager()->serverPort() < LanBoard::DefaultLanPort + 8);
+    controller.networkManager()->disconnectAll();
+}
+
+void AppControllerRegressionTest::occupiedConfiguredLanPortFallsBackToDefault()
+{
+    QTemporaryDir localSettingsDirectory;
+    QVERIFY(localSettingsDirectory.isValid());
+    QSettings::setPath(QSettings::IniFormat,
+                       QSettings::UserScope,
+                       localSettingsDirectory.path());
+
+    QUdpSocket blocker;
+    QVERIFY(blocker.bind(QHostAddress::AnyIPv4, 0));
+    QVERIFY(blocker.localPort() != LanBoard::DefaultLanPort);
+
+    QSettings settings;
+    settings.setValue(QStringLiteral("network/defaultPort"), blocker.localPort());
+
+    AppController controller;
+    QCOMPARE(controller.defaultPort(), blocker.localPort());
+
+    controller.startRoomAsHost(QStringLiteral("gomoku"));
+
+    QVERIFY(controller.networkManager()->isHost());
+    QCOMPARE(controller.defaultPort(), controller.networkManager()->serverPort());
+    QVERIFY(controller.defaultPort() >= LanBoard::DefaultLanPort);
+    controller.networkManager()->disconnectAll();
 }
 
 void AppControllerRegressionTest::hostedGameStartsLocally()
