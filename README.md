@@ -326,7 +326,22 @@ build-qt-ascii/lanboardServer.exe
 ctest --preset qt-mingw-desktop
 ```
 
-当前注册两套回归测试。
+当前注册三套回归测试。
+
+其中 `app-controller-regressions` 会实际启动 UDP 房间发现，并通过 ENet
+建立本机 Host/Client 会话。运行完整测试集的终端或 CI 环境必须允许 UDP
+广播、本机回环通信和动态端口绑定；受限沙箱可能在没有 Qt Test 断言输出的
+情况下超时或返回失败。遇到这种现象时，应先在允许本机网络访问的普通终端
+中复测，再判断是否存在代码回归。详细环境要求和对照结果见
+[测试验证报告.md](测试验证报告.md)。
+
+`room-manager-regressions` 覆盖：
+
+- 玩家 ID、房间容量和重复加入校验。
+- 四种游戏的开局人数、准备状态与房主权限。
+- 游戏位、旁观位、棋子编号和座位容量规则。
+- 切换游戏、玩家离开、对局结束后的状态整理。
+- 房间快照和服务端房间消息字段一致性。
 
 `app-controller-regressions` 覆盖：
 
@@ -390,6 +405,7 @@ cmake --build build-server --parallel 8
 
 - [ECS部署流程.md](ECS部署流程.md)
 - [技术开发日志.md](技术开发日志.md)
+- [测试验证报告.md](测试验证报告.md)
 - [Qt安装流程.md](Qt安装流程.md)
 - [Git协作流程.md](Git协作流程.md)
 
