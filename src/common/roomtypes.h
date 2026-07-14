@@ -217,6 +217,9 @@ struct RoomSnapshot {
             return false;
         }
 
+        if (!dormDefenseStartRequirementMet())
+            return false;
+
         return !requiresReadyForStartForGame(gameId) || allActivePlayersReady();
     }
 

@@ -196,6 +196,8 @@ RoomManager::ActionError RoomManager::tryStartGame(int playerId)
         return ActionError::GameInProgress;
     if (!LanBoard::hasEnoughActivePlayersToStart(m_gameId, activePlayerCount()))
         return ActionError::MissingPlayers;
+    if (!snapshot().dormDefenseStartRequirementMet())
+        return ActionError::DormDefenseGhostRequired;
     if (LanBoard::requiresReadyForStartForGame(m_gameId) && !snapshot().allActivePlayersReady())
         return ActionError::PlayersNotReady;
 

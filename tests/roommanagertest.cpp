@@ -42,10 +42,14 @@ private slots:
     void enforcesStartPermissionsAndReadiness();
     void appliesGameSpecificStartRules_data();
     void appliesGameSpecificStartRules();
+    void validatesDormDefenseCapacityAndRoles();
+    void enforcesDormDefenseStartRequirements();
+    void resetsDormDefenseRoles();
     void normalizesSeatsWhenSwitchingGames();
     void promotesSpectatorWhenActiveGuestLeaves();
     void concludesGameAndClearsReadyStates();
     void preservesSnapshotAndRoomMessageFields();
+    void preservesDormDefenseRoleInRoomMessages();
 };
 
 void RoomManagerTest::validatesPlayerAdmission()
@@ -193,6 +197,100 @@ void RoomManagerTest::appliesGameSpecificStartRules()
     QCOMPARE(room.tryStartGame(0), expectedError);
 }
 
+void RoomManagerTest::validatesDormDefenseCapacityAndRoles()
+{
+    RoomManager room;
+    addHost(room, QStringLiteral("dormdefense"));
+
+    QCOMPARE(room.maxPlayers(), 7);
+    QCOMPARE(room.roomCapacity(), 7);
+    for (int playerId = 1; playerId < room.roomCapacity(); ++playerId) {
+        QCOMPARE(room.tryAddRoomPlayer(QStringLiteral("Guest %1").arg(playerId),
+                                       false,
+                                       playerId),
+                 RoomManager::ActionError::None);
+    }
+    QCOMPARE(room.allocatePlayerId(), -1);
+    QCOMPARE(room.tryAddRoomPlayer(QStringLiteral("Out of range"), false, 7),
+             RoomManager::ActionError::InvalidPlayerId);
+
+    QCOMPARE(room.tryChangeDormDefenseRole(99, QStringLiteral("ghost")),
+             RoomManager::ActionError::PlayerNotFound);
+    QCOMPARE(room.tryChangeDormDefenseRole(0, QStringLiteral("invalid")),
+             RoomManager::ActionError::InvalidDormDefenseRole);
+
+    QCOMPARE(room.tryChangeSeat(6, QStringLiteral("spectator")),
+             RoomManager::ActionError::None);
+    QCOMPARE(room.tryChangeDormDefenseRole(6, QStringLiteral("ghost")),
+             RoomManager::ActionError::DormDefenseGhostRequiresActiveSeat);
+
+    QCOMPARE(room.tryChangeDormDefenseRole(0, QStringLiteral(" GHOST ")),
+             RoomManager::ActionError::None);
+    QCOMPARE(room.snapshot().dormDefenseGhostCount(), 1);
+    QCOMPARE(room.snapshot().dormDefenseRoleForPlayer(0), QStringLiteral("ghost"));
+    QCOMPARE(room.tryChangeDormDefenseRole(1, QStringLiteral("ghost")),
+             RoomManager::ActionError::DormDefenseGhostAlreadyTaken);
+}
+
+void RoomManagerTest::enforcesDormDefenseStartRequirements()
+{
+    RoomManager soloRoom;
+    addHost(soloRoom, QStringLiteral("dormdefense"));
+    QVERIFY(soloRoom.setPlayerReadyById(0, true));
+    QVERIFY(soloRoom.canStart());
+    QCOMPARE(soloRoom.tryStartGame(0), RoomManager::ActionError::None);
+
+    RoomManager fullRoom;
+    addHost(fullRoom, QStringLiteral("dormdefense"));
+    for (int playerId = 1; playerId < fullRoom.maxPlayers(); ++playerId) {
+        QCOMPARE(fullRoom.tryAddRoomPlayer(QStringLiteral("Guest %1").arg(playerId),
+                                           false,
+                                           playerId),
+                 RoomManager::ActionError::None);
+    }
+    setAllActivePlayersReady(fullRoom);
+
+    QVERIFY(!fullRoom.canStart());
+    QCOMPARE(fullRoom.tryStartGame(0),
+             RoomManager::ActionError::DormDefenseGhostRequired);
+    QCOMPARE(fullRoom.tryChangeDormDefenseRole(1, QStringLiteral("ghost")),
+             RoomManager::ActionError::None);
+    QVERIFY(fullRoom.canStart());
+    QCOMPARE(fullRoom.tryStartGame(0), RoomManager::ActionError::None);
+    QCOMPARE(fullRoom.tryChangeDormDefenseRole(1, QStringLiteral("defender")),
+             RoomManager::ActionError::GameInProgress);
+}
+
+void RoomManagerTest::resetsDormDefenseRoles()
+{
+    RoomManager room;
+    addHost(room, QStringLiteral("dormdefense"));
+    QCOMPARE(room.tryAddRoomPlayer(QStringLiteral("Guest"), false, 1),
+             RoomManager::ActionError::None);
+
+    QCOMPARE(room.tryChangeDormDefenseRole(1, QStringLiteral("ghost")),
+             RoomManager::ActionError::None);
+    QCOMPARE(room.tryChangeSeat(1, QStringLiteral("spectator")),
+             RoomManager::ActionError::None);
+    QCOMPARE(room.snapshot().dormDefenseRoleForPlayer(1), QStringLiteral("spectator"));
+    QCOMPARE(playerById(room.snapshot(), 1)->dormDefenseRole, QStringLiteral("defender"));
+
+    QCOMPARE(room.tryChangeSeat(1, QStringLiteral("active")),
+             RoomManager::ActionError::None);
+    QCOMPARE(room.tryChangeDormDefenseRole(1, QStringLiteral("ghost")),
+             RoomManager::ActionError::None);
+    QCOMPARE(room.trySwitchGame(0, QStringLiteral("gomoku")),
+             RoomManager::ActionError::None);
+    QCOMPARE(playerById(room.snapshot(), 1)->dormDefenseRole, QStringLiteral("defender"));
+
+    QCOMPARE(room.trySwitchGame(0, QStringLiteral("dormdefense")),
+             RoomManager::ActionError::None);
+    QCOMPARE(room.tryChangeDormDefenseRole(1, QStringLiteral("ghost")),
+             RoomManager::ActionError::None);
+    room.concludeGame();
+    QCOMPARE(playerById(room.snapshot(), 1)->dormDefenseRole, QStringLiteral("defender"));
+}
+
 void RoomManagerTest::normalizesSeatsWhenSwitchingGames()
 {
     RoomManager room;
@@ -293,6 +391,29 @@ void RoomManagerTest::preservesSnapshotAndRoomMessageFields()
     QCOMPARE(message.value(QStringLiteral("mode")).toString(),
              QStringLiteral("dedicated_server"));
     QCOMPARE(message.value(QStringLiteral("players")).toArray().size(), source.players.size());
+}
+
+void RoomManagerTest::preservesDormDefenseRoleInRoomMessages()
+{
+    RoomManager room;
+    addHost(room, QStringLiteral("dormdefense"));
+    QCOMPARE(room.tryAddRoomPlayer(QStringLiteral("Ghost"), false, 1),
+             RoomManager::ActionError::None);
+    QCOMPARE(room.tryChangeDormDefenseRole(1, QStringLiteral("ghost")),
+             RoomManager::ActionError::None);
+
+    const LanBoard::RoomSnapshot snapshot = room.snapshot();
+    QCOMPARE(snapshot.maxPlayers, 7);
+    QCOMPARE(snapshot.roomCapacity, 7);
+    QCOMPARE(snapshot.dormDefenseRoleForPlayer(1), QStringLiteral("ghost"));
+
+    const QJsonObject message = room.roomStateMessageForPlayer(1);
+    QCOMPARE(message.value(QStringLiteral("maxPlayers")).toInt(), 7);
+    QCOMPARE(message.value(QStringLiteral("roomCapacity")).toInt(), 7);
+    const QJsonArray players = message.value(QStringLiteral("players")).toArray();
+    QCOMPARE(players.size(), 2);
+    QCOMPARE(players.at(1).toObject().value(QStringLiteral("dormDefenseRole")).toString(),
+             QStringLiteral("ghost"));
 }
 
 QTEST_GUILESS_MAIN(RoomManagerTest)
