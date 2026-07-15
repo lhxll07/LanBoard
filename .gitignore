@@ -53,10 +53,15 @@ local.properties
 # Logs
 *.log
 
-# Local report drafts and generated presentation workspaces
+# Local reports, generated design assets, and presentation workspaces
+*.doc
+*.docx
+~$*
 LanBoard_Report_*.docx
 temp_*.docx
 temp_*.doc
+design/
+icon.png
 __pycache__/
 *.pyc
 *.zip

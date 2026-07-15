@@ -12,12 +12,14 @@
 
 ## 游戏与模式
 
-当前仓库包含 4 个游戏入口：
+当前仓库包含 6 个入口：
 
 - `五子棋`：双人回合制棋盘对弈
 - `斗地主`：三人联机纸牌
 - `飞行棋`：双人回合制桌游
 - `Survivor MVP`：自动攻击生存原型，已接入本地战斗、房间流转和在线联机战斗
+- `猛鬼宿舍原型`：房间制对抗原型，已接入房间流转、角色选择和联机同步
+- `弹幕射击原型`：独立小游戏原型页，用于继续扩展新的动作玩法方向
 
 当前支持的运行模式：
 
@@ -51,6 +53,7 @@
 - `五子棋`：本地、局域网、在线房间、大厅服务端
 - `斗地主`：本地、局域网、在线房间、大厅服务端
 - `飞行棋`：本地、局域网、在线房间、大厅服务端
+- `猛鬼宿舍原型`：本地、局域网、在线房间、大厅服务端
 - `Survivor MVP`：本地可玩，在线联机战斗已打通，仍在持续调优同步、节奏与性能
 
 ## 架构总览
@@ -92,6 +95,7 @@
    - `src/game/DouDiZhuController`
    - `src/game/FlightChessController`
    - `src/game/SurvivorController`
+   - `src/game/DormDefenseController`
    - 其中 `Survivor` 还拆成：
      - `survivorworld.h`：核心数据结构
      - `survivorruntime.*`：通用运行时计算与渲染快照导出
@@ -111,6 +115,7 @@
 - `DouDiZhuController`
 - `FlightChessController`
 - `SurvivorController`
+- `DormDefenseController`
 
 它负责做三类事情：
 
@@ -166,6 +171,7 @@
   - `DouDiZhuController`
   - `FlightChessController`
   - `SurvivorController`
+  - `DormDefenseController`
 
 也就是说，在线模式下每个房间在服务端都有一套独立的房间状态与游戏控制器实例。
 
@@ -276,7 +282,7 @@ LanBoard/
 │   ├── common/            公共类型、房间快照、控制器基类
 │   ├── lobby/             RoomManager 与房间规则
 │   ├── network/           UDP 发现、地址选择、ENet、协议与在线大厅
-│   ├── game/              四个游戏控制器与 Survivor 子系统
+│   ├── game/              多个游戏控制器与 Survivor / DormDefense 子系统
 │   └── server/            独立服务端入口 ServerApp
 ├── tests/                 可由 CTest 重复运行的回归测试
 ├── design/                设计稿、架构图等静态资源
@@ -290,19 +296,20 @@ LanBoard/
 
 ### 桌面端
 
-桌面构建统一使用 `qt-mingw-desktop` 预设，输出目录为 `build-qt-ascii`。
-该预设使用 Qt `6.10.3`、MinGW `13.1.0`、Ninja，并显式启用 CTest。
-
-配置：
+桌面构建当前直接使用 `build-qt-ascii` 目录，不再依赖 `CMakePresets.json`。
+常用配置方式：
 
 ```powershell
-cmake --preset qt-mingw-desktop
+cmake -S . -B build-qt-ascii -G Ninja `
+  -DCMAKE_PREFIX_PATH="C:\Qt\6.10.3\mingw_64" `
+  -DBUILD_TESTING=ON `
+  -DCMAKE_BUILD_TYPE=Release
 ```
 
 编译：
 
 ```powershell
-cmake --build --preset qt-mingw-desktop
+cmake --build build-qt-ascii --config Release --parallel
 ```
 
 补齐桌面运行时：
@@ -323,7 +330,7 @@ build-qt-ascii/lanboardServer.exe
 桌面配置默认启用 CTest。构建完成后运行：
 
 ```powershell
-ctest --preset qt-mingw-desktop
+ctest --test-dir build-qt-ascii --output-on-failure
 ```
 
 当前注册两套回归测试。

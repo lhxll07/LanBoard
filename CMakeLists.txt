@@ -126,6 +126,12 @@ if (LANBOARD_BUILD_APP)
     target_include_directories(appLanBoard PRIVATE ${enet_SOURCE_DIR}/include)
 
     if (ANDROID)
+        set_target_properties(appLanBoard PROPERTIES
+            QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android"
+            QT_ANDROID_APP_NAME "LanBoard"
+            QT_ANDROID_APP_ICON "@mipmap/ic_launcher"
+        )
+
         foreach(permission_name IN ITEMS
             android.permission.ACCESS_WIFI_STATE
             android.permission.CHANGE_WIFI_STATE
