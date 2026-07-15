@@ -43,7 +43,7 @@ private slots:
     void appliesGameSpecificStartRules_data();
     void appliesGameSpecificStartRules();
     void validatesDormDefenseCapacityAndRoles();
-    void enforcesDormDefenseStartRequirements();
+    void allowsDormDefenseRoleSelectionAfterStart();
     void resetsDormDefenseRoles();
     void normalizesSeatsWhenSwitchingGames();
     void promotesSpectatorWhenActiveGuestLeaves();
@@ -232,7 +232,7 @@ void RoomManagerTest::validatesDormDefenseCapacityAndRoles()
              RoomManager::ActionError::DormDefenseGhostAlreadyTaken);
 }
 
-void RoomManagerTest::enforcesDormDefenseStartRequirements()
+void RoomManagerTest::allowsDormDefenseRoleSelectionAfterStart()
 {
     RoomManager soloRoom;
     addHost(soloRoom, QStringLiteral("dormdefense"));
@@ -250,15 +250,8 @@ void RoomManagerTest::enforcesDormDefenseStartRequirements()
     }
     setAllActivePlayersReady(fullRoom);
 
-    QVERIFY(!fullRoom.canStart());
-    QCOMPARE(fullRoom.tryStartGame(0),
-             RoomManager::ActionError::DormDefenseGhostRequired);
-    QCOMPARE(fullRoom.tryChangeDormDefenseRole(1, QStringLiteral("ghost")),
-             RoomManager::ActionError::None);
     QVERIFY(fullRoom.canStart());
     QCOMPARE(fullRoom.tryStartGame(0), RoomManager::ActionError::None);
-    QCOMPARE(fullRoom.tryChangeDormDefenseRole(1, QStringLiteral("defender")),
-             RoomManager::ActionError::GameInProgress);
 }
 
 void RoomManagerTest::resetsDormDefenseRoles()

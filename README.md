@@ -293,7 +293,14 @@ LanBoard/
 ### 桌面端
 
 桌面构建统一使用 `qt-mingw-desktop` 预设，输出目录为 `build-qt-ascii`。
-该预设使用 Qt `6.10.3`、MinGW `13.1.0`、Ninja，并显式启用 CTest。
+该预设显式启用 CTest，但不写死本机工具链路径。首次配置前设置 Qt、MinGW
+和 Ninja 所在目录；以下是默认 Qt 安装布局的示例：
+
+```powershell
+$env:LANBOARD_QT_ROOT = "C:\Qt\6.10.3\mingw_64"
+$env:LANBOARD_MINGW_BIN = "C:\Qt\Tools\mingw1310_64\bin"
+$env:LANBOARD_NINJA_BIN = "C:\Qt\Tools\Ninja"
+```
 
 配置：
 
@@ -310,7 +317,7 @@ cmake --build --preset qt-mingw-desktop
 补齐桌面运行时：
 
 ```powershell
-C:\Qt\6.10.3\mingw_64\bin\windeployqt.exe --release --qmldir qml build-qt-ascii\appLanBoard.exe
+& "$env:LANBOARD_QT_ROOT\bin\windeployqt.exe" --release --qmldir qml build-qt-ascii\appLanBoard.exe
 ```
 
 产物：
@@ -335,7 +342,7 @@ ctest --preset qt-mingw-desktop
 - 玩家 ID、房间容量和重复加入校验。
 - 五种房间游戏的开局人数、准备状态与房主权限。
 - 游戏位、旁观位、棋子编号和座位容量规则。
-- 宿舍塔防的 7 人容量、鬼角色互斥和满房开局条件。
+- 宿舍塔防的 7 人容量、房间角色状态、角色重置和满房可开局条件。
 - 切换游戏、玩家离开、对局结束后的状态整理。
 - 房间快照和服务端房间消息字段一致性。
 
@@ -345,6 +352,7 @@ ctest --preset qt-mingw-desktop
 - 连接进行中不会被误判为断开。
 - 主动切换游戏或网络模式时不会产生中间房间导航。
 - 房主点击开始后会在本机启动游戏并进入对应页面。
+- 宿舍塔防满房可正常开局，并在选角结束时保证恰好 1 个鬼。
 - 五子棋双方都可以在任意回合认输并正确结算胜者。
 - 客户端断开后清理斗地主和房间状态。
 - 五子棋最后一步先于 `game_over` 到达对端。

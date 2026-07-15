@@ -42,6 +42,7 @@ private slots:
     void defaultLanRoomStartsOnConfiguredPort();
     void occupiedConfiguredLanPortFallsBackToDefault();
     void hostedGameStartsLocally();
+    void fullDormDefenseRoomSelectsRolesAfterStart();
     void discoversHostedRoomAndExchangesMessage();
     void surrenderIsNotLimitedToCurrentTurn();
     void remoteGuestCanSurrenderOnHostTurn();
@@ -216,6 +217,54 @@ void AppControllerRegressionTest::hostedGameStartsLocally()
     QCOMPARE(navigationSpy.constFirst().at(0).toInt(),
              static_cast<int>(LanBoard::NavigationPage::Gomoku));
     QVERIFY(room->gameInProgress());
+
+    controller.networkManager()->disconnectAll();
+}
+
+void AppControllerRegressionTest::fullDormDefenseRoomSelectsRolesAfterStart()
+{
+    AppController controller;
+    const quint16 port = availableUdpPort();
+    QVERIFY(port != 0);
+    QVERIFY(controller.updateDefaultPort(port));
+    controller.startRoomAsHost(QStringLiteral("dormdefense"));
+    QVERIFY(controller.networkManager()->isHost());
+
+    RoomManager *room = controller.roomManager();
+    for (int playerId = 1; playerId < room->maxPlayers(); ++playerId) {
+        QCOMPARE(room->tryAddRoomPlayer(QStringLiteral("Guest %1").arg(playerId),
+                                        false,
+                                        playerId),
+                 RoomManager::ActionError::None);
+    }
+    for (const LanBoard::RoomPlayerState &player : room->snapshot().activePlayers())
+        QVERIFY(room->setPlayerReadyById(player.playerId, true));
+
+    QVERIFY(room->canStart());
+    QSignalSpy navigationSpy(&controller, &AppController::navigationRequested);
+    room->startGame();
+
+    QCOMPARE(navigationSpy.count(), 1);
+    QCOMPARE(navigationSpy.constFirst().at(0).toInt(),
+             static_cast<int>(LanBoard::NavigationPage::DormDefense));
+    QVERIFY(room->gameInProgress());
+
+    DormDefenseController *dormDefense = controller.dormDefenseController();
+    QVERIFY(dormDefense->roleSelectionRequired());
+    const QJsonObject chooseDefender {
+        {QStringLiteral("action"), QStringLiteral("choose_role")},
+        {QStringLiteral("role"), QStringLiteral("defender")}
+    };
+    for (int playerId = 0; playerId < room->maxPlayers(); ++playerId)
+        QVERIFY(dormDefense->applyNetworkAction(playerId, chooseDefender));
+
+    QVERIFY(!dormDefense->roleSelectionRequired());
+    int ghostCount = 0;
+    for (int playerId = 0; playerId < room->maxPlayers(); ++playerId) {
+        if (dormDefense->networkRoleNameForPlayer(playerId) == QStringLiteral("ghost"))
+            ++ghostCount;
+    }
+    QCOMPARE(ghostCount, 1);
 
     controller.networkManager()->disconnectAll();
 }
