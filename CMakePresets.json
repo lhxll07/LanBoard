@@ -1,0 +1,43 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "qt-mingw-desktop",
+      "displayName": "Qt MinGW Desktop",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-qt-ascii",
+      "environment": {
+        "CMAKE_PREFIX_PATH": "$penv{LANBOARD_QT_ROOT};$penv{CMAKE_PREFIX_PATH}",
+        "PATH": "$penv{LANBOARD_MINGW_BIN};$penv{LANBOARD_NINJA_BIN};$penv{PATH}"
+      },
+      "cacheVariables": {
+        "BUILD_TESTING": "ON",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "qt-mingw-desktop",
+      "displayName": "Build Qt MinGW Desktop",
+      "configurePreset": "qt-mingw-desktop",
+      "jobs": 4
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "qt-mingw-desktop",
+      "displayName": "Test Qt MinGW Desktop",
+      "configurePreset": "qt-mingw-desktop",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
