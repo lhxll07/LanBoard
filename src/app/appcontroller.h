@@ -76,6 +76,8 @@ public:
     Q_INVOKABLE bool playDouDiZhuCards(const QVariantList &cardIds);
     Q_INVOKABLE bool passDouDiZhuTurn();
     Q_INVOKABLE void restartDouDiZhuGame();
+    Q_INVOKABLE void restartFlightChessGame();
+    Q_INVOKABLE void returnFromFlightChessGame();
     Q_INVOKABLE void refreshOnlineRooms();
     Q_INVOKABLE void createOnlineRoom(const QString &gameId,
                                       const QString &roomName = QString());

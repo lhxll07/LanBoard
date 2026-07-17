@@ -62,30 +62,7 @@ Page {
     }
 
     function leaveCurrentGame() {
-        if (!networkRoom) {
-            AppCtrl.flightChessController.reset()
-            if (root.StackView.view)
-                root.StackView.view.pop()
-            return
-        }
-
-        if (localIsSpectator()) {
-            if (root.StackView.view)
-                root.StackView.view.pop()
-            return
-        }
-
-        if (AppCtrl.flightChessController.gameOver) {
-            if (root.StackView.view)
-                root.StackView.view.pop()
-            return
-        }
-
-        if (AppCtrl.networkManager.isHost) {
-            AppCtrl.flightChessController.setGameOver(2)
-        } else {
-            AppCtrl.networkManager.sendSurrender()
-        }
+        AppCtrl.returnFromFlightChessGame()
     }
 
     function boardMetrics() {
@@ -999,7 +976,7 @@ Page {
                     root.pendingMoveStart = null
                     root.moveAnimating = false
                     moveStepTimer.stop()
-                    AppCtrl.flightChessController.startNewGame()
+                    AppCtrl.restartFlightChessGame()
                     return
                 }
 

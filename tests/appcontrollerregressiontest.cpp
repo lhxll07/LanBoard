@@ -47,6 +47,7 @@ private slots:
     void remoteGuestCanSurrenderOnHostTurn();
     void finalGomokuMoveArrivesBeforeGameOver();
     void flightChessFinishIsDeferred();
+    void localFlightChessCanRestartAndReturnHome();
 
 private:
     QTemporaryDir m_settingsDirectory;
@@ -373,6 +374,23 @@ void AppControllerRegressionTest::flightChessFinishIsDeferred()
     QTRY_COMPARE_WITH_TIMEOUT(navigationSpy.count(), 1, 1000);
 
     controller.networkManager()->disconnectAll();
+}
+
+void AppControllerRegressionTest::localFlightChessCanRestartAndReturnHome()
+{
+    AppController controller;
+    controller.startLocalGame(QStringLiteral("flightchess"));
+    controller.flightChessController()->setGameOver(1);
+    QVERIFY(controller.flightChessController()->isGameOver());
+
+    controller.restartFlightChessGame();
+    QVERIFY(!controller.flightChessController()->isGameOver());
+
+    QSignalSpy navigationSpy(&controller, &AppController::navigationRequested);
+    controller.returnFromFlightChessGame();
+    QCOMPARE(navigationSpy.count(), 1);
+    QCOMPARE(navigationSpy.takeFirst().at(0).toInt(),
+             static_cast<int>(LanBoard::NavigationPage::Home));
 }
 
 QTEST_GUILESS_MAIN(AppControllerRegressionTest)

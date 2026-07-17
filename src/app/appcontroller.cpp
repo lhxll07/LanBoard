@@ -529,6 +529,50 @@ void AppController::restartDouDiZhuGame()
     m_douDiZhuController->startNewGame();
 }
 
+void AppController::restartFlightChessGame()
+{
+    if (!isCurrentGame(LanBoard::GameControllerKind::FlightChess)
+        || m_networkManager->isHost()
+        || m_networkManager->isConnected()) {
+        return;
+    }
+
+    m_flightChessController->startNewGame();
+}
+
+void AppController::returnFromFlightChessGame()
+{
+    if (!isCurrentGame(LanBoard::GameControllerKind::FlightChess))
+        return;
+
+    const bool networkRoom = m_networkManager->isHost() || m_networkManager->isConnected();
+    if (!networkRoom) {
+        m_networkManager->setDiscoveryGameInProgress(false);
+        m_flightChessController->reset();
+        emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Home));
+        return;
+    }
+
+    const LanBoard::RoomSnapshot room = currentRoomSnapshot();
+    bool localIsSpectator = false;
+    for (const LanBoard::RoomPlayerState &player : room.players) {
+        if (player.playerId == room.localPlayerId) {
+            localIsSpectator = !player.isActive();
+            break;
+        }
+    }
+
+    if (localIsSpectator || m_flightChessController->isGameOver()) {
+        emit navigationRequested(static_cast<int>(LanBoard::NavigationPage::Room));
+        return;
+    }
+
+    if (m_networkManager->isHost())
+        m_flightChessController->setGameOver(2);
+    else
+        m_networkManager->sendSurrender();
+}
+
 void AppController::refreshOnlineRooms()
 {
     m_networkManager->requestOnlineRooms(m_onlineServerHost, m_onlineServerPort);
